@@ -5,11 +5,6 @@ const required = [
   "MONGODB_URI",
   "JWT_ACCESS_SECRET",
   "JWT_REFRESH_SECRET",
-  "CLOUDINARY_CLOUD_NAME",
-  "CLOUDINARY_API_KEY",
-  "CLOUDINARY_API_SECRET",
-  "PAYSTACK_SECRET_KEY",
-  "FLUTTERWAVE_SECRET_KEY",
   "CLIENT_URL",
 ];
 
@@ -21,8 +16,25 @@ required.forEach((key) => {
   }
 });
 
+const optional = [
+  "CLOUDINARY_CLOUD_NAME",
+  "CLOUDINARY_API_KEY",
+  "CLOUDINARY_API_SECRET",
+  "PAYSTACK_SECRET_KEY",
+  "FLUTTERWAVE_SECRET_KEY",
+  "RESEND_API_KEY",
+  "NEWS_API_KEY",
+];
+
+optional.forEach((key) => {
+  if (!process.env[key]) {
+    console.warn(`Optional environment variable not set: ${key}`);
+  }
+});
+
 module.exports = {
   PORT: process.env.PORT || 5000,
+  HOST: process.env.HOST || "0.0.0.0",
   NODE_ENV: process.env.NODE_ENV || "development",
   MONGODB_URI: process.env.MONGODB_URI,
 

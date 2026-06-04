@@ -1,5 +1,5 @@
 // src/server.js
-const { PORT } = require("./config/env");
+const { HOST, PORT } = require("./config/env");
 const connectDB = require("./config/db");
 const app = require("./app");
 const cron = require("node-cron");
@@ -7,7 +7,7 @@ const cron = require("node-cron");
 const startServer = async () => {
   await connectDB();
 
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, HOST, () => {
     console.log(`\n🚀  NendPlay API running on port ${PORT}`);
     console.log(`    Environment  : ${process.env.NODE_ENV}`);
     console.log(`    Health check : http://localhost:${PORT}/health`);
