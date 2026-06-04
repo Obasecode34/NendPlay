@@ -1,0 +1,870 @@
+// src/services/media.service.js
+//
+// All media business logic lives here.
+// Upload → validate → store on Cloudinary → save to MongoDB.
+//
+// The Shorts duration check is enforced here:
+// If isShort=true and duration > 180s, the upload is rejected.
+// The duration comes from Cloudinary's upload result metadata.
+
+const Media = require("../models/Media");
+const User = require("../models/User");
+const cloudinaryService = require("./cloudinary.service");
+const bunnyService = require("./bunny.service");
+const muxService = require("./mux.service");
+const {
+  MAX_SHORT_DURATION_SECONDS,
+  VIDEO_STORAGE_PROVIDER,
+  VIDEO_FALLBACK_PROVIDER,
+  DIRECT_UPLOAD_ENABLED,
+  MAX_VIDEO_SIZE_MB,
+} = require("../config/env");
+const { getMediaCategory } = require("../middleware/upload.middleware");
+
+const parseList = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((item) => `${item}`.trim()).filter(Boolean);
+  return `${value}`.split(",").map((item) => item.trim()).filter(Boolean);
+};
+
+const parseBoolean = (value) => value === true || value === "true";
+
+class MediaService {
+  // ── Upload and create media ───────────────────────────────────────────
+  async uploadMedia({ mediaFile, thumbnailFile, body, userId }) {
+    const {
+      title,
+      description,
+      type,
+      category,
+      tags,
+      genre,
+      language,
+      country,
+      contentRating,
+      releaseStatus,
+      publishStatus,
+      homeSections,
+      isFeatured,
+      featuredRank,
+      availabilityCountries,
+      artist,
+      releaseYear,
+      isLocked,
+      isShort,
+      isLive,
+      liveScheduledAt,
+    } = body;
+
+    // 1. Determine resource type for Cloudinary
+    const mediaCategory = getMediaCategory(mediaFile.mimetype);
+    const resourceType = "video"; // Cloudinary uses "video" for both video and audio
+
+    // 2. Upload media file to Cloudinary
+    let cloudinaryResult;
+    try {
+      cloudinaryResult = await cloudinaryService.uploadMedia(mediaFile.buffer, {
+        folder: `nendplay/${mediaCategory}`,
+        resourceType,
+      });
+    } catch (err) {
+      throw { status: 500, message: `Media upload failed: ${err.message}` };
+    }
+
+    // 3. Get duration from Cloudinary result
+    const duration = cloudinaryService.getDurationFromResult(cloudinaryResult);
+
+    // 4. Enforce Shorts duration limit
+    if (isShort === "true" || isShort === true || type === "short") {
+      if (duration > MAX_SHORT_DURATION_SECONDS) {
+        // Delete the uploaded file from Cloudinary — reject it
+        await cloudinaryService.deleteFile(
+          cloudinaryResult.public_id,
+          resourceType
+        );
+        throw {
+          status: 400,
+          message: `Shorts cannot exceed 3 minutes. Your file is ${Math.ceil(duration / 60)} minutes long.`,
+        };
+      }
+    }
+
+    // 5. Upload thumbnail if provided
+    let thumbnailUrl = "";
+    let thumbnailCloudinaryId = null;
+
+    if (thumbnailFile) {
+      try {
+        const thumbResult = await cloudinaryService.uploadThumbnail(
+          thumbnailFile.buffer,
+          { folder: "nendplay/thumbnails" }
+        );
+        thumbnailUrl = thumbResult.secure_url;
+        thumbnailCloudinaryId = thumbResult.public_id;
+      } catch (err) {
+        console.error("Thumbnail upload failed:", err.message);
+        // Non-fatal — media still saved without thumbnail
+      }
+    }
+
+    // 6. Parse tags from string or array
+    const parsedTags = parseList(tags);
+    const parsedHomeSections = parseList(homeSections);
+    const parsedAvailabilityCountries = parseList(availabilityCountries);
+
+    // 7. Save to MongoDB
+    const media = await Media.create({
+      title,
+      description: description || "",
+      type: type || (isShort ? "short" : "video"),
+      category: category || "general",
+      tags: parsedTags,
+      genre: genre || "",
+      language: language || "",
+      country: country || "",
+      contentRating: contentRating || "",
+      releaseStatus: releaseStatus || "released",
+      publishStatus: publishStatus || "published",
+      homeSections: parsedHomeSections,
+      isFeatured: parseBoolean(isFeatured),
+      featuredRank: featuredRank ? parseInt(featuredRank) : 0,
+      availabilityCountries: parsedAvailabilityCountries,
+      artist: artist || "",
+      releaseYear: releaseYear ? parseInt(releaseYear) : null,
+      mediaUrl: cloudinaryResult.secure_url,
+      playbackUrl: cloudinaryResult.secure_url,
+      storageProvider: "cloudinary",
+      transcodingProvider: "cloudinary",
+      processingStatus: "ready",
+      cloudinaryPublicId: cloudinaryResult.public_id,
+      thumbnailUrl,
+      thumbnailCloudinaryId,
+      duration,
+      fileSize: cloudinaryService.getFileSizeFromResult(cloudinaryResult),
+      mimeType: mediaFile.mimetype,
+      isLocked: parseBoolean(isLocked),
+      isShort: parseBoolean(isShort) || type === "short",
+      isLive: parseBoolean(isLive),
+      liveScheduledAt: liveScheduledAt || null,
+      uploadedBy: userId,
+      isUserUpload: true,
+    });
+
+    return media;
+  }
+
+  async createUploadSession({ body, userId }) {
+    const requestedProvider = body.provider || VIDEO_STORAGE_PROVIDER || "cloudinary";
+    const providers = [
+      requestedProvider,
+      !body.provider && VIDEO_FALLBACK_PROVIDER ? VIDEO_FALLBACK_PROVIDER : null,
+    ].filter(Boolean);
+
+    let lastError = null;
+    for (const provider of providers) {
+      try {
+        return await this.createProviderUploadSession({ provider, body, userId });
+      } catch (err) {
+        lastError = err;
+        if (body.provider || provider !== requestedProvider) {
+          throw err;
+        }
+      }
+    }
+
+    if (lastError) throw lastError;
+    return this.createProviderUploadSession({ provider: requestedProvider, body, userId });
+  }
+
+  async createProviderUploadSession({ provider, body, userId }) {
+    if (provider === "bunny") {
+      const upload = await bunnyService.createDirectUpload({
+        title: body.title || "",
+      });
+      const videoId = upload.video.guid || upload.video.id;
+
+      return {
+        uploadId: videoId,
+        provider: "bunny",
+        mode: "direct",
+        status: "created",
+        maxServerUploadMb: MAX_VIDEO_SIZE_MB,
+        directUpload: {
+          uploadUrl: upload.uploadUrl,
+          method: "TUS",
+          headers: upload.headers,
+          expiresAt: upload.expiresAt,
+        },
+        asset: {
+          videoId,
+          hlsUrl: upload.hlsUrl,
+          playbackUrl: upload.playbackUrl,
+          thumbnailUrl: upload.thumbnailUrl,
+        },
+      };
+    }
+
+    if (provider === "mux") {
+      const passthrough = JSON.stringify({
+        userId,
+        title: body.title || "",
+        type: body.type || "movie",
+      });
+      const upload = await muxService.createDirectUpload({
+        passthrough,
+        corsOrigin: body.corsOrigin,
+      });
+
+      return {
+        uploadId: upload.id,
+        provider: "mux",
+        mode: "direct",
+        status: upload.status,
+        maxServerUploadMb: MAX_VIDEO_SIZE_MB,
+        directUpload: {
+          uploadUrl: upload.url,
+          method: "PUT",
+          headers: { "Content-Type": body.mimeType || "application/octet-stream" },
+          expiresAt: upload.timeout ? new Date(Date.now() + upload.timeout * 1000) : null,
+        },
+      };
+    }
+
+    return {
+      uploadId: `upload_${Date.now()}_${userId}`,
+      provider,
+      mode: DIRECT_UPLOAD_ENABLED ? "direct" : "server",
+      status: DIRECT_UPLOAD_ENABLED ? "ready" : "provider_configuration_required",
+      maxServerUploadMb: MAX_VIDEO_SIZE_MB,
+      recommended: "Use direct multipart uploads with S3/R2/Bunny/Mux for full-length movies.",
+      metadata: {
+        title: body.title || "",
+        type: body.type || "movie",
+        category: body.category || "general",
+      },
+      directUpload: DIRECT_UPLOAD_ENABLED
+        ? {
+            uploadUrl: null,
+            headers: {},
+            expiresAt: null,
+            message: "Direct upload provider is enabled but adapter credentials are not configured in this build.",
+          }
+        : null,
+    };
+  }
+
+  async registerBunnyUpload({ body, userId }) {
+    const videoId = body.directUploadId || body.videoId || body.storageKey;
+    if (!videoId) {
+      throw { status: 400, message: "directUploadId or videoId is required" };
+    }
+
+    const video = await bunnyService.getVideo(videoId);
+    const playback = bunnyService.getPlayback(videoId);
+    const processingStatus = bunnyService.getProcessingStatus(video);
+
+    const media = await this.completeExternalUpload({
+      body: {
+        ...body,
+        mediaUrl: playback.hlsUrl || body.mediaUrl || `bunny://videos/${videoId}`,
+        playbackUrl: playback.playbackUrl || body.playbackUrl || "",
+        hlsUrl: playback.hlsUrl || body.hlsUrl || "",
+        thumbnailUrl: body.thumbnailUrl || playback.thumbnailUrl || video.thumbnailUrl || "",
+        duration: video.length || video.duration || body.duration || 0,
+        storageProvider: "bunny",
+        storageKey: videoId,
+        transcodingProvider: "bunny",
+        processingStatus,
+        publishStatus: processingStatus === "ready" ? (body.publishStatus || "published") : "processing",
+      },
+      userId,
+    });
+
+    return { media, video };
+  }
+
+  async syncBunnyMedia(mediaId, userId) {
+    const media = await Media.findById(mediaId);
+    if (!media || !media.isActive) {
+      throw { status: 404, message: "Media not found" };
+    }
+    if (media.uploadedBy.toString() !== userId.toString()) {
+      throw { status: 403, message: "You can only sync your own uploads" };
+    }
+    if (media.storageProvider !== "bunny" || !media.storageKey) {
+      throw { status: 400, message: "This media is not a Bunny upload" };
+    }
+
+    const video = await bunnyService.getVideo(media.storageKey);
+    const playback = bunnyService.getPlayback(media.storageKey);
+    const processingStatus = bunnyService.getProcessingStatus(video);
+
+    media.duration = video.length || video.duration || media.duration;
+    media.playbackUrl = playback.playbackUrl || media.playbackUrl;
+    media.hlsUrl = playback.hlsUrl || media.hlsUrl;
+    media.mediaUrl = playback.hlsUrl || media.mediaUrl;
+    media.thumbnailUrl = media.thumbnailUrl || playback.thumbnailUrl;
+    media.processingStatus = processingStatus;
+    media.publishStatus = processingStatus === "ready" ? "published" : processingStatus;
+    await media.save();
+
+    return media;
+  }
+
+  async registerMuxUpload({ body, userId }) {
+    const { directUploadId } = body;
+    if (!directUploadId) {
+      throw { status: 400, message: "directUploadId is required" };
+    }
+
+    const upload = await muxService.getDirectUpload(directUploadId);
+    let asset = null;
+    if (upload.asset_id) {
+      asset = await muxService.getAsset(upload.asset_id);
+    }
+
+    const playback = asset ? muxService.getPlayback(asset.playback_ids || []) : {};
+    const media = await this.completeExternalUpload({
+      body: {
+        ...body,
+        mediaUrl: playback.hlsUrl || `mux://uploads/${directUploadId}`,
+        playbackUrl: playback.playbackUrl || "",
+        hlsUrl: playback.hlsUrl || "",
+        duration: asset?.duration || body.duration || 0,
+        storageProvider: "mux",
+        storageKey: asset?.id || upload.asset_id || directUploadId,
+        transcodingProvider: "mux",
+        processingStatus: asset?.status === "ready" ? "ready" : "processing",
+        publishStatus: asset?.status === "ready" ? (body.publishStatus || "published") : "processing",
+      },
+      userId,
+    });
+
+    return { media, upload, asset };
+  }
+
+  async syncMuxMedia(mediaId, userId) {
+    const media = await Media.findById(mediaId);
+    if (!media || !media.isActive) {
+      throw { status: 404, message: "Media not found" };
+    }
+    if (media.uploadedBy.toString() !== userId.toString()) {
+      throw { status: 403, message: "You can only sync your own uploads" };
+    }
+    if (media.storageProvider !== "mux" || !media.storageKey) {
+      throw { status: 400, message: "This media is not a Mux upload" };
+    }
+
+    const asset = await muxService.getAsset(media.storageKey);
+    const playback = muxService.getPlayback(asset.playback_ids || []);
+
+    media.duration = asset.duration || media.duration;
+    media.playbackUrl = playback.playbackUrl || media.playbackUrl;
+    media.hlsUrl = playback.hlsUrl || media.hlsUrl;
+    media.mediaUrl = playback.hlsUrl || media.mediaUrl;
+    media.processingStatus = asset.status === "ready" ? "ready" : "processing";
+    media.publishStatus = asset.status === "ready" ? "published" : "processing";
+    await media.save();
+
+    return media;
+  }
+
+  async completeExternalUpload({ body, userId }) {
+    const {
+      title,
+      description,
+      type,
+      category,
+      tags,
+      genre,
+      language,
+      country,
+      contentRating,
+      releaseStatus,
+      publishStatus,
+      homeSections,
+      isFeatured,
+      featuredRank,
+      availabilityCountries,
+      artist,
+      releaseYear,
+      isLocked,
+      isShort,
+      isLive,
+      liveScheduledAt,
+      mediaUrl,
+      playbackUrl,
+      hlsUrl,
+      thumbnailUrl,
+      duration,
+      fileSize,
+      mimeType,
+      storageProvider,
+      storageKey,
+      transcodingProvider,
+      processingStatus,
+    } = body;
+
+    if (!title || !mediaUrl) {
+      throw { status: 400, message: "Title and mediaUrl are required" };
+    }
+
+    const media = await Media.create({
+      title,
+      description: description || "",
+      type: type || "movie",
+      category: category || "general",
+      tags: parseList(tags),
+      genre: genre || "",
+      language: language || "",
+      country: country || "",
+      contentRating: contentRating || "",
+      releaseStatus: releaseStatus || "released",
+      publishStatus: publishStatus || "processing",
+      homeSections: parseList(homeSections),
+      isFeatured: parseBoolean(isFeatured),
+      featuredRank: featuredRank ? parseInt(featuredRank) : 0,
+      availabilityCountries: parseList(availabilityCountries),
+      artist: artist || "",
+      releaseYear: releaseYear ? parseInt(releaseYear) : null,
+      mediaUrl,
+      playbackUrl: playbackUrl || mediaUrl,
+      hlsUrl: hlsUrl || "",
+      thumbnailUrl: thumbnailUrl || "",
+      duration: duration ? Number(duration) : 0,
+      fileSize: fileSize ? Number(fileSize) : 0,
+      mimeType: mimeType || "video/mp4",
+      storageProvider: storageProvider || "external",
+      storageKey: storageKey || "",
+      transcodingProvider: transcodingProvider || "none",
+      processingStatus: processingStatus || "uploaded",
+      isLocked: parseBoolean(isLocked),
+      isShort: parseBoolean(isShort) || type === "short",
+      isLive: parseBoolean(isLive),
+      liveScheduledAt: liveScheduledAt || null,
+      uploadedBy: userId,
+      isUserUpload: true,
+    });
+
+    return media;
+  }
+
+  // ── Get all media with filters and pagination ─────────────────────────
+  async getAllMedia({ type, category, isLocked, isShort, isLive, language, country, homeSection, publishStatus, search, page = 1, limit = 20, sortBy = "createdAt", sortOrder = "desc" }) {
+    const query = { isActive: true };
+
+    if (type) query.type = type;
+    if (category) query.category = category;
+    if (language) query.language = new RegExp(`^${language}$`, "i");
+    if (country) query.country = new RegExp(`^${country}$`, "i");
+    if (homeSection) query.homeSections = homeSection;
+    if (publishStatus) query.publishStatus = publishStatus;
+    if (isLocked !== undefined) query.isLocked = isLocked === "true";
+    if (isShort !== undefined) query.isShort = isShort === "true";
+    if (isLive !== undefined) query.isLive = isLive === "true";
+
+    // Full-text search across title, description, tags, artist
+    if (search) {
+      query.$text = { $search: search };
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
+
+    const [media, total] = await Promise.all([
+      Media.find(query)
+        .populate("uploadedBy", "profileName username profilePic subscriberCount")
+        .sort({ [sortBy]: sortDirection })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Media.countDocuments(query),
+    ]);
+
+    return {
+      media,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    };
+  }
+
+  // ── Get single media by ID ────────────────────────────────────────────
+  async getMediaById(mediaId) {
+    const media = await Media.findById(mediaId)
+      .populate("uploadedBy", "profileName username profilePic subscriberCount");
+
+    if (!media || !media.isActive) {
+      throw { status: 404, message: "Media not found" };
+    }
+
+    // Increment view count
+    await Media.findByIdAndUpdate(mediaId, { $inc: { viewCount: 1 } });
+
+    return media;
+  }
+
+  // ── Update media ──────────────────────────────────────────────────────
+  async updateMedia(mediaId, userId, updates) {
+    const media = await Media.findById(mediaId);
+
+    if (!media || !media.isActive) {
+      throw { status: 404, message: "Media not found" };
+    }
+
+    // Only uploader can edit their own media
+    if (media.uploadedBy.toString() !== userId.toString()) {
+      throw { status: 403, message: "You can only edit your own uploads" };
+    }
+
+    const allowedUpdates = [
+      "title", "description", "category", "tags",
+      "genre", "language", "country", "contentRating",
+      "releaseStatus", "publishStatus", "homeSections", "isFeatured",
+      "featuredRank", "availabilityCountries", "artist", "releaseYear",
+      "isLocked", "liveScheduledAt", "playbackUrl", "hlsUrl",
+      "processingStatus", "processingError",
+    ];
+
+    allowedUpdates.forEach((field) => {
+      if (updates[field] !== undefined) {
+        if (["tags", "homeSections", "availabilityCountries"].includes(field)) {
+          media[field] = parseList(updates[field]);
+        } else {
+          media[field] = updates[field];
+        }
+      }
+    });
+
+    await media.save();
+    return media;
+  }
+
+  // ── Delete media ──────────────────────────────────────────────────────
+  async deleteMedia(mediaId, userId) {
+    const media = await Media.findById(mediaId);
+
+    if (!media || !media.isActive) {
+      throw { status: 404, message: "Media not found" };
+    }
+
+    if (media.uploadedBy.toString() !== userId.toString()) {
+      throw { status: 403, message: "You can only delete your own uploads" };
+    }
+
+    // Soft delete — set isActive to false
+    // Files stay on Cloudinary (saves bandwidth, recoverable)
+    // For hard delete: also call cloudinaryService.deleteFile()
+    media.isActive = false;
+    await media.save();
+
+    return { message: "Media deleted successfully" };
+  }
+
+  // ── Like / Unlike media ───────────────────────────────────────────────
+  async toggleLike(mediaId) {
+    const media = await Media.findById(mediaId);
+    if (!media || !media.isActive) {
+      throw { status: 404, message: "Media not found" };
+    }
+    await Media.findByIdAndUpdate(mediaId, { $inc: { likeCount: 1 } });
+    return { likeCount: media.likeCount + 1 };
+  }
+
+  async toggleDislike(mediaId) {
+    const media = await Media.findById(mediaId);
+    if (!media || !media.isActive) {
+      throw { status: 404, message: "Media not found" };
+    }
+    await Media.findByIdAndUpdate(mediaId, { $inc: { dislikeCount: 1 } });
+    return { dislikeCount: media.dislikeCount + 1 };
+  }
+
+  async addComment(mediaId, userId, text) {
+    const media = await Media.findById(mediaId);
+    if (!media || !media.isActive) {
+      throw { status: 404, message: "Media not found" };
+    }
+    const comment = {
+      user: userId,
+      text: text.trim(),
+    };
+    await Media.findByIdAndUpdate(mediaId, {
+      $push: { comments: comment },
+      $inc: { commentCount: 1 },
+    });
+    return {
+      commentCount: media.commentCount + 1,
+      comment,
+    };
+  }
+
+  // ── Save / unsave media ───────────────────────────────────────────────
+  async toggleSave(mediaId, userId) {
+    const media = await Media.findById(mediaId);
+    if (!media || !media.isActive) {
+      throw { status: 404, message: "Media not found" };
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      throw { status: 404, message: "User not found" };
+    }
+
+    const alreadySaved = user.savedMedia?.some((savedId) => savedId.toString() === mediaId.toString());
+    if (alreadySaved) {
+      await User.findByIdAndUpdate(userId, {
+        $pull: { savedMedia: mediaId },
+        $inc: { savedMediaCount: -1 },
+      });
+      await Media.findByIdAndUpdate(mediaId, {
+        $inc: { savedCount: -1 },
+      });
+      return {
+        saved: false,
+        message: "Removed from saved content",
+      };
+    }
+
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { savedMedia: mediaId },
+      $inc: { savedMediaCount: 1 },
+    });
+    await Media.findByIdAndUpdate(mediaId, {
+      $inc: { savedCount: 1 },
+    });
+
+    return {
+      saved: true,
+      message: "Saved to your profile",
+    };
+  }
+
+  async toggleCreatorSubscription(creatorId, userId) {
+    if (creatorId.toString() === userId.toString()) {
+      throw { status: 400, message: "You cannot subscribe to yourself" };
+    }
+
+    const [creator, user] = await Promise.all([
+      User.findById(creatorId),
+      User.findById(userId),
+    ]);
+
+    if (!creator || !creator.isActive) {
+      throw { status: 404, message: "Creator not found" };
+    }
+    if (!user) {
+      throw { status: 404, message: "User not found" };
+    }
+
+    const alreadySubscribed = user.subscribedCreators?.some(
+      (id) => id.toString() === creatorId.toString()
+    );
+
+    if (alreadySubscribed) {
+      await User.findByIdAndUpdate(userId, {
+        $pull: { subscribedCreators: creatorId },
+      });
+      await User.findByIdAndUpdate(creatorId, {
+        $inc: { subscriberCount: -1 },
+      });
+      return {
+        subscribed: false,
+        subscriberCount: Math.max((creator.subscriberCount || 0) - 1, 0),
+        message: "Unsubscribed from creator",
+      };
+    }
+
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { subscribedCreators: creatorId },
+    });
+    await User.findByIdAndUpdate(creatorId, {
+      $inc: { subscriberCount: 1 },
+    });
+
+    return {
+      subscribed: true,
+      subscriberCount: (creator.subscriberCount || 0) + 1,
+      message: "Subscribed to creator",
+    };
+  }
+
+  async remixMedia(mediaId, userId, data = {}) {
+    const source = await Media.findById(mediaId);
+    if (!source || !source.isActive) {
+      throw { status: 404, message: "Media not found" };
+    }
+
+    const remix = await Media.create({
+      title: data.title?.trim() || `Remix: ${source.title}`,
+      description: data.description?.trim() || `Remix of ${source.title}`,
+      type: "short",
+      category: source.category || "general",
+      tags: Array.from(new Set([...(source.tags || []), "remix"])),
+      genre: source.genre || "",
+      artist: source.artist || "",
+      mediaUrl: source.mediaUrl,
+      cloudinaryPublicId: source.cloudinaryPublicId,
+      thumbnailUrl: source.thumbnailUrl,
+      thumbnailCloudinaryId: source.thumbnailCloudinaryId,
+      duration: source.duration,
+      fileSize: source.fileSize,
+      mimeType: source.mimeType,
+      isLocked: false,
+      isShort: true,
+      uploadedBy: userId,
+      isUserUpload: true,
+      originalMedia: source._id,
+    });
+
+    await Media.findByIdAndUpdate(mediaId, { $inc: { remixCount: 1 } });
+    await remix.populate("uploadedBy", "profileName username profilePic subscriberCount");
+
+    return {
+      remix,
+      remixCount: (source.remixCount || 0) + 1,
+      message: "Remix created",
+    };
+  }
+
+  async getSavedMedia(userId, page = 1, limit = 20) {
+    const user = await User.findById(userId).select("savedMedia");
+    if (!user) {
+      throw { status: 404, message: "User not found" };
+    }
+
+    const savedIds = user.savedMedia || [];
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [media, total] = await Promise.all([
+      Media.find({ _id: { $in: savedIds }, isActive: true })
+        .populate("uploadedBy", "profileName username profilePic subscriberCount")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Media.countDocuments({ _id: { $in: savedIds }, isActive: true }),
+    ]);
+
+    return {
+      media,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    };
+  }
+
+  // ── Get media by uploader ─────────────────────────────────────────────
+  async getMediaByUser(userId, page = 1, limit = 20) {
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [media, total] = await Promise.all([
+      Media.find({ uploadedBy: userId, isActive: true })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Media.countDocuments({ uploadedBy: userId, isActive: true }),
+    ]);
+
+    return {
+      media,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    };
+  }
+
+  // ── Get Shorts (max 3 min videos) ────────────────────────────────────
+  async getShorts(page = 1, limit = 20) {
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [media, total] = await Promise.all([
+      Media.find({ isShort: true, isActive: true })
+        .populate("uploadedBy", "profileName username profilePic subscriberCount")
+        .populate("comments.user", "username profilePic")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Media.countDocuments({ isShort: true, isActive: true }),
+    ]);
+
+    return {
+      media,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    };
+  }
+
+  async getSubscribedShorts(userId, page = 1, limit = 20) {
+    const user = await User.findById(userId).select("subscribedCreators");
+    if (!user) {
+      throw { status: 404, message: "User not found" };
+    }
+
+    const creatorIds = user.subscribedCreators || [];
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [media, total] = await Promise.all([
+      Media.find({ isShort: true, isActive: true, uploadedBy: { $in: creatorIds } })
+        .populate("uploadedBy", "profileName username profilePic subscriberCount")
+        .populate("comments.user", "username profilePic")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Media.countDocuments({ isShort: true, isActive: true, uploadedBy: { $in: creatorIds } }),
+    ]);
+
+    return {
+      media,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    };
+  }
+
+  // ── Get Live Events ───────────────────────────────────────────────────
+  async getLiveEvents(page = 1, limit = 20) {
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [media, total] = await Promise.all([
+      Media.find({ isLive: true, isActive: true })
+        .populate("uploadedBy", "profileName username profilePic subscriberCount")
+        .sort({ liveScheduledAt: 1 }) // earliest first
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Media.countDocuments({ isLive: true, isActive: true }),
+    ]);
+
+    return {
+      media,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    };
+  }
+}
+
+module.exports = new MediaService();
