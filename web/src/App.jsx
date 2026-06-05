@@ -1,0 +1,72 @@
+import React, { useEffect } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import useAuthStore from './stores/authStore'
+import useThemeStore from './stores/themeStore'
+
+// Layout
+import MainLayout from './components/layout/MainLayout'
+
+// Pages
+import LandingPage from './pages/LandingPage'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import HomePage from './pages/HomePage'
+import NovelHubPage from './pages/NovelHubPage'
+import ShortsPage from './pages/ShortsPage'
+import DownloadsPage from './pages/DownloadsPage'
+import ProfilePage from './pages/ProfilePage'
+import MediaPlayerPage from './pages/MediaPlayerPage'
+import SubscriptionPage from './pages/SubscriptionPage'
+import AdvertisePage from './pages/AdvertisePage'
+import ReferralPage from './pages/ReferralPage'
+import RewardsPage from './pages/RewardsPage'
+import AdminDashboardPage from './pages/AdminDashboardPage'
+import NotFoundPage from './pages/NotFoundPage'
+
+// Public route (redirect to home if already logged in)
+const PublicRoute = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuthStore()
+  if (isLoading) return null
+  return isAuthenticated ? <Navigate to="/home" replace /> : children
+}
+
+export default function App() {
+  const { initAuth } = useAuthStore()
+  const { activeTheme } = useThemeStore()
+
+  // Check auth on app load
+  useEffect(() => {
+    initAuth()
+  }, [])
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', activeTheme)
+  }, [activeTheme])
+
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
+      <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+      <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+
+      {/* App routes inside MainLayout. Guests can browse the app. */}
+      <Route path="/" element={<MainLayout />}>
+        <Route path="home" element={<HomePage />} />
+        <Route path="novelhub" element={<NovelHubPage />} />
+        <Route path="shorts" element={<ShortsPage />} />
+        <Route path="downloads" element={<DownloadsPage />} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="watch/:id" element={<MediaPlayerPage />} />
+        <Route path="subscribe" element={<SubscriptionPage />} />
+        <Route path="advertise" element={<AdvertisePage />} />
+        <Route path="referrals" element={<ReferralPage />} />
+        <Route path="rewards" element={<RewardsPage />} />
+        <Route path="admin" element={<AdminDashboardPage />} />
+      </Route>
+
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  )
+}

@@ -1,0 +1,631 @@
+import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import {
+  RiAdvertisementLine,
+  RiBookOpenLine,
+  RiDashboardLine,
+  RiDownloadLine,
+  RiDeleteBinLine,
+  RiEyeLine,
+  RiFilmLine,
+  RiGiftLine,
+  RiMailLine,
+  RiShieldUserLine,
+  RiUserLine,
+  RiVipCrownLine,
+} from 'react-icons/ri'
+import useAuthStore from '../stores/authStore'
+import { adminService } from '../services/index'
+
+const tabs = [
+  { id: 'overview', label: 'Overview', icon: RiDashboardLine },
+  { id: 'users', label: 'Users', icon: RiUserLine },
+  { id: 'media', label: 'Media', icon: RiFilmLine },
+  { id: 'documents', label: 'NovelHub', icon: RiBookOpenLine },
+  { id: 'ads', label: 'Ads', icon: RiAdvertisementLine },
+  { id: 'subscriptions', label: 'Subscriptions', icon: RiVipCrownLine },
+  { id: 'downloads', label: 'Downloads', icon: RiDownloadLine },
+  { id: 'rewards', label: 'Rewards', icon: RiGiftLine },
+]
+
+const badgeColors = {
+  active: '#34D399',
+  published: '#34D399',
+  pending_review: '#FBBF24',
+  pending_payment: '#FBBF24',
+  draft: '#A78BFA',
+  paused: '#60A5FA',
+  archived: '#9CA3AF',
+  inactive: '#EF4444',
+  rejected: '#EF4444',
+  failed: '#EF4444',
+}
+
+function Badge({ children }) {
+  const key = String(children || '').toLowerCase()
+  return (
+    <span className="px-2 py-1 rounded-lg text-xs font-black"
+      style={{ background: `${badgeColors[key] || 'var(--color-primary)'}22`, color: badgeColors[key] || 'var(--color-primary)' }}>
+      {children}
+    </span>
+  )
+}
+
+function StatCard({ label, value, icon: Icon }) {
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{label}</p>
+          <p className="text-3xl font-black mt-2" style={{ color: 'var(--color-text)' }}>{value}</p>
+        </div>
+        <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+          style={{ background: 'var(--color-surface-high)', color: 'var(--color-primary)' }}>
+          <Icon className="text-2xl" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TableShell({ title, children, search, setSearch, filters }) {
+  return (
+    <div className="card overflow-hidden">
+      <div className="p-4 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
+        <h2 className="font-display font-black text-xl" style={{ color: 'var(--color-text)' }}>{title}</h2>
+        <div className="flex flex-wrap gap-2">
+          <input
+            className="input-base py-2 min-w-64"
+            placeholder="Search..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          {filters}
+        </div>
+      </div>
+      <div className="overflow-x-auto">{children}</div>
+    </div>
+  )
+}
+
+function DataTable({ columns, rows, renderActions }) {
+  return (
+    <table className="w-full text-left text-sm">
+      <thead>
+        <tr style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>
+          {columns.map((column) => <th key={column.key} className="px-4 py-3 font-black">{column.label}</th>)}
+          {renderActions && <th className="px-4 py-3 font-black">Actions</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row._id || row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+            {columns.map((column) => (
+              <td key={column.key} className="px-4 py-3 align-top" style={{ color: 'var(--color-text)' }}>
+                {column.render ? column.render(row) : row[column.key]}
+              </td>
+            ))}
+            {renderActions && <td className="px-4 py-3 align-top">{renderActions(row)}</td>}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+export default function AdminDashboardPage() {
+  const navigate = useNavigate()
+  const { user, isAuthenticated, updateUser } = useAuthStore()
+  const [activeTab, setActiveTab] = useState('overview')
+  const [dashboard, setDashboard] = useState(null)
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('')
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState(null)
+  const [selectedUserDetails, setSelectedUserDetails] = useState(null)
+  const [messageTarget, setMessageTarget] = useState(null)
+  const [messageForm, setMessageForm] = useState({ subject: '', message: '' })
+  const [detailsLoading, setDetailsLoading] = useState(false)
+
+  const isAdmin = ['admin', 'super_admin'].includes(user?.role)
+  const isSuperAdmin = user?.role === 'super_admin'
+  const debouncedSearch = useDebouncedValue(search, 350)
+
+  useEffect(() => {
+    if (!isAuthenticated) navigate('/login')
+    else if (!isAdmin) navigate('/home')
+  }, [isAuthenticated, isAdmin, navigate])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    if (activeTab === 'overview') loadDashboard()
+    else loadTable(1)
+  }, [activeTab, isAdmin, status, debouncedSearch])
+
+  const loadDashboard = async () => {
+    setLoading(true)
+    try {
+      const res = await adminService.getDashboard()
+      setDashboard(res.data.data)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Admin dashboard failed to load')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const endpointForTab = {
+    users: adminService.getUsers,
+    media: adminService.getMedia,
+    documents: adminService.getDocuments,
+    ads: adminService.getAds,
+    subscriptions: adminService.getSubscriptions,
+    downloads: adminService.getDownloads,
+    rewards: adminService.getRewards,
+  }
+
+  const dataKeyForTab = {
+    users: 'users',
+    media: 'media',
+    documents: 'documents',
+    ads: 'ads',
+    subscriptions: 'subscriptions',
+    downloads: 'downloads',
+    rewards: 'rewards',
+  }
+
+  const loadTable = async (nextPage = page) => {
+    setLoading(true)
+    try {
+      const res = await endpointForTab[activeTab]({
+        page: nextPage,
+        limit: 25,
+        search: debouncedSearch || undefined,
+        status: status || undefined,
+      })
+      setRows(res.data.data[dataKeyForTab[activeTab]] || [])
+      setPagination(res.data.data.pagination)
+      setPage(nextPage)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not load admin table')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const patchAndReload = async (label, action) => {
+    try {
+      const res = await action()
+      if (res?.data?.data?.user?.id === user?.id) updateUser(res.data.data.user)
+      toast.success(label)
+      if (activeTab === 'overview') loadDashboard()
+      else loadTable()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Admin action failed')
+    }
+  }
+
+  const viewUserDetails = async (row) => {
+    if (!isSuperAdmin) return
+    setDetailsLoading(true)
+    try {
+      const res = await adminService.getUserDetails(row._id)
+      setSelectedUserDetails(res.data.data)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not load user details')
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
+
+  const confirmDelete = (message, action) => {
+    if (!window.confirm(message)) return
+    patchAndReload('Deleted successfully', action)
+  }
+
+  const openMessageModal = (row) => {
+    setMessageTarget(row)
+    setMessageForm({ subject: '', message: '' })
+  }
+
+  const sendUserMessage = async () => {
+    if (!messageTarget) return
+    if (!messageForm.subject.trim() || !messageForm.message.trim()) {
+      toast.error('Enter a subject and message')
+      return
+    }
+
+    try {
+      const res = await adminService.sendUserEmail(messageTarget._id, {
+        subject: messageForm.subject.trim(),
+        message: messageForm.message.trim(),
+      })
+      const sent = res.data?.data?.sent
+      toast.success(sent ? 'Email sent' : 'Message logged in development mode')
+      setMessageTarget(null)
+      setMessageForm({ subject: '', message: '' })
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not send message')
+    }
+  }
+
+  const columns = useMemo(() => {
+    if (activeTab === 'users') return [
+      { key: 'name', label: 'User', render: (row) => <div><p className="font-bold">{row.profileName || row.username || 'User'}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.email || row.username}</p></div> },
+      { key: 'role', label: 'Role', render: (row) => <Badge>{row.role || 'user'}</Badge> },
+      { key: 'isActive', label: 'Status', render: (row) => <Badge>{row.isActive ? 'active' : 'inactive'}</Badge> },
+      { key: 'subscriptionPlan', label: 'Plan', render: (row) => row.subscriptionPlan || 'none' },
+      { key: 'createdAt', label: 'Joined', render: (row) => new Date(row.createdAt).toLocaleDateString() },
+    ]
+    if (activeTab === 'media') return [
+      { key: 'title', label: 'Title', render: (row) => <div><p className="font-bold max-w-sm truncate">{row.title}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.type} · {row.category}</p></div> },
+      { key: 'publishStatus', label: 'Publish', render: (row) => <Badge>{row.publishStatus}</Badge> },
+      { key: 'isActive', label: 'Status', render: (row) => <Badge>{row.isActive ? 'active' : 'inactive'}</Badge> },
+      { key: 'viewCount', label: 'Views' },
+      { key: 'createdAt', label: 'Created', render: (row) => new Date(row.createdAt).toLocaleDateString() },
+    ]
+    if (activeTab === 'documents') return [
+      { key: 'title', label: 'Document', render: (row) => <div><p className="font-bold max-w-sm truncate">{row.title}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.fileType} · {row.genre}</p></div> },
+      { key: 'author', label: 'Author' },
+      { key: 'isActive', label: 'Status', render: (row) => <Badge>{row.isActive ? 'active' : 'inactive'}</Badge> },
+      { key: 'downloadCount', label: 'Downloads' },
+      { key: 'createdAt', label: 'Created', render: (row) => new Date(row.createdAt).toLocaleDateString() },
+    ]
+    if (activeTab === 'ads') return [
+      { key: 'title', label: 'Ad', render: (row) => <div><p className="font-bold max-w-sm truncate">{row.title}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.adType} · {row.placement}</p></div> },
+      { key: 'advertiserName', label: 'Advertiser' },
+      { key: 'status', label: 'Status', render: (row) => <Badge>{row.status}</Badge> },
+      { key: 'impressions', label: 'Views' },
+      { key: 'clicks', label: 'Clicks' },
+    ]
+    if (activeTab === 'subscriptions') return [
+      { key: 'userId', label: 'User', render: (row) => row.userId?.email || row.userId?.username || 'User' },
+      { key: 'plan', label: 'Plan', render: (row) => <Badge>{row.plan}</Badge> },
+      { key: 'status', label: 'Status', render: (row) => <Badge>{row.status}</Badge> },
+      { key: 'priceNaira', label: 'Amount', render: (row) => `₦${Number(row.priceNaira || 0).toLocaleString()}` },
+      { key: 'expiryDate', label: 'Expires', render: (row) => row.expiryDate ? new Date(row.expiryDate).toLocaleDateString() : '-' },
+    ]
+    if (activeTab === 'downloads') return [
+      { key: 'userId', label: 'User', render: (row) => row.userId?.email || row.userId?.username || 'User' },
+      { key: 'contentSnapshot', label: 'Content', render: (row) => row.contentSnapshot?.title || row.contentType },
+      { key: 'platform', label: 'Platform' },
+      { key: 'status', label: 'Status', render: (row) => <Badge>{row.status}</Badge> },
+      { key: 'createdAt', label: 'Created', render: (row) => new Date(row.createdAt).toLocaleDateString() },
+    ]
+    return [
+      { key: 'userId', label: 'User', render: (row) => row.userId?.email || row.userId?.username || 'User' },
+      { key: 'type', label: 'Type', render: (row) => <Badge>{row.type}</Badge> },
+      { key: 'source', label: 'Source' },
+      { key: 'coins', label: 'Coins', render: (row) => row.coins > 0 ? `+${row.coins}` : row.coins },
+      { key: 'createdAt', label: 'Created', render: (row) => new Date(row.createdAt).toLocaleDateString() },
+    ]
+  }, [activeTab])
+
+  const renderActions = (row) => {
+    if (activeTab === 'users') {
+      return (
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('User status updated', () => adminService.updateUser(row._id, { isActive: !row.isActive }))}>
+            {row.isActive ? 'Deactivate' : 'Activate'}
+          </button>
+          <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1" onClick={() => openMessageModal(row)}>
+            <RiMailLine /> Message
+          </button>
+          {isSuperAdmin && (
+            <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1" onClick={() => viewUserDetails(row)}>
+              <RiEyeLine /> Details
+            </button>
+          )}
+          {isSuperAdmin && row.role !== 'super_admin' && (
+            <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Admin role updated', () => adminService.updateUser(row._id, { role: row.role === 'admin' ? 'user' : 'admin', adminPermissions: dashboard?.permissions || [] }))}>
+              {row.role === 'admin' ? 'Remove Admin' : 'Make Admin'}
+            </button>
+          )}
+          {isSuperAdmin && row.id !== user?.id && row._id !== user?.id && (
+            <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1"
+              style={{ color: '#EF4444' }}
+              onClick={() => confirmDelete(`Permanently delete ${row.email || row.username || 'this user'}? This cannot be undone.`, () => adminService.deleteUser(row._id))}>
+              <RiDeleteBinLine /> Delete
+            </button>
+          )}
+        </div>
+      )
+    }
+    if (activeTab === 'media') {
+      return (
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media published', () => adminService.updateMedia(row._id, { publishStatus: 'published', isActive: true }))}>Publish</button>
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media archived', () => adminService.updateMedia(row._id, { publishStatus: 'archived', isActive: false }))}>Archive</button>
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Feature updated', () => adminService.updateMedia(row._id, { isFeatured: !row.isFeatured }))}>{row.isFeatured ? 'Unfeature' : 'Feature'}</button>
+          {isSuperAdmin && (
+            <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1"
+              style={{ color: '#EF4444' }}
+              onClick={() => confirmDelete(`Permanently delete media "${row.title}"? This cannot be undone.`, () => adminService.deleteMedia(row._id))}>
+              <RiDeleteBinLine /> Delete
+            </button>
+          )}
+        </div>
+      )
+    }
+    if (activeTab === 'documents') {
+      return (
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Document status updated', () => adminService.updateDocument(row._id, { isActive: !row.isActive }))}>{row.isActive ? 'Hide' : 'Restore'}</button>
+          {isSuperAdmin && (
+            <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1"
+              style={{ color: '#EF4444' }}
+              onClick={() => confirmDelete(`Permanently delete document "${row.title}"? This cannot be undone.`, () => adminService.deleteDocument(row._id))}>
+              <RiDeleteBinLine /> Delete
+            </button>
+          )}
+        </div>
+      )
+    }
+    if (activeTab === 'ads') {
+      return (
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Ad approved', () => adminService.updateAd(row._id, { status: 'active', durationDays: row.durationDays || 1 }))}>Approve</button>
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Ad paused', () => adminService.updateAd(row._id, { status: 'paused' }))}>Pause</button>
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Ad rejected', () => adminService.updateAd(row._id, { status: 'rejected', rejectionReason: 'Rejected by admin review' }))}>Reject</button>
+        </div>
+      )
+    }
+    return null
+  }
+
+  if (!isAuthenticated || !isAdmin) return null
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+          style={{ background: 'var(--color-surface-high)', color: 'var(--color-primary)' }}>
+          <RiShieldUserLine className="text-2xl" />
+        </div>
+        <div>
+          <h1 className="font-display font-black text-3xl gradient-text">Admin Dashboard</h1>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Full NendPlay operations control center</p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {tabs.map(({ id, label, icon: Icon }) => (
+          <button key={id} onClick={() => { setActiveTab(id); setSearch(''); setStatus(''); setPage(1) }}
+            className="px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2"
+            style={{
+              background: activeTab === id ? 'var(--color-primary)' : 'var(--color-surface)',
+              color: activeTab === id ? '#fff' : 'var(--color-text-muted)',
+              border: '1px solid var(--color-border)',
+            }}>
+            <Icon /> {label}
+          </button>
+        ))}
+      </div>
+
+      {loading && <div className="grid grid-cols-1 md:grid-cols-4 gap-4">{[...Array(8)].map((_, i) => <div key={i} className="skeleton h-28 rounded-2xl" />)}</div>}
+      {detailsLoading && <div className="text-sm mb-4" style={{ color: 'var(--color-text-muted)' }}>Loading user details...</div>}
+
+      {!loading && activeTab === 'overview' && dashboard && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <StatCard label="Users" value={dashboard.stats.totalUsers} icon={RiUserLine} />
+            <StatCard label="Media" value={dashboard.stats.totalMedia} icon={RiFilmLine} />
+            <StatCard label="NovelHub Docs" value={dashboard.stats.totalDocuments} icon={RiBookOpenLine} />
+            <StatCard label="Revenue" value={`₦${Number(dashboard.stats.revenueNaira || 0).toLocaleString()}`} icon={RiVipCrownLine} />
+            <StatCard label="Pending Ads" value={dashboard.stats.pendingAds} icon={RiAdvertisementLine} />
+            <StatCard label="Active Subs" value={dashboard.stats.activeSubscriptions} icon={RiVipCrownLine} />
+            <StatCard label="Downloads" value={dashboard.stats.downloads} icon={RiDownloadLine} />
+            <StatCard label="Reward Events" value={dashboard.stats.rewardEvents} icon={RiGiftLine} />
+          </div>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="card p-5">
+              <h2 className="font-black mb-3" style={{ color: 'var(--color-text)' }}>Recent Users</h2>
+              {dashboard.recentUsers.map((item) => <p key={item._id} className="py-2 text-sm" style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>{item.email || item.username || item.profileName} · {item.role}</p>)}
+            </div>
+            <div className="card p-5">
+              <h2 className="font-black mb-3" style={{ color: 'var(--color-text)' }}>Pending Ad Reviews</h2>
+              {dashboard.pendingReviewAds.length === 0 ? <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No pending ads.</p> : dashboard.pendingReviewAds.map((item) => <p key={item._id} className="py-2 text-sm" style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>{item.title} · {item.advertiserName}</p>)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!loading && activeTab !== 'overview' && (
+        <div className="space-y-4">
+          <TableShell
+            title={tabs.find((tab) => tab.id === activeTab)?.label}
+            search={search}
+            setSearch={setSearch}
+            filters={
+              <select className="input-base py-2" value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="">All status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="pending_review">Pending Review</option>
+                <option value="published">Published</option>
+                <option value="archived">Archived</option>
+                <option value="failed">Failed</option>
+              </select>
+            }>
+            <DataTable columns={columns} rows={rows} renderActions={['users', 'media', 'documents', 'ads'].includes(activeTab) ? renderActions : null} />
+          </TableShell>
+          {pagination && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Page {pagination.page} of {pagination.pages} · {pagination.total} total</p>
+              <div className="flex gap-2">
+                <button className="btn-ghost px-4 py-2 text-sm" disabled={page <= 1} onClick={() => loadTable(page - 1)}>Previous</button>
+                <button className="btn-ghost px-4 py-2 text-sm" disabled={page >= pagination.pages} onClick={() => loadTable(page + 1)}>Next</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedUserDetails && (
+        <UserDetailsModal
+          details={selectedUserDetails}
+          onClose={() => setSelectedUserDetails(null)}
+        />
+      )}
+
+      {messageTarget && (
+        <MessageUserModal
+          user={messageTarget}
+          form={messageForm}
+          setForm={setMessageForm}
+          onClose={() => setMessageTarget(null)}
+          onSend={sendUserMessage}
+        />
+      )}
+    </div>
+  )
+}
+
+function MessageUserModal({ user, form, setForm, onClose, onSend }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.72)' }}>
+      <div className="card w-full max-w-xl">
+        <div className="p-5 flex items-start justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <div>
+            <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>
+              Message User
+            </h2>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              {user.profileName || user.username || 'User'} · {user.email || 'No email'}
+            </p>
+          </div>
+          <button onClick={onClose} className="btn-ghost px-4 py-2 text-sm">Close</button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {!user.email && (
+            <div className="rounded-xl p-3 text-sm" style={{ background: 'rgba(239,68,68,0.12)', color: '#EF4444' }}>
+              This user does not have an email address, so a message cannot be sent.
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Subject</label>
+            <input
+              className="input-base"
+              maxLength={150}
+              value={form.subject}
+              onChange={(event) => setForm({ ...form, subject: event.target.value })}
+              placeholder="Message subject"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Message</label>
+            <textarea
+              className="input-base min-h-44 resize-y"
+              maxLength={5000}
+              value={form.message}
+              onChange={(event) => setForm({ ...form, message: event.target.value })}
+              placeholder="Write the email message..."
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} className="btn-ghost px-4 py-2 text-sm">Cancel</button>
+            <button onClick={onSend} disabled={!user.email} className="btn-primary px-4 py-2 text-sm flex items-center gap-2">
+              <RiMailLine /> Send Email
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function UserDetailsModal({ details, onClose }) {
+  const { user, stats } = details
+  const fields = Object.entries(user || {}).filter(([key]) => !['_id', '__v'].includes(key))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.72)' }}>
+      <div className="card w-full max-w-5xl max-h-[88vh] overflow-y-auto">
+        <div className="p-5 flex items-start justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <div>
+            <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>
+              {user.profileName || user.username || user.email || 'User'} Details
+            </h2>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{user.email || user.username || user._id}</p>
+          </div>
+          <button onClick={onClose} className="btn-ghost px-4 py-2 text-sm">Close</button>
+        </div>
+
+        <div className="p-5 space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {Object.entries(stats || {}).map(([key, value]) => (
+              <div key={key} className="rounded-2xl p-4" style={{ background: 'var(--color-surface-high)' }}>
+                <p className="text-xs font-black uppercase" style={{ color: 'var(--color-text-muted)' }}>{key.replace(/([A-Z])/g, ' $1')}</p>
+                <p className="text-2xl font-black mt-1" style={{ color: 'var(--color-text)' }}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <h3 className="font-black mb-3" style={{ color: 'var(--color-text)' }}>Profile Record</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {fields.map(([key, value]) => (
+                <div key={key} className="rounded-xl p-3" style={{ background: 'var(--color-surface-high)' }}>
+                  <p className="text-xs font-black uppercase" style={{ color: 'var(--color-text-muted)' }}>{key}</p>
+                  <p className="text-sm break-words" style={{ color: 'var(--color-text)' }}>
+                    {formatDetailValue(value)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <RelatedList title="Recent Media" items={details.recentMedia} primaryKey="title" />
+          <RelatedList title="Recent Documents" items={details.recentDocuments} primaryKey="title" />
+          <RelatedList title="Recent Subscriptions" items={details.recentSubscriptions} primaryKey="plan" />
+          <RelatedList title="Recent Downloads" items={details.recentDownloads} primaryKey="contentType" />
+          <RelatedList title="Recent Rewards" items={details.recentRewards} primaryKey="type" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RelatedList({ title, items = [], primaryKey }) {
+  return (
+    <div>
+      <h3 className="font-black mb-3" style={{ color: 'var(--color-text)' }}>{title}</h3>
+      {items.length === 0 ? (
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No records.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {items.map((item) => (
+            <div key={item._id} className="rounded-xl p-3" style={{ background: 'var(--color-surface-high)' }}>
+              <p className="font-bold" style={{ color: 'var(--color-text)' }}>{item[primaryKey] || item._id}</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{formatDetailValue(item)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formatDetailValue(value) {
+  if (value === null || value === undefined || value === '') return '-'
+  if (value instanceof Date) return value.toLocaleString()
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+function useDebouncedValue(value, delay) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(id)
+  }, [value, delay])
+  return debounced
+}

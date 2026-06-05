@@ -1,0 +1,294 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Theme Definitions ─────────────────────────────────────────────────── */
+/* Each theme sets CSS variables consumed by Tailwind's custom colors */
+
+[data-theme="midnight"] {
+  --color-bg:           #07071A;
+  --color-bg-deep:      #04040F;
+  --color-surface:      #0F0F2E;
+  --color-surface-high: #181838;
+  --color-border:       rgba(124, 58, 237, 0.2);
+  --color-primary:      #7C3AED;
+  --color-secondary:    #4F46E5;
+  --color-accent:       #A78BFA;
+  --color-text:         #F1F0FF;
+  --color-text-muted:   #6B6A8A;
+  --glow-color:         rgba(124, 58, 237, 0.4);
+  --gradient-hero:      linear-gradient(135deg, #07071A 0%, #1a0a3e 50%, #07071A 100%);
+}
+
+[data-theme="ocean"] {
+  --color-bg:           #020B18;
+  --color-bg-deep:      #010810;
+  --color-surface:      #061628;
+  --color-surface-high: #0A1F38;
+  --color-border:       rgba(14, 165, 233, 0.2);
+  --color-primary:      #0EA5E9;
+  --color-secondary:    #0284C7;
+  --color-accent:       #38BDF8;
+  --color-text:         #F0F9FF;
+  --color-text-muted:   #4A6A82;
+  --glow-color:         rgba(14, 165, 233, 0.4);
+  --gradient-hero:      linear-gradient(135deg, #020B18 0%, #03213a 50%, #020B18 100%);
+}
+
+[data-theme="neon"] {
+  --color-bg:           #080010;
+  --color-bg-deep:      #040008;
+  --color-surface:      #100018;
+  --color-surface-high: #180024;
+  --color-border:       rgba(236, 72, 153, 0.2);
+  --color-primary:      #EC4899;
+  --color-secondary:    #DB2777;
+  --color-accent:       #F472B6;
+  --color-text:         #FFF0F8;
+  --color-text-muted:   #7A4A62;
+  --glow-color:         rgba(236, 72, 153, 0.4);
+  --gradient-hero:      linear-gradient(135deg, #080010 0%, #280020 50%, #080010 100%);
+}
+
+[data-theme="forest"] {
+  --color-bg:           #020F08;
+  --color-bg-deep:      #010804;
+  --color-surface:      #041A0C;
+  --color-surface-high: #072414;
+  --color-border:       rgba(16, 185, 129, 0.2);
+  --color-primary:      #10B981;
+  --color-secondary:    #059669;
+  --color-accent:       #34D399;
+  --color-text:         #F0FFF8;
+  --color-text-muted:   #3A6A52;
+  --glow-color:         rgba(16, 185, 129, 0.4);
+  --gradient-hero:      linear-gradient(135deg, #020F08 0%, #062A14 50%, #020F08 100%);
+}
+
+[data-theme="solar"] {
+  --color-bg:           #FFFBF0;
+  --color-bg-deep:      #FFF8E6;
+  --color-surface:      #FFF3D6;
+  --color-surface-high: #FFEDC0;
+  --color-border:       rgba(245, 158, 11, 0.25);
+  --color-primary:      #F59E0B;
+  --color-secondary:    #D97706;
+  --color-accent:       #FBBF24;
+  --color-text:         #1A1200;
+  --color-text-muted:   #8A7040;
+  --glow-color:         rgba(245, 158, 11, 0.3);
+  --gradient-hero:      linear-gradient(135deg, #FFFBF0 0%, #FFF0C0 50%, #FFFBF0 100%);
+}
+
+[data-theme="arctic"] {
+  --color-bg:           #F0F4FF;
+  --color-bg-deep:      #E8EEFF;
+  --color-surface:      #FFFFFF;
+  --color-surface-high: #F8FAFF;
+  --color-border:       rgba(99, 102, 241, 0.2);
+  --color-primary:      #6366F1;
+  --color-secondary:    #4F46E5;
+  --color-accent:       #818CF8;
+  --color-text:         #0F0F2E;
+  --color-text-muted:   #6B7280;
+  --glow-color:         rgba(99, 102, 241, 0.25);
+  --gradient-hero:      linear-gradient(135deg, #F0F4FF 0%, #E0E8FF 50%, #F0F4FF 100%);
+}
+
+/* ── Base Styles ────────────────────────────────────────────────────────── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-primary); border-radius: 2px; }
+
+/* ── Glass Effect ──────────────────────────────────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border);
+}
+
+/* ── Glow Effects ──────────────────────────────────────────────────────── */
+.glow {
+  box-shadow: 0 0 20px var(--glow-color);
+}
+
+.glow-text {
+  text-shadow: 0 0 20px var(--glow-color);
+}
+
+.glow-border {
+  border: 1px solid var(--color-primary);
+  box-shadow: 0 0 15px var(--glow-color), inset 0 0 15px rgba(255,255,255,0.02);
+}
+
+/* ── Gradient Text ─────────────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Shimmer Skeleton ──────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 25%,
+    var(--color-surface-high) 50%,
+    var(--color-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* ── Button Base ───────────────────────────────────────────────────────── */
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 20px var(--glow-color);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px var(--glow-color);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-ghost:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(255,255,255,0.03);
+}
+
+/* ── Input Base ────────────────────────────────────────────────────────── */
+.input-base {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: var(--color-text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  width: 100%;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.input-base:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--glow-color);
+}
+
+.input-base::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* ── Card ──────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px var(--glow-color);
+}
+
+/* ── Media Thumbnail ───────────────────────────────────────────────────── */
+.thumbnail-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.group:hover .thumbnail-overlay {
+  opacity: 1;
+}
+
+/* ── Page transition ───────────────────────────────────────────────────── */
+.page-enter {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+/* ── Noise texture overlay ─────────────────────────────────────────────── */
+.noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+/* ── Video player overrides ────────────────────────────────────────────── */
+.react-player {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* ── Hide scrollbar but keep scroll ───────────────────────────────────── */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }
