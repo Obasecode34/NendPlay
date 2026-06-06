@@ -28,6 +28,7 @@ const parseList = (value) => {
 };
 
 const parseBoolean = (value) => value === true || value === "true";
+const isAdminUser = (user = {}) => ["admin", "super_admin"].includes(user.role);
 
 const LICENSE_TYPES = new Set([
   "unknown",
@@ -73,7 +74,29 @@ const parseRightsMetadata = (body = {}) => {
 
 class MediaService {
   // ── Upload and create media ───────────────────────────────────────────
-  async uploadMedia({ mediaFile, thumbnailFile, body, userId }) {
+  getInitialReviewState(body = {}, user = {}) {
+    const adminUpload = isAdminUser(user);
+    const requestedStatus = body.publishStatus;
+
+    if (adminUpload && requestedStatus) {
+      return {
+        publishStatus: requestedStatus,
+        reviewStatus: requestedStatus === "published" ? "approved" : requestedStatus === "rejected" ? "rejected" : "pending",
+        reviewedBy: requestedStatus === "published" || requestedStatus === "rejected" ? user.userId || user.id : null,
+        reviewedAt: requestedStatus === "published" || requestedStatus === "rejected" ? new Date() : null,
+      };
+    }
+
+    return {
+      publishStatus: "pending_review",
+      reviewStatus: "pending",
+      reviewedBy: null,
+      reviewedAt: null,
+    };
+  }
+
+  // â”€â”€ Upload and create media â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  async uploadMedia({ mediaFile, thumbnailFile, body, userId, user }) {
     const {
       title,
       description,
@@ -164,6 +187,7 @@ class MediaService {
     const parsedHomeSections = parseList(homeSections);
     const parsedAvailabilityCountries = parseList(availabilityCountries);
     const rightsMetadata = parseRightsMetadata(body);
+    const reviewState = this.getInitialReviewState(body, user);
 
     // 7. Save to MongoDB
     const media = await Media.create({
@@ -177,7 +201,10 @@ class MediaService {
       country: country || "",
       contentRating: contentRating || "",
       releaseStatus: releaseStatus || "released",
-      publishStatus: publishStatus || "published",
+      publishStatus: reviewState.publishStatus,
+      reviewStatus: reviewState.reviewStatus,
+      reviewedBy: reviewState.reviewedBy,
+      reviewedAt: reviewState.reviewedAt,
       homeSections: parsedHomeSections,
       isFeatured: parseBoolean(isFeatured),
       featuredRank: featuredRank ? parseInt(featuredRank) : 0,
@@ -315,7 +342,7 @@ class MediaService {
     };
   }
 
-  async registerBunnyUpload({ body, userId }) {
+  async registerBunnyUpload({ body, userId, user }) {
     const videoId = body.directUploadId || body.videoId || body.storageKey;
     if (!videoId) {
       throw { status: 400, message: "directUploadId or videoId is required" };
@@ -337,9 +364,10 @@ class MediaService {
         storageKey: videoId,
         transcodingProvider: "bunny",
         processingStatus,
-        publishStatus: processingStatus === "ready" ? (body.publishStatus || "published") : "processing",
+        publishStatus: processingStatus === "ready" ? (body.publishStatus || "pending_review") : "processing",
       },
       userId,
+      user,
     });
 
     return { media, video };
@@ -367,13 +395,13 @@ class MediaService {
     media.mediaUrl = playback.hlsUrl || media.mediaUrl;
     media.thumbnailUrl = media.thumbnailUrl || playback.thumbnailUrl;
     media.processingStatus = processingStatus;
-    media.publishStatus = processingStatus === "ready" ? "published" : processingStatus;
+    media.publishStatus = processingStatus === "ready" && media.reviewStatus === "approved" ? "published" : processingStatus === "ready" ? "pending_review" : processingStatus;
     await media.save();
 
     return media;
   }
 
-  async registerMuxUpload({ body, userId }) {
+  async registerMuxUpload({ body, userId, user }) {
     const { directUploadId } = body;
     if (!directUploadId) {
       throw { status: 400, message: "directUploadId is required" };
@@ -397,9 +425,10 @@ class MediaService {
         storageKey: asset?.id || upload.asset_id || directUploadId,
         transcodingProvider: "mux",
         processingStatus: asset?.status === "ready" ? "ready" : "processing",
-        publishStatus: asset?.status === "ready" ? (body.publishStatus || "published") : "processing",
+        publishStatus: asset?.status === "ready" ? (body.publishStatus || "pending_review") : "processing",
       },
       userId,
+      user,
     });
 
     return { media, upload, asset };
@@ -425,13 +454,13 @@ class MediaService {
     media.hlsUrl = playback.hlsUrl || media.hlsUrl;
     media.mediaUrl = playback.hlsUrl || media.mediaUrl;
     media.processingStatus = asset.status === "ready" ? "ready" : "processing";
-    media.publishStatus = asset.status === "ready" ? "published" : "processing";
+    media.publishStatus = asset.status === "ready" && media.reviewStatus === "approved" ? "published" : asset.status === "ready" ? "pending_review" : "processing";
     await media.save();
 
     return media;
   }
 
-  async completeExternalUpload({ body, userId }) {
+  async completeExternalUpload({ body, userId, user }) {
     const {
       title,
       description,
@@ -471,6 +500,8 @@ class MediaService {
       throw { status: 400, message: "Title and mediaUrl are required" };
     }
 
+    const reviewState = this.getInitialReviewState(body, user);
+
     const media = await Media.create({
       title,
       description: description || "",
@@ -482,7 +513,10 @@ class MediaService {
       country: country || "",
       contentRating: contentRating || "",
       releaseStatus: releaseStatus || "released",
-      publishStatus: publishStatus || "processing",
+      publishStatus: processingStatus === "processing" ? "processing" : reviewState.publishStatus,
+      reviewStatus: reviewState.reviewStatus,
+      reviewedBy: reviewState.reviewedBy,
+      reviewedAt: reviewState.reviewedAt,
       homeSections: parseList(homeSections),
       isFeatured: parseBoolean(isFeatured),
       featuredRank: featuredRank ? parseInt(featuredRank) : 0,
@@ -513,15 +547,14 @@ class MediaService {
   }
 
   // ── Get all media with filters and pagination ─────────────────────────
-  async getAllMedia({ type, category, isLocked, isShort, isLive, language, country, homeSection, publishStatus, search, page = 1, limit = 20, sortBy = "createdAt", sortOrder = "desc" }) {
-    const query = { isActive: true };
+  async getAllMedia({ type, category, isLocked, isShort, isLive, language, country, homeSection, search, page = 1, limit = 20, sortBy = "createdAt", sortOrder = "desc" }) {
+    const query = { isActive: true, publishStatus: "published" };
 
     if (type) query.type = type;
     if (category) query.category = category;
     if (language) query.language = new RegExp(`^${language}$`, "i");
     if (country) query.country = new RegExp(`^${country}$`, "i");
     if (homeSection) query.homeSections = homeSection;
-    if (publishStatus) query.publishStatus = publishStatus;
     if (isLocked !== undefined) query.isLocked = isLocked === "true";
     if (isShort !== undefined) query.isShort = isShort === "true";
     if (isLive !== undefined) query.isLive = isLive === "true";
@@ -560,7 +593,7 @@ class MediaService {
     const media = await Media.findById(mediaId)
       .populate("uploadedBy", "profileName username profilePic subscriberCount");
 
-    if (!media || !media.isActive) {
+    if (!media || !media.isActive || media.publishStatus !== "published") {
       throw { status: 404, message: "Media not found" };
     }
 
@@ -586,7 +619,7 @@ class MediaService {
     const allowedUpdates = [
       "title", "description", "category", "tags",
       "genre", "language", "country", "contentRating",
-      "releaseStatus", "publishStatus", "homeSections", "isFeatured",
+      "releaseStatus", "homeSections", "isFeatured",
       "featuredRank", "availabilityCountries", "artist", "releaseYear",
       "isLocked", "liveScheduledAt", "playbackUrl", "hlsUrl",
       "processingStatus", "processingError", "licenseType", "licenseUrl",
@@ -845,12 +878,12 @@ class MediaService {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [media, total] = await Promise.all([
-      Media.find({ uploadedBy: userId, isActive: true })
+      Media.find({ uploadedBy: userId, isActive: true, publishStatus: "published" })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Media.countDocuments({ uploadedBy: userId, isActive: true }),
+      Media.countDocuments({ uploadedBy: userId, isActive: true, publishStatus: "published" }),
     ]);
 
     return {
@@ -869,14 +902,14 @@ class MediaService {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [media, total] = await Promise.all([
-      Media.find({ isShort: true, isActive: true })
+      Media.find({ isShort: true, isActive: true, publishStatus: "published" })
         .populate("uploadedBy", "profileName username profilePic subscriberCount")
         .populate("comments.user", "username profilePic")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Media.countDocuments({ isShort: true, isActive: true }),
+      Media.countDocuments({ isShort: true, isActive: true, publishStatus: "published" }),
     ]);
 
     return {
@@ -900,14 +933,14 @@ class MediaService {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [media, total] = await Promise.all([
-      Media.find({ isShort: true, isActive: true, uploadedBy: { $in: creatorIds } })
+      Media.find({ isShort: true, isActive: true, publishStatus: "published", uploadedBy: { $in: creatorIds } })
         .populate("uploadedBy", "profileName username profilePic subscriberCount")
         .populate("comments.user", "username profilePic")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Media.countDocuments({ isShort: true, isActive: true, uploadedBy: { $in: creatorIds } }),
+      Media.countDocuments({ isShort: true, isActive: true, publishStatus: "published", uploadedBy: { $in: creatorIds } }),
     ]);
 
     return {
@@ -926,13 +959,13 @@ class MediaService {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [media, total] = await Promise.all([
-      Media.find({ isLive: true, isActive: true })
+      Media.find({ isLive: true, isActive: true, publishStatus: "published" })
         .populate("uploadedBy", "profileName username profilePic subscriberCount")
         .sort({ liveScheduledAt: 1 }) // earliest first
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Media.countDocuments({ isLive: true, isActive: true }),
+      Media.countDocuments({ isLive: true, isActive: true, publishStatus: "published" }),
     ]);
 
     return {

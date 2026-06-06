@@ -49,8 +49,18 @@ class AdminController {
   });
 
   updateMedia = wrap(async (req, res) => {
-    const media = await adminService.updateMedia(req.params.id, req.body);
+    const media = await adminService.updateMedia(req.params.id, req.body, req.admin);
     return ApiResponse.success(res, { message: "Media updated", data: { media } });
+  });
+
+  approveMedia = wrap(async (req, res) => {
+    const media = await adminService.approveMedia(req.params.id, req.admin);
+    return ApiResponse.success(res, { message: "Media approved", data: { media } });
+  });
+
+  rejectMedia = wrap(async (req, res) => {
+    const media = await adminService.rejectMedia(req.params.id, req.body, req.admin);
+    return ApiResponse.success(res, { message: "Media rejected", data: { media } });
   });
 
   deleteMedia = wrap(async (req, res) => {

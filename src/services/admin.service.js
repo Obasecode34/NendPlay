@@ -66,6 +66,7 @@ class AdminService {
       adminUsers,
       totalMedia,
       publishedMedia,
+      pendingMedia,
       totalDocuments,
       totalAds,
       pendingAds,
@@ -85,6 +86,7 @@ class AdminService {
       User.countDocuments({ role: { $in: ["admin", "super_admin"] } }),
       Media.countDocuments(),
       Media.countDocuments({ isActive: true, publishStatus: "published" }),
+      Media.countDocuments({ isActive: true, publishStatus: "pending_review" }),
       Document.countDocuments(),
       Ad.countDocuments(),
       Ad.countDocuments({ status: "pending_review" }),
@@ -116,6 +118,7 @@ class AdminService {
         adminUsers,
         totalMedia,
         publishedMedia,
+        pendingMedia,
         totalDocuments,
         totalAds,
         pendingAds,
@@ -343,6 +346,9 @@ class AdminService {
     if (query.publishStatus) filter.publishStatus = query.publishStatus;
     if (query.status === "active") filter.isActive = true;
     if (query.status === "inactive") filter.isActive = false;
+    if (["draft", "processing", "pending_review", "published", "rejected", "failed", "archived"].includes(query.status)) {
+      filter.publishStatus = query.status;
+    }
     if (query.search) {
       const search = new RegExp(escapeRegex(query.search), "i");
       filter.$or = [
@@ -364,7 +370,7 @@ class AdminService {
     return { media: items, pagination: pagination(page, limit, total) };
   }
 
-  async updateMedia(mediaId, body) {
+  async updateMedia(mediaId, body, admin = null) {
     const updates = pickAllowed(body, [
       "title",
       "description",
@@ -390,8 +396,68 @@ class AdminService {
       "requiresAttribution",
       "isRightsVerified",
       "rightsVerifiedAt",
+      "reviewStatus",
+      "reviewNote",
     ]);
+
+    if (updates.publishStatus === "published") {
+      updates.reviewStatus = "approved";
+      updates.reviewedAt = new Date();
+      updates.reviewedBy = admin?.id || null;
+    }
+    if (updates.publishStatus === "rejected") {
+      updates.reviewStatus = "rejected";
+      updates.reviewedAt = new Date();
+      updates.reviewedBy = admin?.id || null;
+      updates.isActive = false;
+    }
+    if (updates.publishStatus === "pending_review") {
+      updates.reviewStatus = "pending";
+      updates.reviewedAt = null;
+      updates.reviewedBy = null;
+      updates.isActive = true;
+    }
+
     const media = await Media.findByIdAndUpdate(mediaId, updates, { new: true });
+    if (!media) throw { status: 404, message: "Media not found" };
+    return media;
+  }
+
+  async approveMedia(mediaId, admin) {
+    const current = await Media.findById(mediaId);
+    if (!current) throw { status: 404, message: "Media not found" };
+    const readyForPlayback = ["ready", "uploaded"].includes(current.processingStatus || "ready");
+
+    const media = await Media.findByIdAndUpdate(
+      mediaId,
+      {
+        publishStatus: readyForPlayback ? "published" : "processing",
+        reviewStatus: "approved",
+        reviewNote: "",
+        reviewedBy: admin.id,
+        reviewedAt: new Date(),
+        isActive: true,
+      },
+      { new: true }
+    );
+    if (!media) throw { status: 404, message: "Media not found" };
+    return media;
+  }
+
+  async rejectMedia(mediaId, body, admin) {
+    const note = String(body?.reviewNote || body?.reason || "").trim();
+    const media = await Media.findByIdAndUpdate(
+      mediaId,
+      {
+        publishStatus: "rejected",
+        reviewStatus: "rejected",
+        reviewNote: note,
+        reviewedBy: admin.id,
+        reviewedAt: new Date(),
+        isActive: false,
+      },
+      { new: true }
+    );
     if (!media) throw { status: 404, message: "Media not found" };
     return media;
   }

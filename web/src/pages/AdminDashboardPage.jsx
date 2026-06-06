@@ -321,6 +321,7 @@ export default function AdminDashboardPage() {
     if (activeTab === 'media') return [
       { key: 'title', label: 'Title', render: (row) => <div><p className="font-bold max-w-sm truncate">{row.title}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.type} · {row.category}</p></div> },
       { key: 'publishStatus', label: 'Publish', render: (row) => <Badge>{row.publishStatus}</Badge> },
+      { key: 'reviewStatus', label: 'Review', render: (row) => <Badge>{row.reviewStatus || 'pending'}</Badge> },
       { key: 'isActive', label: 'Status', render: (row) => <Badge>{row.isActive ? 'active' : 'inactive'}</Badge> },
       { key: 'viewCount', label: 'Views' },
       { key: 'createdAt', label: 'Created', render: (row) => new Date(row.createdAt).toLocaleDateString() },
@@ -395,7 +396,8 @@ export default function AdminDashboardPage() {
     if (activeTab === 'media') {
       return (
         <div className="flex flex-wrap gap-2">
-          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media published', () => adminService.updateMedia(row._id, { publishStatus: 'published', isActive: true }))}>Publish</button>
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media approved', () => adminService.approveMedia(row._id))}>Approve</button>
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media rejected', () => adminService.rejectMedia(row._id, { reviewNote: 'Rejected by admin review' }))}>Reject</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media archived', () => adminService.updateMedia(row._id, { publishStatus: 'archived', isActive: false }))}>Archive</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Feature updated', () => adminService.updateMedia(row._id, { isFeatured: !row.isFeatured }))}>{row.isFeatured ? 'Unfeature' : 'Feature'}</button>
           {isSuperAdmin && (
@@ -471,6 +473,7 @@ export default function AdminDashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <StatCard label="Users" value={dashboard.stats.totalUsers} icon={RiUserLine} />
             <StatCard label="Media" value={dashboard.stats.totalMedia} icon={RiFilmLine} />
+            <StatCard label="Pending Media" value={dashboard.stats.pendingMedia || 0} icon={RiFilmLine} />
             <StatCard label="NovelHub Docs" value={dashboard.stats.totalDocuments} icon={RiBookOpenLine} />
             <StatCard label="Revenue" value={`₦${Number(dashboard.stats.revenueNaira || 0).toLocaleString()}`} icon={RiVipCrownLine} />
             <StatCard label="Pending Ads" value={dashboard.stats.pendingAds} icon={RiAdvertisementLine} />
@@ -513,6 +516,7 @@ export default function AdminDashboardPage() {
                 <option value="inactive">Inactive</option>
                 <option value="pending_review">Pending Review</option>
                 <option value="published">Published</option>
+                <option value="rejected">Rejected</option>
                 <option value="archived">Archived</option>
                 <option value="failed">Failed</option>
               </select>

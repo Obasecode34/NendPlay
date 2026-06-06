@@ -16,6 +16,8 @@ router.delete("/users/:id", requireAdmin("users:write"), adminController.deleteU
 
 router.get("/media", requireAdmin("media:read"), adminController.listMedia);
 router.patch("/media/:id", requireAdmin("media:write"), adminController.updateMedia);
+router.post("/media/:id/approve", requireAdmin("media:write"), adminController.approveMedia);
+router.post("/media/:id/reject", requireAdmin("media:write"), adminController.rejectMedia);
 router.delete("/media/:id", requireAdmin("media:write"), adminController.deleteMedia);
 
 router.get("/documents", requireAdmin("documents:read"), adminController.listDocuments);

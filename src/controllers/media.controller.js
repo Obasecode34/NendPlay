@@ -24,6 +24,7 @@ class MediaController {
         thumbnailFile,
         body: req.body,
         userId: req.user.userId,
+        user: req.user,
       });
 
       return ApiResponse.created(res, {
@@ -68,14 +69,15 @@ class MediaController {
       let result;
 
       if (provider === "bunny") {
-        result = await mediaService.registerBunnyUpload({ body: req.body, userId: req.user.userId });
+        result = await mediaService.registerBunnyUpload({ body: req.body, userId: req.user.userId, user: req.user });
       } else if (provider === "mux") {
-        result = await mediaService.registerMuxUpload({ body: req.body, userId: req.user.userId });
+        result = await mediaService.registerMuxUpload({ body: req.body, userId: req.user.userId, user: req.user });
       } else {
         result = {
           media: await mediaService.completeExternalUpload({
             body: req.body,
             userId: req.user.userId,
+            user: req.user,
           }),
         };
       }

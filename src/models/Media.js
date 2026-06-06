@@ -108,8 +108,32 @@ const mediaSchema = new mongoose.Schema(
 
     publishStatus: {
       type: String,
-      enum: ["draft", "processing", "published", "failed", "archived"],
-      default: "published",
+      enum: ["draft", "processing", "pending_review", "published", "rejected", "failed", "archived"],
+      default: "pending_review",
+    },
+
+    reviewStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+
+    reviewNote: {
+      type: String,
+      trim: true,
+      maxlength: [1000, "Review note cannot exceed 1000 characters"],
+      default: "",
+    },
+
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    reviewedAt: {
+      type: Date,
+      default: null,
     },
 
     homeSections: {

@@ -38,7 +38,7 @@ export default function UploadModal({ onClose, onSuccess }) {
     title: '', description: '', type: 'video',
     category: 'general', tags: '', artist: '',
     genre: '', language: '', country: '', contentRating: '',
-    releaseStatus: 'released', publishStatus: 'published',
+    releaseStatus: 'released', publishStatus: 'pending_review',
     homeSections: '', availabilityCountries: '',
     releaseYear: '', isLocked: false, isShort: false,
     isLive: false, isFeatured: false, featuredRank: '',
@@ -156,13 +156,13 @@ export default function UploadModal({ onClose, onSuccess }) {
 
         try {
           const providerName = await uploadWithSession(session)
-          toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
+          toast.success(`Uploaded to ${providerName}. It will appear after admin approval.`)
         } catch (primaryUploadError) {
           if (session.provider === 'bunny') {
             toast(`Bunny upload failed. Trying Mux fallback...`)
             session = await createUploadSession('mux')
             const providerName = await uploadWithSession(session)
-            toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
+            toast.success(`Uploaded to ${providerName}. It will appear after admin approval.`)
           } else {
             throw primaryUploadError
           }
@@ -174,7 +174,7 @@ export default function UploadModal({ onClose, onSuccess }) {
       if (form.uploadProvider === 'bunny') {
         const session = await createUploadSession('bunny')
         const providerName = await uploadWithSession(session)
-        toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
+        toast.success(`Uploaded to ${providerName}. It will appear after admin approval.`)
         onSuccess()
         return
       }
@@ -182,7 +182,7 @@ export default function UploadModal({ onClose, onSuccess }) {
       if (form.uploadProvider === 'mux') {
         const session = await createUploadSession('mux')
         const providerName = await uploadWithSession(session)
-        toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
+        toast.success(`Uploaded to ${providerName}. It will appear after admin approval.`)
         onSuccess()
         return
       }
@@ -195,7 +195,7 @@ export default function UploadModal({ onClose, onSuccess }) {
         formData.append(key, val.toString())
       })
       await mediaService.upload(formData)
-      toast.success('Media uploaded successfully!')
+      toast.success('Media uploaded. It will appear after admin approval.')
       onSuccess()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Upload failed')
@@ -385,10 +385,12 @@ export default function UploadModal({ onClose, onSuccess }) {
             <select value={form.publishStatus}
               onChange={(e) => setForm({ ...form, publishStatus: e.target.value })}
               className="input-base">
-              <option value="published">Published</option>
-              <option value="draft">Draft</option>
-              <option value="processing">Processing</option>
-              <option value="archived">Archived</option>
+            <option value="pending_review">Pending admin review</option>
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+            <option value="processing">Processing</option>
+            <option value="rejected">Rejected</option>
+            <option value="archived">Archived</option>
             </select>
             <input type="number" placeholder="Featured rank" value={form.featuredRank}
               onChange={(e) => setForm({ ...form, featuredRank: e.target.value })}
