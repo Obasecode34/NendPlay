@@ -58,6 +58,16 @@ class MediaService {
 
     // 1. Determine resource type for Cloudinary
     const mediaCategory = getMediaCategory(mediaFile.mimetype);
+    const isVideoUpload = mediaCategory === "video";
+    const directVideoProvider = ["bunny", "mux"].includes(VIDEO_STORAGE_PROVIDER);
+
+    if (isVideoUpload && directVideoProvider && DIRECT_UPLOAD_ENABLED) {
+      throw {
+        status: 400,
+        message: "Use /api/media/upload-session for video uploads. Videos are stored on Bunny Stream with Mux fallback, not uploaded through the API server.",
+      };
+    }
+
     const resourceType = "video"; // Cloudinary uses "video" for both video and audio
 
     // 2. Upload media file to Cloudinary
@@ -155,10 +165,10 @@ class MediaService {
 
   async createUploadSession({ body, userId }) {
     const requestedProvider = body.provider || VIDEO_STORAGE_PROVIDER || "cloudinary";
-    const providers = [
+    const providers = Array.from(new Set([
       requestedProvider,
       !body.provider && VIDEO_FALLBACK_PROVIDER ? VIDEO_FALLBACK_PROVIDER : null,
-    ].filter(Boolean);
+    ].filter(Boolean)));
 
     let lastError = null;
     for (const provider of providers) {
@@ -236,7 +246,7 @@ class MediaService {
       mode: DIRECT_UPLOAD_ENABLED ? "direct" : "server",
       status: DIRECT_UPLOAD_ENABLED ? "ready" : "provider_configuration_required",
       maxServerUploadMb: MAX_VIDEO_SIZE_MB,
-      recommended: "Use direct multipart uploads with S3/R2/Bunny/Mux for full-length movies.",
+      recommended: "Use Bunny Stream direct uploads for videos, with Mux as fallback.",
       metadata: {
         title: body.title || "",
         type: body.type || "movie",

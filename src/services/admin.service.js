@@ -11,6 +11,8 @@ const Token = require("../models/Token");
 const PushToken = require("../models/PushToken");
 const cloudinaryService = require("./cloudinary.service");
 const emailService = require("./email.service");
+const bunnyService = require("./bunny.service");
+const muxService = require("./mux.service");
 const { ADMIN_PERMISSIONS } = require("../config/adminPermissions");
 
 const PAGE_LIMIT_MAX = 100;
@@ -388,6 +390,20 @@ class AdminService {
     }
     if (media.thumbnailCloudinaryId) {
       await cloudinaryService.deleteFile(media.thumbnailCloudinaryId, "image");
+    }
+    if (media.storageProvider === "bunny" && media.storageKey) {
+      try {
+        await bunnyService.deleteVideo(media.storageKey);
+      } catch (err) {
+        console.warn(`Bunny video delete skipped for ${media.storageKey}: ${err.message}`);
+      }
+    }
+    if (media.storageProvider === "mux" && media.storageKey) {
+      try {
+        await muxService.deleteAsset(media.storageKey);
+      } catch (err) {
+        console.warn(`Mux asset delete skipped for ${media.storageKey}: ${err.message}`);
+      }
     }
 
     await Promise.all([

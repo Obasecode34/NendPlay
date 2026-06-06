@@ -52,6 +52,12 @@ class MuxService {
     return response.data.data;
   }
 
+  async deleteAsset(assetId) {
+    if (!assetId) return null;
+    const response = await this.client.delete(`/assets/${assetId}`);
+    return response.data.data;
+  }
+
   getPlayback(playbackIds = []) {
     const playbackId = playbackIds.find((item) => item.policy === "public")?.id || playbackIds[0]?.id || "";
     if (!playbackId) {

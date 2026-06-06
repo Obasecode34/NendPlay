@@ -89,6 +89,13 @@ class BunnyService {
     return data;
   }
 
+  async deleteVideo(videoId) {
+    this.ensureConfigured();
+    if (!videoId) return null;
+    const { data } = await this.client.delete(`/videos/${videoId}`);
+    return data;
+  }
+
   getPlayback(videoId) {
     const baseUrl = this.hostname ? `https://${this.hostname}/${videoId}` : "";
     return {

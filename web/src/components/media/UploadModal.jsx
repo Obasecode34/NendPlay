@@ -27,7 +27,7 @@ export default function UploadModal({ onClose, onSuccess }) {
     homeSections: '', availabilityCountries: '',
     releaseYear: '', isLocked: false, isShort: false,
     isLive: false, isFeatured: false, featuredRank: '',
-    uploadProvider: 'bunny',
+    uploadProvider: 'auto',
   })
   const [mediaFile, setMediaFile] = useState(null)
   const [thumbnailFile, setThumbnailFile] = useState(null)
@@ -38,6 +38,89 @@ export default function UploadModal({ onClose, onSuccess }) {
       .map(([key, value]) => [key, value?.toString?.() ?? value])
   )
 
+  const uploadToBunny = async () => {
+    const sessionRes = await mediaService.createUploadSession({
+      provider: 'bunny',
+      title: form.title,
+      type: form.type,
+      mimeType: mediaFile.type,
+    })
+    const session = sessionRes.data.data.session
+
+    await new Promise((resolve, reject) => {
+      const upload = new tus.Upload(mediaFile, {
+        endpoint: session.directUpload.uploadUrl,
+        headers: session.directUpload.headers,
+        metadata: {
+          title: form.title,
+          filetype: mediaFile.type || 'application/octet-stream',
+        },
+        chunkSize: 50 * 1024 * 1024,
+        retryDelays: [0, 1000, 3000, 5000],
+        onError: reject,
+        onProgress: (uploaded, total) => {
+          if (total) setProgress(Math.round((uploaded / total) * 100))
+        },
+        onSuccess: resolve,
+      })
+      upload.start()
+    })
+
+    await mediaService.completeExternalUpload({
+      ...getMetadataPayload(),
+      provider: 'bunny',
+      storageProvider: 'bunny',
+      directUploadId: session.uploadId,
+      mediaUrl: session.asset?.hlsUrl,
+      hlsUrl: session.asset?.hlsUrl,
+      playbackUrl: session.asset?.playbackUrl,
+      thumbnailUrl: session.asset?.thumbnailUrl,
+      mimeType: mediaFile.type || 'video/mp4',
+      fileSize: mediaFile.size,
+    })
+
+    return 'Bunny'
+  }
+
+  const uploadToMux = async () => {
+    const sessionRes = await mediaService.createUploadSession({
+      provider: 'mux',
+      title: form.title,
+      type: form.type,
+      mimeType: mediaFile.type,
+      corsOrigin: window.location.origin,
+    })
+    const session = sessionRes.data.data.session
+
+    await new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest()
+      request.open('PUT', session.directUpload.uploadUrl)
+      request.setRequestHeader('Content-Type', mediaFile.type || 'application/octet-stream')
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          setProgress(Math.round((event.loaded / event.total) * 100))
+        }
+      }
+      request.onload = () => {
+        if (request.status >= 200 && request.status < 300) resolve()
+        else reject(new Error(`Mux upload failed with status ${request.status}`))
+      }
+      request.onerror = () => reject(new Error('Mux upload failed'))
+      request.send(mediaFile)
+    })
+
+    await mediaService.completeExternalUpload({
+      ...getMetadataPayload(),
+      provider: 'mux',
+      storageProvider: 'mux',
+      directUploadId: session.uploadId,
+      mimeType: mediaFile.type || 'video/mp4',
+      fileSize: mediaFile.size,
+    })
+
+    return 'Mux'
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!mediaFile || !form.title) {
@@ -47,87 +130,29 @@ export default function UploadModal({ onClose, onSuccess }) {
     setUploading(true)
     setProgress(0)
     try {
+      if (form.uploadProvider === 'auto') {
+        let providerName = 'Bunny'
+        try {
+          providerName = await uploadToBunny()
+        } catch (bunnyError) {
+          toast('Bunny upload unavailable. Trying Mux fallback...')
+          providerName = await uploadToMux()
+        }
+        toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
+        onSuccess()
+        return
+      }
+
       if (form.uploadProvider === 'bunny') {
-        const sessionRes = await mediaService.createUploadSession({
-          provider: 'bunny',
-          title: form.title,
-          type: form.type,
-          mimeType: mediaFile.type,
-        })
-        const session = sessionRes.data.data.session
-
-        await new Promise((resolve, reject) => {
-          const upload = new tus.Upload(mediaFile, {
-            endpoint: session.directUpload.uploadUrl,
-            headers: session.directUpload.headers,
-            metadata: {
-              title: form.title,
-              filetype: mediaFile.type || 'application/octet-stream',
-            },
-            chunkSize: 50 * 1024 * 1024,
-            retryDelays: [0, 1000, 3000, 5000],
-            onError: reject,
-            onProgress: (uploaded, total) => {
-              if (total) setProgress(Math.round((uploaded / total) * 100))
-            },
-            onSuccess: resolve,
-          })
-          upload.start()
-        })
-
-        await mediaService.completeExternalUpload({
-          ...getMetadataPayload(),
-          provider: 'bunny',
-          storageProvider: 'bunny',
-          directUploadId: session.uploadId,
-          mediaUrl: session.asset?.hlsUrl,
-          hlsUrl: session.asset?.hlsUrl,
-          playbackUrl: session.asset?.playbackUrl,
-          thumbnailUrl: session.asset?.thumbnailUrl,
-          mimeType: mediaFile.type || 'video/mp4',
-          fileSize: mediaFile.size,
-        })
-        toast.success('Uploaded to Bunny. Video is processing and will appear when ready.')
+        const providerName = await uploadToBunny()
+        toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
         onSuccess()
         return
       }
 
       if (form.uploadProvider === 'mux') {
-        const sessionRes = await mediaService.createUploadSession({
-          provider: 'mux',
-          title: form.title,
-          type: form.type,
-          mimeType: mediaFile.type,
-          corsOrigin: window.location.origin,
-        })
-        const session = sessionRes.data.data.session
-
-        await new Promise((resolve, reject) => {
-          const request = new XMLHttpRequest()
-          request.open('PUT', session.directUpload.uploadUrl)
-          request.setRequestHeader('Content-Type', mediaFile.type || 'application/octet-stream')
-          request.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              setProgress(Math.round((event.loaded / event.total) * 100))
-            }
-          }
-          request.onload = () => {
-            if (request.status >= 200 && request.status < 300) resolve()
-            else reject(new Error(`Mux upload failed with status ${request.status}`))
-          }
-          request.onerror = () => reject(new Error('Mux upload failed'))
-          request.send(mediaFile)
-        })
-
-        await mediaService.completeExternalUpload({
-          ...getMetadataPayload(),
-          provider: 'mux',
-          storageProvider: 'mux',
-          directUploadId: session.uploadId,
-          mimeType: mediaFile.type || 'video/mp4',
-          fileSize: mediaFile.size,
-        })
-        toast.success('Uploaded to Mux. Video is processing and will appear when ready.')
+        const providerName = await uploadToMux()
+        toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
         onSuccess()
         return
       }
@@ -226,9 +251,10 @@ export default function UploadModal({ onClose, onSuccess }) {
           <select value={form.uploadProvider}
             onChange={(e) => setForm({ ...form, uploadProvider: e.target.value })}
             className="input-base">
-            <option value="server">Server upload (Cloudinary/current)</option>
-            <option value="bunny">Direct upload to Bunny Stream</option>
-            <option value="mux">Direct upload to Mux</option>
+            <option value="auto">Auto: Bunny primary, Mux fallback</option>
+            <option value="bunny">Bunny Stream only</option>
+            <option value="mux">Mux only</option>
+            <option value="server">Server upload (Cloudinary legacy/audio)</option>
           </select>
 
           <textarea placeholder="Description" value={form.description}
