@@ -173,7 +173,15 @@ class MediaService {
     let lastError = null;
     for (const provider of providers) {
       try {
-        return await this.createProviderUploadSession({ provider, body, userId });
+        const session = await this.createProviderUploadSession({ provider, body, userId });
+        if (provider !== requestedProvider && lastError) {
+          return {
+            ...session,
+            fallbackFrom: requestedProvider,
+            primaryError: lastError.message || "Primary upload provider unavailable",
+          };
+        }
+        return session;
       } catch (err) {
         lastError = err;
         if (body.provider || provider !== requestedProvider) {

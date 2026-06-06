@@ -38,15 +38,18 @@ export default function UploadModal({ onClose, onSuccess }) {
       .map(([key, value]) => [key, value?.toString?.() ?? value])
   )
 
-  const uploadToBunny = async () => {
+  const createUploadSession = async (provider) => {
     const sessionRes = await mediaService.createUploadSession({
-      provider: 'bunny',
+      ...(provider ? { provider } : {}),
       title: form.title,
       type: form.type,
       mimeType: mediaFile.type,
+      corsOrigin: window.location.origin,
     })
-    const session = sessionRes.data.data.session
+    return sessionRes.data.data.session
+  }
 
+  const uploadBunnySession = async (session) => {
     await new Promise((resolve, reject) => {
       const upload = new tus.Upload(mediaFile, {
         endpoint: session.directUpload.uploadUrl,
@@ -82,16 +85,7 @@ export default function UploadModal({ onClose, onSuccess }) {
     return 'Bunny'
   }
 
-  const uploadToMux = async () => {
-    const sessionRes = await mediaService.createUploadSession({
-      provider: 'mux',
-      title: form.title,
-      type: form.type,
-      mimeType: mediaFile.type,
-      corsOrigin: window.location.origin,
-    })
-    const session = sessionRes.data.data.session
-
+  const uploadMuxSession = async (session) => {
     await new Promise((resolve, reject) => {
       const request = new XMLHttpRequest()
       request.open('PUT', session.directUpload.uploadUrl)
@@ -121,6 +115,12 @@ export default function UploadModal({ onClose, onSuccess }) {
     return 'Mux'
   }
 
+  const uploadWithSession = async (session) => {
+    if (session.provider === 'bunny') return uploadBunnySession(session)
+    if (session.provider === 'mux') return uploadMuxSession(session)
+    throw new Error(`Unsupported upload provider: ${session.provider || 'unknown'}`)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!mediaFile || !form.title) {
@@ -131,27 +131,39 @@ export default function UploadModal({ onClose, onSuccess }) {
     setProgress(0)
     try {
       if (form.uploadProvider === 'auto') {
-        let providerName = 'Bunny'
-        try {
-          providerName = await uploadToBunny()
-        } catch (bunnyError) {
-          toast('Bunny upload unavailable. Trying Mux fallback...')
-          providerName = await uploadToMux()
+        let session = await createUploadSession()
+        if (session.fallbackFrom) {
+          toast(`${session.fallbackFrom} unavailable. Using ${session.provider} fallback.`)
         }
-        toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
+
+        try {
+          const providerName = await uploadWithSession(session)
+          toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
+        } catch (primaryUploadError) {
+          if (session.provider === 'bunny') {
+            toast(`Bunny upload failed. Trying Mux fallback...`)
+            session = await createUploadSession('mux')
+            const providerName = await uploadWithSession(session)
+            toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
+          } else {
+            throw primaryUploadError
+          }
+        }
         onSuccess()
         return
       }
 
       if (form.uploadProvider === 'bunny') {
-        const providerName = await uploadToBunny()
+        const session = await createUploadSession('bunny')
+        const providerName = await uploadWithSession(session)
         toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
         onSuccess()
         return
       }
 
       if (form.uploadProvider === 'mux') {
-        const providerName = await uploadToMux()
+        const session = await createUploadSession('mux')
+        const providerName = await uploadWithSession(session)
         toast.success(`Uploaded to ${providerName}. Video is processing and will appear when ready.`)
         onSuccess()
         return
@@ -349,7 +361,7 @@ export default function UploadModal({ onClose, onSuccess }) {
           {uploading && (
             <div className="space-y-2">
               <div className="flex justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                <span>{form.uploadProvider === 'server' ? 'Uploading to Cloudinary...' : `Uploading to ${form.uploadProvider === 'bunny' ? 'Bunny' : 'Mux'}${progress ? ` (${progress}%)` : '...'}`}</span>
+                <span>{form.uploadProvider === 'server' ? 'Uploading to Cloudinary...' : `Uploading media${progress ? ` (${progress}%)` : '...'}`}</span>
               </div>
               <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--color-surface-high)' }}>
                 <div className="h-full rounded-full animate-pulse"
