@@ -9,7 +9,7 @@ const express = require("express");
 const router = express.Router();
 
 const mediaController = require("../controllers/media.controller");
-const { authMiddleware } = require("../middleware/auth.middleware");
+const { authMiddleware, optionalAuthMiddleware } = require("../middleware/auth.middleware");
 const {
   uploadMediaWithThumbnail,
   handleMulterError,
@@ -40,8 +40,9 @@ router.post("/external", authMiddleware, mediaController.completeExternalUpload)
 
 // ── CRUD ──────────────────────────────────────────────────────────────────
 router.get("/",          mediaController.getAllMedia);
-router.get("/:id",       mediaController.getMediaById);
-router.get("/:id/stream", mediaController.streamMedia);
+router.get("/:id/playback", optionalAuthMiddleware, mediaController.getPlayback);
+router.get("/:id",       optionalAuthMiddleware, mediaController.getMediaById);
+router.get("/:id/stream", optionalAuthMiddleware, mediaController.streamMedia);
 router.patch("/:id",     authMiddleware, mediaController.updateMedia);
 router.delete("/:id",    authMiddleware, mediaController.deleteMedia);
 

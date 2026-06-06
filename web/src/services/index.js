@@ -4,6 +4,7 @@ import api from './api'
 export const mediaService = {
   getAll: (params) => api.get('/media', { params }),
   getById: (id) => api.get(`/media/${id}`),
+  getPlayback: (id) => api.get(`/media/${id}/playback`),
   upload: (formData) => api.post('/media/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
@@ -25,6 +26,12 @@ export const mediaService = {
   getLiveEvents: (params) => api.get('/media/live', { params }),
   getByUser: (userId, params) => api.get(`/media/user/${userId}`, { params }),
   getStreamUrl: (id) => `/api/media/${id}/stream`,
+  resolveStreamUrl: (url) => {
+    if (!url) return ''
+    if (/^https?:\/\//i.test(url)) return url
+    const base = api.defaults.baseURL?.replace(/\/api\/?$/, '') || ''
+    return `${base}${url}`
+  },
 }
 
 // src/services/subscription.service.js

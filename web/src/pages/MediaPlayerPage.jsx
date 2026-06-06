@@ -24,6 +24,7 @@ export default function MediaPlayerPage() {
   const [related, setRelated] = useState([])
   const [loading, setLoading] = useState(true)
   const [locked, setLocked] = useState(false)
+  const [playbackUrl, setPlaybackUrl] = useState('')
   const [playing, setPlaying] = useState(true)
   const [volume, setVolume] = useState(0.8)
   const [muted, setMuted] = useState(false)
@@ -45,6 +46,7 @@ export default function MediaPlayerPage() {
       const { media: m, locked: isLocked } = res.data.data
       setMediaData(m)
       setLocked(isLocked)
+      setPlaybackUrl('')
 
       // Load related content
       const relRes = await mediaService.getAll({ type: m.type, limit: 10 })
@@ -52,6 +54,9 @@ export default function MediaPlayerPage() {
 
       if (!isLocked) {
         setMedia(m)
+        const playbackRes = await mediaService.getPlayback(id)
+        const playback = playbackRes.data.data.playback
+        setPlaybackUrl(mediaService.resolveStreamUrl(playback.streamUrl))
       }
     } catch (err) {
       toast.error('Media not found')
@@ -150,7 +155,7 @@ export default function MediaPlayerPage() {
 
   if (!media) return null
 
-  const streamUrl = mediaService.getStreamUrl(id)
+  const streamUrl = playbackUrl || mediaService.getStreamUrl(id)
 
   return (
     <div className="animate-fade-in">

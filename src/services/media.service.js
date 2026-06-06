@@ -9,6 +9,7 @@
 
 const Media = require("../models/Media");
 const User = require("../models/User");
+const jwt = require("jsonwebtoken");
 const cloudinaryService = require("./cloudinary.service");
 const bunnyService = require("./bunny.service");
 const muxService = require("./mux.service");
@@ -18,6 +19,7 @@ const {
   VIDEO_FALLBACK_PROVIDER,
   DIRECT_UPLOAD_ENABLED,
   MAX_VIDEO_SIZE_MB,
+  JWT_ACCESS_SECRET,
 } = require("../config/env");
 const { getMediaCategory } = require("../middleware/upload.middleware");
 
@@ -29,6 +31,7 @@ const parseList = (value) => {
 
 const parseBoolean = (value) => value === true || value === "true";
 const isAdminUser = (user = {}) => ["admin", "super_admin"].includes(user.role);
+const PLAYBACK_TOKEN_TTL_SECONDS = 10 * 60;
 
 const LICENSE_TYPES = new Set([
   "unknown",
@@ -73,6 +76,83 @@ const parseRightsMetadata = (body = {}) => {
 };
 
 class MediaService {
+  getBestPlaybackUrl(media) {
+    return media.hlsUrl || media.playbackUrl || media.mediaUrl || "";
+  }
+
+  async canUserAccessMedia(media, userId) {
+    if (!media?.isLocked) return true;
+    if (!userId) return false;
+    const user = await User.findById(userId).select("subscriptionPlan subscriptionExpiry isActive");
+    return Boolean(user?.isActive && user.hasActiveSubscription());
+  }
+
+  generatePlaybackToken(mediaId, userId = null) {
+    return jwt.sign(
+      {
+        type: "playback",
+        mediaId: String(mediaId),
+        userId: userId ? String(userId) : null,
+      },
+      JWT_ACCESS_SECRET,
+      { expiresIn: PLAYBACK_TOKEN_TTL_SECONDS }
+    );
+  }
+
+  verifyPlaybackToken(token, mediaId) {
+    if (!token) return null;
+    try {
+      const decoded = jwt.verify(token, JWT_ACCESS_SECRET);
+      if (decoded.type !== "playback") return null;
+      if (String(decoded.mediaId) !== String(mediaId)) return null;
+      return decoded;
+    } catch {
+      return null;
+    }
+  }
+
+  async getPlaybackManifest(mediaId, userId = null) {
+    const media = await this.getMediaById(mediaId);
+    const canPlay = await this.canUserAccessMedia(media, userId);
+    const sourceUrl = this.getBestPlaybackUrl(media);
+
+    if (!sourceUrl) {
+      throw { status: 404, message: "Media playback URL not found" };
+    }
+
+    if (!canPlay) {
+      return {
+        canPlay: false,
+        locked: true,
+        requiresSubscription: true,
+        media: {
+          _id: media._id,
+          title: media.title,
+          description: media.description,
+          thumbnailUrl: media.thumbnailUrl,
+          type: media.type,
+          duration: media.duration,
+          isLocked: true,
+          uploadedBy: media.uploadedBy,
+          createdAt: media.createdAt,
+        },
+      };
+    }
+
+    const playbackToken = this.generatePlaybackToken(media._id, userId);
+    const streamUrl = `/api/media/${media._id}/stream?playbackToken=${encodeURIComponent(playbackToken)}`;
+    const isHls = sourceUrl.includes(".m3u8");
+
+    return {
+      canPlay: true,
+      locked: false,
+      streamUrl,
+      sourceType: isHls ? "hls" : "file",
+      mimeType: media.mimeType || (isHls ? "application/vnd.apple.mpegurl" : "video/mp4"),
+      expiresIn: PLAYBACK_TOKEN_TTL_SECONDS,
+      media,
+    };
+  }
   // ── Upload and create media ───────────────────────────────────────────
   getInitialReviewState(body = {}, user = {}) {
     const adminUpload = isAdminUser(user);

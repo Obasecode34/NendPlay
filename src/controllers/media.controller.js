@@ -157,11 +157,9 @@ class MediaController {
       // Check if media is locked and user is not subscribed
       // Full subscription check comes in Phase 4 — for now return the media
       // with a flag so frontend can decide what to show
-      const isSubscribed = req.user
-        ? (req.userDoc?.hasActiveSubscription?.() || false)
-        : false;
+      const canPlay = await mediaService.canUserAccessMedia(media, req.user?.userId);
 
-      if (media.isLocked && !isSubscribed) {
+      if (media.isLocked && !canPlay) {
         return ApiResponse.success(res, {
           data: {
             media: {
@@ -190,6 +188,20 @@ class MediaController {
     }
   }
 
+  // GET /api/media/:id/playback
+  // Returns a short-lived on-demand playback manifest for approved media.
+  async getPlayback(req, res) {
+    try {
+      const manifest = await mediaService.getPlaybackManifest(req.params.id, req.user?.userId);
+      return ApiResponse.success(res, { data: { playback: manifest } });
+    } catch (err) {
+      if (err.status) {
+        return ApiResponse.error(res, { statusCode: err.status, message: err.message });
+      }
+      return ApiResponse.error(res, { message: "Playback manifest failed" });
+    }
+  }
+
   // GET /api/media/:id/stream
   // HTTP Range Request streaming — enables seek, pause, resume
   // This is the core of the streaming system.
@@ -203,15 +215,25 @@ class MediaController {
   async streamMedia(req, res) {
     try {
       const media = await mediaService.getMediaById(req.params.id);
+      const playbackToken = req.query.playbackToken || req.query.token;
+      const decodedPlayback = mediaService.verifyPlaybackToken(playbackToken, media._id);
+      const tokenUserId = decodedPlayback?.userId || req.user?.userId || null;
+      const canPlay = decodedPlayback
+        ? await mediaService.canUserAccessMedia(media, tokenUserId)
+        : await mediaService.canUserAccessMedia(media, req.user?.userId);
 
-      const sourceUrl = media.hlsUrl || media.playbackUrl || media.mediaUrl;
+      if (!canPlay) {
+        return ApiResponse.unauthorized(res, "Subscribe to access this stream");
+      }
+
+      const sourceUrl = mediaService.getBestPlaybackUrl(media);
 
       if (!sourceUrl) {
         return ApiResponse.notFound(res, "Media file not found");
       }
 
-      if (media.hlsUrl && media.hlsUrl.endsWith(".m3u8")) {
-        return res.redirect(media.hlsUrl);
+      if (sourceUrl.includes(".m3u8")) {
+        return res.redirect(sourceUrl);
       }
 
       // For Cloudinary-hosted files, proxy the stream through our server
