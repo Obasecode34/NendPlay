@@ -24,6 +24,50 @@ const { getFileType } = require("../middleware/documentUpload.middleware");
 const { NOVEL_GENRES, normalizeNovelGenre, isNovelGenre } = require("../config/novelGenres");
 const { Readable } = require("stream");
 
+const LICENSE_TYPES = new Set([
+  "unknown",
+  "public_domain",
+  "cc0",
+  "cc_by",
+  "cc_by_sa",
+  "cc_by_nc",
+  "cc_by_nc_sa",
+  "cc_by_nd",
+  "cc_by_nc_nd",
+  "standard_license",
+  "owned",
+  "permission_granted",
+]);
+
+const ATTRIBUTION_LICENSES = new Set([
+  "cc_by",
+  "cc_by_sa",
+  "cc_by_nc",
+  "cc_by_nc_sa",
+  "cc_by_nd",
+  "cc_by_nc_nd",
+]);
+
+const parseBoolean = (value) => value === true || value === "true";
+
+const parseRightsMetadata = (body = {}) => {
+  const licenseType = LICENSE_TYPES.has(body.licenseType) ? body.licenseType : "unknown";
+  const requiresAttribution =
+    body.requiresAttribution !== undefined
+      ? parseBoolean(body.requiresAttribution)
+      : ATTRIBUTION_LICENSES.has(licenseType);
+
+  return {
+    licenseType,
+    licenseUrl: body.licenseUrl || "",
+    sourceUrl: body.sourceUrl || "",
+    sourceName: body.sourceName || "",
+    attributionText: body.attributionText || "",
+    rightsSummary: body.rightsSummary || "",
+    requiresAttribution,
+  };
+};
+
 class DocumentService {
   // ── Upload document to Cloudinary ─────────────────────────────────────
   _uploadToCloudinary(buffer, options = {}) {
@@ -89,6 +133,7 @@ class DocumentService {
     // 3. Normalize category for NovelHub rails.
     const normalizedGenre = normalizeNovelGenre(genre || category);
     const normalizedTags = Array.from(new Set([normalizedGenre, ...parsedTags]));
+    const rightsMetadata = parseRightsMetadata(body);
 
     // 4. Save to MongoDB
     const document = await Document.create({
@@ -103,6 +148,7 @@ class DocumentService {
       tags: normalizedTags,
       genre: normalizedGenre,
       author: author || "",
+      ...rightsMetadata,
       uploadedBy: userId,
       isFork: false,
       originalDocument: null,
@@ -202,6 +248,15 @@ class DocumentService {
       tags: [...original.tags],
       genre: original.genre,
       author: original.author,
+      licenseType: original.licenseType || "unknown",
+      licenseUrl: original.licenseUrl || "",
+      sourceUrl: original.sourceUrl || "",
+      sourceName: original.sourceName || "",
+      attributionText: original.attributionText || "",
+      rightsSummary: original.rightsSummary || "",
+      requiresAttribution: original.requiresAttribution || false,
+      isRightsVerified: original.isRightsVerified || false,
+      rightsVerifiedAt: original.rightsVerifiedAt || null,
       uploadedBy: userId,
       isFork: true,
       originalDocument: original._id,
@@ -229,7 +284,9 @@ class DocumentService {
 
     const allowedUpdates = [
       "title", "description", "category",
-      "tags", "genre", "author",
+      "tags", "genre", "author", "licenseType", "licenseUrl",
+      "sourceUrl", "sourceName", "attributionText", "rightsSummary",
+      "requiresAttribution", "isRightsVerified", "rightsVerifiedAt",
     ];
 
     allowedUpdates.forEach((field) => {
@@ -242,6 +299,12 @@ class DocumentService {
         } else if (field === "category" || field === "genre") {
           document.category = normalizeNovelGenre(updates[field]);
           document.genre = document.category;
+        } else if (field === "licenseType") {
+          document[field] = LICENSE_TYPES.has(updates[field]) ? updates[field] : "unknown";
+        } else if (["requiresAttribution", "isRightsVerified"].includes(field)) {
+          document[field] = parseBoolean(updates[field]);
+        } else if (field === "rightsVerifiedAt") {
+          document[field] = updates[field] ? new Date(updates[field]) : null;
         } else {
           document[field] = updates[field];
         }

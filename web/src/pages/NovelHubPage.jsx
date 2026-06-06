@@ -39,6 +39,21 @@ const PDF_GENRES = [
   { key: 'western-fantasy', label: 'Western Fantasy' },
 ]
 
+const LICENSE_TYPES = [
+  { value: 'unknown', label: 'Rights not set yet' },
+  { value: 'public_domain', label: 'Public domain' },
+  { value: 'cc0', label: 'Creative Commons CC0' },
+  { value: 'cc_by', label: 'Creative Commons BY' },
+  { value: 'cc_by_sa', label: 'Creative Commons BY-SA' },
+  { value: 'cc_by_nc', label: 'Creative Commons BY-NC' },
+  { value: 'cc_by_nc_sa', label: 'Creative Commons BY-NC-SA' },
+  { value: 'cc_by_nd', label: 'Creative Commons BY-ND' },
+  { value: 'cc_by_nc_nd', label: 'Creative Commons BY-NC-ND' },
+  { value: 'standard_license', label: 'Standard licensed content' },
+  { value: 'owned', label: 'Owned by NendPlay/uploader' },
+  { value: 'permission_granted', label: 'Permission granted' },
+]
+
 const OFFICE_TYPES = {
   pdf: 'PDF',
   txt: 'Text',
@@ -230,7 +245,10 @@ export default function NovelHubPage() {
   const { ref: loadMoreRef, inView: loadMoreInView } = useInView({ rootMargin: '320px' })
   const [uploadForm, setUploadForm] = useState({
     title: '', description: '', category: 'fiction',
-    author: '', tags: '', file: null,
+    author: '', tags: '', licenseType: 'unknown',
+    sourceName: '', sourceUrl: '', licenseUrl: '',
+    attributionText: '', rightsSummary: '', requiresAttribution: false,
+    file: null,
   })
 
   useEffect(() => { fetchDocuments(1, false) }, [search, genre])
@@ -286,10 +304,23 @@ export default function NovelHubPage() {
       formData.append('genre', uploadForm.category)
       formData.append('author', uploadForm.author)
       formData.append('tags', uploadForm.tags)
+      formData.append('licenseType', uploadForm.licenseType)
+      formData.append('sourceName', uploadForm.sourceName)
+      formData.append('sourceUrl', uploadForm.sourceUrl)
+      formData.append('licenseUrl', uploadForm.licenseUrl)
+      formData.append('attributionText', uploadForm.attributionText)
+      formData.append('rightsSummary', uploadForm.rightsSummary)
+      formData.append('requiresAttribution', uploadForm.requiresAttribution.toString())
       await novelService.upload(formData)
       toast.success('PDF uploaded to NovelHub')
       setShowUpload(false)
-      setUploadForm({ title: '', description: '', category: 'fiction', author: '', tags: '', file: null })
+      setUploadForm({
+        title: '', description: '', category: 'fiction',
+        author: '', tags: '', licenseType: 'unknown',
+        sourceName: '', sourceUrl: '', licenseUrl: '',
+        attributionText: '', rightsSummary: '', requiresAttribution: false,
+        file: null,
+      })
       fetchDocuments(1, false)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Upload failed')
@@ -333,6 +364,11 @@ export default function NovelHubPage() {
           category: doc.category || doc.genre || '',
           mimeType: doc.mimeType || res.data.data.mimeType || 'application/pdf',
           fileUrl,
+          licenseType: doc.licenseType || 'unknown',
+          sourceName: doc.sourceName || '',
+          sourceUrl: doc.sourceUrl || '',
+          licenseUrl: doc.licenseUrl || '',
+          attributionText: doc.attributionText || '',
         },
       })
       if (isAuthenticated && res.data.data.download?._id) {
@@ -606,6 +642,19 @@ export default function NovelHubPage() {
                   {selectedPdf.description || `${selectedPdf.title} begins here. Download the PDF to continue reading the complete document from chapter two onward.`}
                   {selectedPdf.author ? `\n\nAuthor: ${selectedPdf.author}` : ''}
                 </p>
+                {(selectedPdf.licenseType && selectedPdf.licenseType !== 'unknown') || selectedPdf.sourceName || selectedPdf.attributionText ? (
+                  <div className="mt-5 rounded-xl p-4 text-left" style={{ background: 'var(--color-bg-deep)', border: '1px solid var(--color-border)' }}>
+                    <p className="text-xs font-black uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>Rights</p>
+                    <p className="mt-2 text-sm" style={{ color: 'var(--color-text)' }}>
+                      {selectedPdf.attributionText || selectedPdf.sourceName || selectedPdf.licenseType}
+                    </p>
+                    {selectedPdf.sourceUrl ? (
+                      <a href={selectedPdf.sourceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-bold" style={{ color: 'var(--color-primary)' }}>
+                        View source
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-4 rounded-2xl p-6 text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
@@ -652,6 +701,40 @@ export default function NovelHubPage() {
               <input type="text" placeholder="Tags (comma separated)" value={uploadForm.tags}
                 onChange={(event) => setUploadForm({ ...uploadForm, tags: event.target.value })}
                 className="input-base" />
+              <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--color-surface-high)', border: '1px solid var(--color-border)' }}>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Rights and source</p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    Record public domain, Creative Commons, or permission details for this PDF.
+                  </p>
+                </div>
+                <select value={uploadForm.licenseType}
+                  onChange={(event) => setUploadForm({ ...uploadForm, licenseType: event.target.value })}
+                  className="input-base">
+                  {LICENSE_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+                <input type="text" placeholder="Source name e.g. Project Gutenberg" value={uploadForm.sourceName}
+                  onChange={(event) => setUploadForm({ ...uploadForm, sourceName: event.target.value })}
+                  className="input-base" />
+                <input type="url" placeholder="Source URL" value={uploadForm.sourceUrl}
+                  onChange={(event) => setUploadForm({ ...uploadForm, sourceUrl: event.target.value })}
+                  className="input-base" />
+                <input type="url" placeholder="License URL" value={uploadForm.licenseUrl}
+                  onChange={(event) => setUploadForm({ ...uploadForm, licenseUrl: event.target.value })}
+                  className="input-base" />
+                <textarea placeholder="Attribution text" value={uploadForm.attributionText}
+                  onChange={(event) => setUploadForm({ ...uploadForm, attributionText: event.target.value })}
+                  className="input-base resize-none" rows={2} />
+                <textarea placeholder="Rights notes / proof summary" value={uploadForm.rightsSummary}
+                  onChange={(event) => setUploadForm({ ...uploadForm, rightsSummary: event.target.value })}
+                  className="input-base resize-none" rows={2} />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={uploadForm.requiresAttribution}
+                    onChange={(event) => setUploadForm({ ...uploadForm, requiresAttribution: event.target.checked })}
+                    className="w-4 h-4 rounded" />
+                  <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Show attribution for this PDF</span>
+                </label>
+              </div>
               <div className="cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-colors"
                 style={{ borderColor: 'var(--color-border)' }}
                 onClick={() => document.getElementById('doc-file').click()}>

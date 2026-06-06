@@ -13,6 +13,21 @@
 
 const mongoose = require("mongoose");
 
+const LICENSE_TYPES = [
+  "unknown",
+  "public_domain",
+  "cc0",
+  "cc_by",
+  "cc_by_sa",
+  "cc_by_nc",
+  "cc_by_nc_sa",
+  "cc_by_nd",
+  "cc_by_nc_nd",
+  "standard_license",
+  "owned",
+  "permission_granted",
+];
+
 const documentSchema = new mongoose.Schema(
   {
     // ── Identity ───────────────────────────────────────────────────────
@@ -96,6 +111,60 @@ const documentSchema = new mongoose.Schema(
       default: "",
     },
 
+    // Rights metadata for public-domain, Creative Commons, owned, or licensed documents.
+    licenseType: {
+      type: String,
+      enum: LICENSE_TYPES,
+      default: "unknown",
+    },
+
+    licenseUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    sourceUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    sourceName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    attributionText: {
+      type: String,
+      trim: true,
+      maxlength: [500, "Attribution cannot exceed 500 characters"],
+      default: "",
+    },
+
+    rightsSummary: {
+      type: String,
+      trim: true,
+      maxlength: [1000, "Rights summary cannot exceed 1000 characters"],
+      default: "",
+    },
+
+    requiresAttribution: {
+      type: Boolean,
+      default: false,
+    },
+
+    isRightsVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    rightsVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+
     // ── Fork System ────────────────────────────────────────────────────
     // null = original document
     // ObjectId = this is a fork of another document
@@ -158,6 +227,9 @@ documentSchema.index({
   genre: "text",
   tags: "text",
   author: "text",
+  licenseType: "text",
+  sourceName: "text",
+  attributionText: "text",
 });
 
 documentSchema.index({ fileType: 1, isActive: 1 });

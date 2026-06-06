@@ -345,7 +345,15 @@ class AdminService {
     if (query.status === "inactive") filter.isActive = false;
     if (query.search) {
       const search = new RegExp(escapeRegex(query.search), "i");
-      filter.$or = [{ title: search }, { description: search }, { category: search }, { genre: search }];
+      filter.$or = [
+        { title: search },
+        { description: search },
+        { category: search },
+        { genre: search },
+        { licenseType: search },
+        { sourceName: search },
+        { attributionText: search },
+      ];
     }
 
     const [items, total] = await Promise.all([
@@ -373,6 +381,15 @@ class AdminService {
       "availabilityCountries",
       "isLocked",
       "isActive",
+      "licenseType",
+      "licenseUrl",
+      "sourceUrl",
+      "sourceName",
+      "attributionText",
+      "rightsSummary",
+      "requiresAttribution",
+      "isRightsVerified",
+      "rightsVerifiedAt",
     ]);
     const media = await Media.findByIdAndUpdate(mediaId, updates, { new: true });
     if (!media) throw { status: 404, message: "Media not found" };
@@ -425,7 +442,16 @@ class AdminService {
     if (query.status === "inactive") filter.isActive = false;
     if (query.search) {
       const search = new RegExp(escapeRegex(query.search), "i");
-      filter.$or = [{ title: search }, { description: search }, { category: search }, { genre: search }, { author: search }];
+      filter.$or = [
+        { title: search },
+        { description: search },
+        { category: search },
+        { genre: search },
+        { author: search },
+        { licenseType: search },
+        { sourceName: search },
+        { attributionText: search },
+      ];
     }
 
     const [items, total] = await Promise.all([
@@ -437,7 +463,24 @@ class AdminService {
   }
 
   async updateDocument(documentId, body) {
-    const updates = pickAllowed(body, ["title", "description", "category", "genre", "tags", "author", "isActive"]);
+    const updates = pickAllowed(body, [
+      "title",
+      "description",
+      "category",
+      "genre",
+      "tags",
+      "author",
+      "isActive",
+      "licenseType",
+      "licenseUrl",
+      "sourceUrl",
+      "sourceName",
+      "attributionText",
+      "rightsSummary",
+      "requiresAttribution",
+      "isRightsVerified",
+      "rightsVerifiedAt",
+    ]);
     const document = await Document.findByIdAndUpdate(documentId, updates, { new: true });
     if (!document) throw { status: 404, message: "Document not found" };
     return document;

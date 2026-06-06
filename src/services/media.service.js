@@ -29,6 +29,48 @@ const parseList = (value) => {
 
 const parseBoolean = (value) => value === true || value === "true";
 
+const LICENSE_TYPES = new Set([
+  "unknown",
+  "public_domain",
+  "cc0",
+  "cc_by",
+  "cc_by_sa",
+  "cc_by_nc",
+  "cc_by_nc_sa",
+  "cc_by_nd",
+  "cc_by_nc_nd",
+  "standard_license",
+  "owned",
+  "permission_granted",
+]);
+
+const ATTRIBUTION_LICENSES = new Set([
+  "cc_by",
+  "cc_by_sa",
+  "cc_by_nc",
+  "cc_by_nc_sa",
+  "cc_by_nd",
+  "cc_by_nc_nd",
+]);
+
+const parseRightsMetadata = (body = {}) => {
+  const licenseType = LICENSE_TYPES.has(body.licenseType) ? body.licenseType : "unknown";
+  const requiresAttribution =
+    body.requiresAttribution !== undefined
+      ? parseBoolean(body.requiresAttribution)
+      : ATTRIBUTION_LICENSES.has(licenseType);
+
+  return {
+    licenseType,
+    licenseUrl: body.licenseUrl || "",
+    sourceUrl: body.sourceUrl || "",
+    sourceName: body.sourceName || "",
+    attributionText: body.attributionText || "",
+    rightsSummary: body.rightsSummary || "",
+    requiresAttribution,
+  };
+};
+
 class MediaService {
   // ── Upload and create media ───────────────────────────────────────────
   async uploadMedia({ mediaFile, thumbnailFile, body, userId }) {
@@ -121,6 +163,7 @@ class MediaService {
     const parsedTags = parseList(tags);
     const parsedHomeSections = parseList(homeSections);
     const parsedAvailabilityCountries = parseList(availabilityCountries);
+    const rightsMetadata = parseRightsMetadata(body);
 
     // 7. Save to MongoDB
     const media = await Media.create({
@@ -139,6 +182,7 @@ class MediaService {
       isFeatured: parseBoolean(isFeatured),
       featuredRank: featuredRank ? parseInt(featuredRank) : 0,
       availabilityCountries: parsedAvailabilityCountries,
+      ...rightsMetadata,
       artist: artist || "",
       releaseYear: releaseYear ? parseInt(releaseYear) : null,
       mediaUrl: cloudinaryResult.secure_url,
@@ -443,6 +487,7 @@ class MediaService {
       isFeatured: parseBoolean(isFeatured),
       featuredRank: featuredRank ? parseInt(featuredRank) : 0,
       availabilityCountries: parseList(availabilityCountries),
+      ...parseRightsMetadata(body),
       artist: artist || "",
       releaseYear: releaseYear ? parseInt(releaseYear) : null,
       mediaUrl,
@@ -544,13 +589,21 @@ class MediaService {
       "releaseStatus", "publishStatus", "homeSections", "isFeatured",
       "featuredRank", "availabilityCountries", "artist", "releaseYear",
       "isLocked", "liveScheduledAt", "playbackUrl", "hlsUrl",
-      "processingStatus", "processingError",
+      "processingStatus", "processingError", "licenseType", "licenseUrl",
+      "sourceUrl", "sourceName", "attributionText", "rightsSummary",
+      "requiresAttribution", "isRightsVerified", "rightsVerifiedAt",
     ];
 
     allowedUpdates.forEach((field) => {
       if (updates[field] !== undefined) {
         if (["tags", "homeSections", "availabilityCountries"].includes(field)) {
           media[field] = parseList(updates[field]);
+        } else if (field === "licenseType") {
+          media[field] = LICENSE_TYPES.has(updates[field]) ? updates[field] : "unknown";
+        } else if (["requiresAttribution", "isRightsVerified"].includes(field)) {
+          media[field] = parseBoolean(updates[field]);
+        } else if (field === "rightsVerifiedAt") {
+          media[field] = updates[field] ? new Date(updates[field]) : null;
         } else {
           media[field] = updates[field];
         }
@@ -724,6 +777,15 @@ class MediaService {
       tags: Array.from(new Set([...(source.tags || []), "remix"])),
       genre: source.genre || "",
       artist: source.artist || "",
+      licenseType: source.licenseType || "unknown",
+      licenseUrl: source.licenseUrl || "",
+      sourceUrl: source.sourceUrl || "",
+      sourceName: source.sourceName || "",
+      attributionText: source.attributionText || "",
+      rightsSummary: source.rightsSummary || "",
+      requiresAttribution: source.requiresAttribution || false,
+      isRightsVerified: source.isRightsVerified || false,
+      rightsVerifiedAt: source.rightsVerifiedAt || null,
       mediaUrl: source.mediaUrl,
       cloudinaryPublicId: source.cloudinaryPublicId,
       thumbnailUrl: source.thumbnailUrl,

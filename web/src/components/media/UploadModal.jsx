@@ -16,6 +16,21 @@ const MEDIA_TYPES = [
   { value: 'live_event', label: '🔴 Live Event' },
 ]
 
+const LICENSE_TYPES = [
+  { value: 'unknown', label: 'Rights not set yet' },
+  { value: 'public_domain', label: 'Public domain' },
+  { value: 'cc0', label: 'Creative Commons CC0' },
+  { value: 'cc_by', label: 'Creative Commons BY' },
+  { value: 'cc_by_sa', label: 'Creative Commons BY-SA' },
+  { value: 'cc_by_nc', label: 'Creative Commons BY-NC' },
+  { value: 'cc_by_nc_sa', label: 'Creative Commons BY-NC-SA' },
+  { value: 'cc_by_nd', label: 'Creative Commons BY-ND' },
+  { value: 'cc_by_nc_nd', label: 'Creative Commons BY-NC-ND' },
+  { value: 'standard_license', label: 'Standard licensed content' },
+  { value: 'owned', label: 'Owned by NendPlay/uploader' },
+  { value: 'permission_granted', label: 'Permission granted' },
+]
+
 export default function UploadModal({ onClose, onSuccess }) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -27,6 +42,9 @@ export default function UploadModal({ onClose, onSuccess }) {
     homeSections: '', availabilityCountries: '',
     releaseYear: '', isLocked: false, isShort: false,
     isLive: false, isFeatured: false, featuredRank: '',
+    licenseType: 'unknown', sourceName: '', sourceUrl: '',
+    licenseUrl: '', attributionText: '', rightsSummary: '',
+    requiresAttribution: false,
     uploadProvider: 'auto',
   })
   const [mediaFile, setMediaFile] = useState(null)
@@ -285,6 +303,43 @@ export default function UploadModal({ onClose, onSuccess }) {
           <input type="text" placeholder="Tags (comma separated)" value={form.tags}
             onChange={(e) => setForm({ ...form, tags: e.target.value })}
             className="input-base" />
+
+          <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--color-surface-high)', border: '1px solid var(--color-border)' }}>
+            <div>
+              <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Rights and source</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                Store public domain, Creative Commons, or license proof for this upload.
+              </p>
+            </div>
+            <select value={form.licenseType}
+              onChange={(e) => setForm({ ...form, licenseType: e.target.value })}
+              className="input-base">
+              {LICENSE_TYPES.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            <div className="grid grid-cols-2 gap-3">
+              <input type="text" placeholder="Source name" value={form.sourceName}
+                onChange={(e) => setForm({ ...form, sourceName: e.target.value })}
+                className="input-base" />
+              <input type="url" placeholder="Source URL" value={form.sourceUrl}
+                onChange={(e) => setForm({ ...form, sourceUrl: e.target.value })}
+                className="input-base" />
+            </div>
+            <input type="url" placeholder="License URL" value={form.licenseUrl}
+              onChange={(e) => setForm({ ...form, licenseUrl: e.target.value })}
+              className="input-base" />
+            <textarea placeholder="Attribution text" value={form.attributionText}
+              onChange={(e) => setForm({ ...form, attributionText: e.target.value })}
+              className="input-base resize-none" rows={2} />
+            <textarea placeholder="Rights notes / proof summary" value={form.rightsSummary}
+              onChange={(e) => setForm({ ...form, rightsSummary: e.target.value })}
+              className="input-base resize-none" rows={2} />
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.requiresAttribution}
+                onChange={(e) => setForm({ ...form, requiresAttribution: e.target.checked })}
+                className="w-4 h-4 rounded" />
+              <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Show attribution for this content</span>
+            </label>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <input type="text" placeholder="Genre e.g. Action" value={form.genre}

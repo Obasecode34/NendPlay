@@ -16,6 +16,21 @@
 
 const mongoose = require("mongoose");
 
+const LICENSE_TYPES = [
+  "unknown",
+  "public_domain",
+  "cc0",
+  "cc_by",
+  "cc_by_sa",
+  "cc_by_nc",
+  "cc_by_nc_sa",
+  "cc_by_nd",
+  "cc_by_nc_nd",
+  "standard_license",
+  "owned",
+  "permission_granted",
+];
+
 const mediaSchema = new mongoose.Schema(
   {
     // ── Identity ───────────────────────────────────────────────────────
@@ -115,6 +130,60 @@ const mediaSchema = new mongoose.Schema(
     availabilityCountries: {
       type: [String],
       default: [],
+    },
+
+    // Rights metadata for public-domain, Creative Commons, owned, or licensed content.
+    licenseType: {
+      type: String,
+      enum: LICENSE_TYPES,
+      default: "unknown",
+    },
+
+    licenseUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    sourceUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    sourceName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    attributionText: {
+      type: String,
+      trim: true,
+      maxlength: [500, "Attribution cannot exceed 500 characters"],
+      default: "",
+    },
+
+    rightsSummary: {
+      type: String,
+      trim: true,
+      maxlength: [1000, "Rights summary cannot exceed 1000 characters"],
+      default: "",
+    },
+
+    requiresAttribution: {
+      type: Boolean,
+      default: false,
+    },
+
+    isRightsVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    rightsVerifiedAt: {
+      type: Date,
+      default: null,
     },
 
     // ── Media Files ────────────────────────────────────────────────────
@@ -330,6 +399,9 @@ mediaSchema.index({
   language: "text",
   country: "text",
   homeSections: "text",
+  licenseType: "text",
+  sourceName: "text",
+  attributionText: "text",
 });
 
 // Compound indexes for common filter queries
