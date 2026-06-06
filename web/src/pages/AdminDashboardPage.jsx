@@ -11,6 +11,7 @@ import {
   RiFilmLine,
   RiGiftLine,
   RiMailLine,
+  RiNotification3Line,
   RiShieldUserLine,
   RiUserLine,
   RiVipCrownLine,
@@ -27,6 +28,7 @@ const tabs = [
   { id: 'subscriptions', label: 'Subscriptions', icon: RiVipCrownLine },
   { id: 'downloads', label: 'Downloads', icon: RiDownloadLine },
   { id: 'rewards', label: 'Rewards', icon: RiGiftLine },
+  { id: 'notifications', label: 'Notifications', icon: RiNotification3Line },
 ]
 
 const badgeColors = {
@@ -129,6 +131,15 @@ export default function AdminDashboardPage() {
   const [messageTarget, setMessageTarget] = useState(null)
   const [messageForm, setMessageForm] = useState({ subject: '', message: '' })
   const [detailsLoading, setDetailsLoading] = useState(false)
+  const [pushStats, setPushStats] = useState(null)
+  const [pushForm, setPushForm] = useState({
+    audience: 'all',
+    userId: '',
+    title: '',
+    body: '',
+    screen: 'Home',
+  })
+  const [pushSending, setPushSending] = useState(false)
 
   const isAdmin = ['admin', 'super_admin'].includes(user?.role)
   const isSuperAdmin = user?.role === 'super_admin'
@@ -142,6 +153,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     if (!isAdmin) return
     if (activeTab === 'overview') loadDashboard()
+    else if (activeTab === 'notifications') loadPushStats()
     else loadTable(1)
   }, [activeTab, isAdmin, status, debouncedSearch])
 
@@ -175,6 +187,52 @@ export default function AdminDashboardPage() {
     subscriptions: 'subscriptions',
     downloads: 'downloads',
     rewards: 'rewards',
+  }
+
+  const loadPushStats = async () => {
+    setLoading(true)
+    try {
+      const res = await adminService.getPushStats()
+      setPushStats(res.data.data.stats)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not load notification stats')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const sendPushNotification = async () => {
+    if (!pushForm.title.trim() || !pushForm.body.trim()) {
+      toast.error('Enter a title and message')
+      return
+    }
+    if (pushForm.audience === 'user' && !pushForm.userId.trim()) {
+      toast.error('Enter a user ID for a single-user notification')
+      return
+    }
+
+    setPushSending(true)
+    try {
+      const payload = {
+        audience: pushForm.audience === 'user' ? undefined : pushForm.audience,
+        userId: pushForm.audience === 'user' ? pushForm.userId.trim() : undefined,
+        title: pushForm.title.trim(),
+        body: pushForm.body.trim(),
+        data: {
+          screen: pushForm.screen,
+          source: 'admin',
+        },
+      }
+      const res = await adminService.sendPushNotification(payload)
+      const data = res.data?.data
+      toast.success(`Sent ${data?.sent || 0} notification${data?.sent === 1 ? '' : 's'}`)
+      setPushForm({ audience: 'all', userId: '', title: '', body: '', screen: 'Home' })
+      loadPushStats()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not send push notification')
+    } finally {
+      setPushSending(false)
+    }
   }
 
   const loadTable = async (nextPage = page) => {
@@ -434,6 +492,15 @@ export default function AdminDashboardPage() {
       )}
 
       {!loading && activeTab !== 'overview' && (
+        activeTab === 'notifications' ? (
+          <NotificationPanel
+            stats={pushStats}
+            form={pushForm}
+            setForm={setPushForm}
+            sending={pushSending}
+            onSend={sendPushNotification}
+          />
+        ) : (
         <div className="space-y-4">
           <TableShell
             title={tabs.find((tab) => tab.id === activeTab)?.label}
@@ -462,6 +529,7 @@ export default function AdminDashboardPage() {
             </div>
           )}
         </div>
+        )
       )}
 
       {selectedUserDetails && (
@@ -480,6 +548,106 @@ export default function AdminDashboardPage() {
           onSend={sendUserMessage}
         />
       )}
+    </div>
+  )
+}
+
+function NotificationPanel({ stats, form, setForm, sending, onSend }) {
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatCard label="Total Tokens" value={stats?.totalTokens || 0} icon={RiNotification3Line} />
+        <StatCard label="Active Tokens" value={stats?.activeTokens || 0} icon={RiNotification3Line} />
+        <StatCard label="Reachable Users" value={stats?.usersWithTokens || 0} icon={RiUserLine} />
+      </div>
+
+      <div className="card p-5">
+        <div className="mb-5">
+          <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>
+            Send Push Notification
+          </h2>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
+            Send updates to users who allowed notifications in the mobile app.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Audience</label>
+            <select
+              className="input-base"
+              value={form.audience}
+              onChange={(event) => setForm({ ...form, audience: event.target.value })}
+            >
+              <option value="all">All users</option>
+              <option value="subscribers">Subscribed users</option>
+              <option value="free_users">Free users</option>
+              <option value="user">One user ID</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Open Screen</label>
+            <select
+              className="input-base"
+              value={form.screen}
+              onChange={(event) => setForm({ ...form, screen: event.target.value })}
+            >
+              <option value="Home">Home</option>
+              <option value="Shorts">Shorts</option>
+              <option value="NovelHub">NovelHub</option>
+              <option value="Rewards">Rewards</option>
+              <option value="Subscription">Subscription</option>
+              <option value="Downloads">Downloads</option>
+              <option value="Profile">Profile</option>
+            </select>
+          </div>
+
+          {form.audience === 'user' && (
+            <div className="lg:col-span-2">
+              <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>User ID</label>
+              <input
+                className="input-base"
+                value={form.userId}
+                onChange={(event) => setForm({ ...form, userId: event.target.value })}
+                placeholder="MongoDB user ID"
+              />
+            </div>
+          )}
+
+          <div className="lg:col-span-2">
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Title</label>
+            <input
+              className="input-base"
+              maxLength={80}
+              value={form.title}
+              onChange={(event) => setForm({ ...form, title: event.target.value })}
+              placeholder="New release on NendPlay"
+            />
+          </div>
+
+          <div className="lg:col-span-2">
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Message</label>
+            <textarea
+              className="input-base min-h-32 resize-y"
+              maxLength={180}
+              value={form.body}
+              onChange={(event) => setForm({ ...form, body: event.target.value })}
+              placeholder="Tell users what is new..."
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <button
+            className="btn-primary px-5 py-3 text-sm flex items-center gap-2"
+            disabled={sending}
+            onClick={onSend}
+          >
+            <RiNotification3Line /> {sending ? 'Sending...' : 'Send Notification'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

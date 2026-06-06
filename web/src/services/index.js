@@ -118,4 +118,6 @@ export const adminService = {
   getSubscriptions: (params) => api.get('/admin/subscriptions', { params }),
   getDownloads: (params) => api.get('/admin/downloads', { params }),
   getRewards: (params) => api.get('/admin/rewards', { params }),
+  getPushStats: () => api.get('/notifications/admin/stats'),
+  sendPushNotification: (data) => api.post('/notifications/admin/send', data),
 }

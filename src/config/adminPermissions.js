@@ -11,6 +11,8 @@ const ADMIN_PERMISSIONS = [
   "subscriptions:read",
   "rewards:read",
   "downloads:read",
+  "notifications:read",
+  "notifications:write",
 ];
 
 module.exports = { ADMIN_PERMISSIONS };
