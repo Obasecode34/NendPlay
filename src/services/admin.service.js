@@ -423,9 +423,43 @@ class AdminService {
     return media;
   }
 
+  async refreshMediaPlaybackState(media) {
+    if (!media?.storageProvider || !media.storageKey) return media;
+
+    try {
+      if (media.storageProvider === "bunny") {
+        const video = await bunnyService.getVideo(media.storageKey);
+        const playback = bunnyService.getPlayback(media.storageKey);
+        media.duration = video.length || video.duration || media.duration;
+        media.playbackUrl = playback.playbackUrl || media.playbackUrl;
+        media.hlsUrl = playback.hlsUrl || media.hlsUrl;
+        media.mediaUrl = playback.hlsUrl || media.mediaUrl;
+        media.thumbnailUrl = media.thumbnailUrl || playback.thumbnailUrl || video.thumbnailUrl || "";
+        media.processingStatus = bunnyService.getProcessingStatus(video);
+        await media.save();
+      }
+
+      if (media.storageProvider === "mux") {
+        const asset = await muxService.getAsset(media.storageKey);
+        const playback = muxService.getPlayback(asset.playback_ids || []);
+        media.duration = asset.duration || media.duration;
+        media.playbackUrl = playback.playbackUrl || media.playbackUrl;
+        media.hlsUrl = playback.hlsUrl || media.hlsUrl;
+        media.mediaUrl = playback.hlsUrl || media.mediaUrl;
+        media.processingStatus = asset.status === "ready" ? "ready" : "processing";
+        await media.save();
+      }
+    } catch (err) {
+      console.warn(`Media provider refresh skipped for ${media._id}: ${err.message}`);
+    }
+
+    return media;
+  }
+
   async approveMedia(mediaId, admin) {
-    const current = await Media.findById(mediaId);
+    let current = await Media.findById(mediaId);
     if (!current) throw { status: 404, message: "Media not found" };
+    current = await this.refreshMediaPlaybackState(current);
     const readyForPlayback = ["ready", "uploaded"].includes(current.processingStatus || "ready");
 
     const media = await Media.findByIdAndUpdate(

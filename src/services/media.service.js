@@ -33,6 +33,20 @@ const parseBoolean = (value) => value === true || value === "true";
 const isAdminUser = (user = {}) => ["admin", "super_admin"].includes(user.role);
 const PLAYBACK_TOKEN_TTL_SECONDS = 10 * 60;
 
+const publicPublishFilter = () => ({
+  $or: [
+    { publishStatus: "published" },
+    { publishStatus: { $exists: false } },
+    { publishStatus: null },
+    { publishStatus: "" },
+  ],
+});
+
+const isPublicMedia = (media) => (
+  Boolean(media?.isActive) &&
+  (!media.publishStatus || media.publishStatus === "published")
+);
+
 const LICENSE_TYPES = new Set([
   "unknown",
   "public_domain",
@@ -628,7 +642,7 @@ class MediaService {
 
   // ── Get all media with filters and pagination ─────────────────────────
   async getAllMedia({ type, category, isLocked, isShort, isLive, language, country, homeSection, search, page = 1, limit = 20, sortBy = "createdAt", sortOrder = "desc" }) {
-    const query = { isActive: true, publishStatus: "published" };
+    const query = { isActive: true, ...publicPublishFilter() };
 
     if (type) query.type = type;
     if (category) query.category = category;
@@ -673,7 +687,7 @@ class MediaService {
     const media = await Media.findById(mediaId)
       .populate("uploadedBy", "profileName username profilePic subscriberCount");
 
-    if (!media || !media.isActive || media.publishStatus !== "published") {
+    if (!isPublicMedia(media)) {
       throw { status: 404, message: "Media not found" };
     }
 
@@ -933,13 +947,13 @@ class MediaService {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [media, total] = await Promise.all([
-      Media.find({ _id: { $in: savedIds }, isActive: true })
+      Media.find({ _id: { $in: savedIds }, isActive: true, ...publicPublishFilter() })
         .populate("uploadedBy", "profileName username profilePic subscriberCount")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Media.countDocuments({ _id: { $in: savedIds }, isActive: true }),
+      Media.countDocuments({ _id: { $in: savedIds }, isActive: true, ...publicPublishFilter() }),
     ]);
 
     return {
@@ -958,12 +972,12 @@ class MediaService {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [media, total] = await Promise.all([
-      Media.find({ uploadedBy: userId, isActive: true, publishStatus: "published" })
+      Media.find({ uploadedBy: userId, isActive: true, ...publicPublishFilter() })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Media.countDocuments({ uploadedBy: userId, isActive: true, publishStatus: "published" }),
+      Media.countDocuments({ uploadedBy: userId, isActive: true, ...publicPublishFilter() }),
     ]);
 
     return {
@@ -982,14 +996,14 @@ class MediaService {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [media, total] = await Promise.all([
-      Media.find({ isShort: true, isActive: true, publishStatus: "published" })
+      Media.find({ isShort: true, isActive: true, ...publicPublishFilter() })
         .populate("uploadedBy", "profileName username profilePic subscriberCount")
         .populate("comments.user", "username profilePic")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Media.countDocuments({ isShort: true, isActive: true, publishStatus: "published" }),
+      Media.countDocuments({ isShort: true, isActive: true, ...publicPublishFilter() }),
     ]);
 
     return {
@@ -1013,14 +1027,14 @@ class MediaService {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [media, total] = await Promise.all([
-      Media.find({ isShort: true, isActive: true, publishStatus: "published", uploadedBy: { $in: creatorIds } })
+      Media.find({ isShort: true, isActive: true, ...publicPublishFilter(), uploadedBy: { $in: creatorIds } })
         .populate("uploadedBy", "profileName username profilePic subscriberCount")
         .populate("comments.user", "username profilePic")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Media.countDocuments({ isShort: true, isActive: true, publishStatus: "published", uploadedBy: { $in: creatorIds } }),
+      Media.countDocuments({ isShort: true, isActive: true, ...publicPublishFilter(), uploadedBy: { $in: creatorIds } }),
     ]);
 
     return {
@@ -1039,13 +1053,13 @@ class MediaService {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [media, total] = await Promise.all([
-      Media.find({ isLive: true, isActive: true, publishStatus: "published" })
+      Media.find({ isLive: true, isActive: true, ...publicPublishFilter() })
         .populate("uploadedBy", "profileName username profilePic subscriberCount")
         .sort({ liveScheduledAt: 1 }) // earliest first
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Media.countDocuments({ isLive: true, isActive: true, publishStatus: "published" }),
+      Media.countDocuments({ isLive: true, isActive: true, ...publicPublishFilter() }),
     ]);
 
     return {

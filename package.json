@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "admin:grant": "node scripts/grant-admin.js",
+    "media:backfill-review": "node scripts/backfill-media-review-status.js",
     "test": "jest"
   },
   "dependencies": {
