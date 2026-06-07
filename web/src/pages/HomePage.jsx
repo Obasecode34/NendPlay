@@ -50,6 +50,7 @@ function getSearchText(item) {
   return [
     item.title, item.description, item.type, item.category, item.genre,
     item.language, item.country, item.contentRating, item.releaseStatus,
+    ...(item.categories || []), ...(item.navigationLabels || []),
     ...(item.tags || []), ...(item.homeSections || []),
   ].filter(Boolean).join(' ').toLowerCase()
 }

@@ -67,6 +67,7 @@ class MuxService {
       playbackId,
       hlsUrl: `https://stream.mux.com/${playbackId}.m3u8`,
       playbackUrl: `https://stream.mux.com/${playbackId}.m3u8`,
+      thumbnailUrl: `https://image.mux.com/${playbackId}/thumbnail.jpg?time=1`,
     };
   }
 }

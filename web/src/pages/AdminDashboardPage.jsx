@@ -44,6 +44,23 @@ const badgeColors = {
   failed: '#EF4444',
 }
 
+const MEDIA_CATEGORY_OPTIONS = ['All', 'Hollywood', 'Nollywood', 'Bollywood', 'Western', 'K-Drama']
+const MEDIA_NAVIGATION_OPTIONS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon']
+const MEDIA_TYPE_OPTIONS = ['movie', 'video', 'music', 'tv_show', 'comedy', 'talk_show', 'podcast', 'short', 'live_event']
+const PUBLISH_STATUS_OPTIONS = ['draft', 'processing', 'pending_review', 'published', 'rejected', 'failed', 'archived']
+
+function listToInput(value) {
+  return Array.isArray(value) ? value.join(', ') : value || ''
+}
+
+function normalizeInputList(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 5)
+}
+
 function Badge({ children }) {
   const key = String(children || '').toLowerCase()
   return (
@@ -130,6 +147,9 @@ export default function AdminDashboardPage() {
   const [selectedUserDetails, setSelectedUserDetails] = useState(null)
   const [messageTarget, setMessageTarget] = useState(null)
   const [messageForm, setMessageForm] = useState({ subject: '', message: '' })
+  const [mediaEditTarget, setMediaEditTarget] = useState(null)
+  const [mediaEditForm, setMediaEditForm] = useState(null)
+  const [mediaThumbnailFile, setMediaThumbnailFile] = useState(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [pushStats, setPushStats] = useState(null)
   const [pushForm, setPushForm] = useState({
@@ -330,6 +350,73 @@ export default function AdminDashboardPage() {
     }
   }
 
+  const openMediaEditModal = (row) => {
+    setMediaEditTarget(row)
+    setMediaThumbnailFile(null)
+    setMediaEditForm({
+      title: row.title || '',
+      description: row.description || '',
+      type: row.type || 'video',
+      categories: listToInput(row.categories?.length ? row.categories : [row.category].filter(Boolean)),
+      navigationLabels: listToInput(row.navigationLabels?.length ? row.navigationLabels : row.homeSections || []),
+      genre: row.genre || '',
+      language: row.language || '',
+      country: row.country || '',
+      publishStatus: row.publishStatus || 'pending_review',
+      reviewStatus: row.reviewStatus || 'pending',
+      reviewNote: row.reviewNote || '',
+      isLocked: Boolean(row.isLocked),
+      isActive: row.isActive !== false,
+      isFeatured: Boolean(row.isFeatured),
+      featuredRank: row.featuredRank || 0,
+      thumbnailUrl: row.thumbnailUrl || '',
+    })
+  }
+
+  const saveMediaEdit = async () => {
+    if (!mediaEditTarget || !mediaEditForm) return
+    const categories = normalizeInputList(mediaEditForm.categories)
+    const navigationLabels = normalizeInputList(mediaEditForm.navigationLabels)
+    if (!mediaEditForm.title.trim()) {
+      toast.error('Media title is required')
+      return
+    }
+    if (categories.length > 5 || navigationLabels.length > 5) {
+      toast.error('Use up to 5 categories and 5 navigation labels')
+      return
+    }
+
+    const payload = {
+      ...mediaEditForm,
+      title: mediaEditForm.title.trim(),
+      categories,
+      navigationLabels,
+      category: categories[0] || mediaEditForm.category || 'general',
+      homeSections: navigationLabels,
+      featuredRank: Number(mediaEditForm.featuredRank) || 0,
+    }
+
+    try {
+      let requestBody = payload
+      if (mediaThumbnailFile) {
+        requestBody = new FormData()
+        Object.entries(payload).forEach(([key, value]) => {
+          if (Array.isArray(value)) requestBody.append(key, JSON.stringify(value))
+          else requestBody.append(key, value === undefined || value === null ? '' : String(value))
+        })
+        requestBody.append('thumbnail', mediaThumbnailFile)
+      }
+      await adminService.updateMedia(mediaEditTarget._id, requestBody)
+      toast.success('Media updated')
+      setMediaEditTarget(null)
+      setMediaEditForm(null)
+      setMediaThumbnailFile(null)
+      loadTable()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not update media')
+    }
+  }
+
   const columns = useMemo(() => {
     if (activeTab === 'users') return [
       { key: 'name', label: 'User', render: (row) => <div><p className="font-bold">{row.profileName || row.username || 'User'}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.email || row.username}</p></div> },
@@ -339,7 +426,8 @@ export default function AdminDashboardPage() {
       { key: 'createdAt', label: 'Joined', render: (row) => new Date(row.createdAt).toLocaleDateString() },
     ]
     if (activeTab === 'media') return [
-      { key: 'title', label: 'Title', render: (row) => <div><p className="font-bold max-w-sm truncate">{row.title}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.type} · {row.category}</p></div> },
+      { key: 'title', label: 'Title', render: (row) => <div><p className="font-bold max-w-sm truncate">{row.title}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.type} · {(row.categories?.length ? row.categories : [row.category]).filter(Boolean).join(', ')}</p></div> },
+      { key: 'navigationLabels', label: 'Nav Labels', render: (row) => (row.navigationLabels?.length ? row.navigationLabels : row.homeSections || []).join(', ') || '-' },
       { key: 'publishStatus', label: 'Publish', render: (row) => <Badge>{row.publishStatus}</Badge> },
       { key: 'reviewStatus', label: 'Review', render: (row) => <Badge>{row.reviewStatus || 'pending'}</Badge> },
       { key: 'isActive', label: 'Status', render: (row) => <Badge>{row.isActive ? 'active' : 'inactive'}</Badge> },
@@ -416,6 +504,7 @@ export default function AdminDashboardPage() {
     if (activeTab === 'media') {
       return (
         <div className="flex flex-wrap gap-2">
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => openMediaEditModal(row)}>Edit</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media approved', () => adminService.approveMedia(row._id))}>Approve</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media rejected', () => adminService.rejectMedia(row._id, { reviewNote: 'Rejected by admin review' }))}>Reject</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media archived', () => adminService.updateMedia(row._id, { publishStatus: 'archived', isActive: false }))}>Archive</button>
@@ -584,6 +673,161 @@ export default function AdminDashboardPage() {
           onSend={sendUserMessage}
         />
       )}
+
+      {mediaEditTarget && mediaEditForm && (
+        <MediaEditModal
+          media={mediaEditTarget}
+          form={mediaEditForm}
+          setForm={setMediaEditForm}
+          thumbnailFile={mediaThumbnailFile}
+          setThumbnailFile={setMediaThumbnailFile}
+          onClose={() => {
+            setMediaEditTarget(null)
+            setMediaEditForm(null)
+            setMediaThumbnailFile(null)
+          }}
+          onSave={saveMediaEdit}
+        />
+      )}
+    </div>
+  )
+}
+
+function MediaEditModal({ media, form, setForm, thumbnailFile, setThumbnailFile, onClose, onSave }) {
+  const applyOption = (field, value) => {
+    const list = normalizeInputList(form[field])
+    const exists = list.some((item) => item.toLowerCase() === value.toLowerCase())
+    const next = exists ? list.filter((item) => item.toLowerCase() !== value.toLowerCase()) : [...list, value].slice(0, 5)
+    setForm({ ...form, [field]: next.join(', ') })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.72)' }}>
+      <div className="card w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="p-5 flex items-start justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <div>
+            <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>Edit Media</h2>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              Edit before or after approval. If no thumbnail is provided, NendPlay uses the provider thumbnail where available.
+            </p>
+          </div>
+          <button onClick={onClose} className="btn-ghost px-4 py-2 text-sm">Close</button>
+        </div>
+
+        <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Title</label>
+            <input className="input-base" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Type</label>
+            <select className="input-base" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })}>
+              {MEDIA_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </div>
+
+          <div className="lg:col-span-2">
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Description</label>
+            <textarea className="input-base min-h-28 resize-y" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Categories, max 5</label>
+            <input className="input-base" value={form.categories} onChange={(event) => setForm({ ...form, categories: event.target.value })} placeholder="Hollywood, Nollywood" />
+            <div className="mt-2 flex flex-wrap gap-2">
+              {MEDIA_CATEGORY_OPTIONS.map((item) => (
+                <button key={item} type="button" className="btn-ghost px-3 py-1 text-xs" onClick={() => applyOption('categories', item)}>
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Navigation Labels, max 5</label>
+            <input className="input-base" value={form.navigationLabels} onChange={(event) => setForm({ ...form, navigationLabels: event.target.value })} placeholder="Trending, Movie" />
+            <div className="mt-2 flex flex-wrap gap-2">
+              {MEDIA_NAVIGATION_OPTIONS.map((item) => (
+                <button key={item} type="button" className="btn-ghost px-3 py-1 text-xs" onClick={() => applyOption('navigationLabels', item)}>
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Genre</label>
+            <input className="input-base" value={form.genre} onChange={(event) => setForm({ ...form, genre: event.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Language</label>
+            <input className="input-base" value={form.language} onChange={(event) => setForm({ ...form, language: event.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Country</label>
+            <input className="input-base" value={form.country} onChange={(event) => setForm({ ...form, country: event.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Featured Rank</label>
+            <input className="input-base" type="number" value={form.featuredRank} onChange={(event) => setForm({ ...form, featuredRank: event.target.value })} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Publish Status</label>
+            <select className="input-base" value={form.publishStatus} onChange={(event) => setForm({ ...form, publishStatus: event.target.value })}>
+              {PUBLISH_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Review Status</label>
+            <select className="input-base" value={form.reviewStatus} onChange={(event) => setForm({ ...form, reviewStatus: event.target.value })}>
+              <option value="pending">pending</option>
+              <option value="approved">approved</option>
+              <option value="rejected">rejected</option>
+            </select>
+          </div>
+
+          <div className="lg:col-span-2">
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Review Note</label>
+            <textarea className="input-base min-h-20 resize-y" value={form.reviewNote} onChange={(event) => setForm({ ...form, reviewNote: event.target.value })} />
+          </div>
+
+          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-[180px,1fr] gap-4 items-center">
+            <div className="h-28 rounded-xl overflow-hidden" style={{ background: 'var(--color-surface-high)' }}>
+              {form.thumbnailUrl || media.thumbnailUrl ? (
+                <img src={form.thumbnailUrl || media.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center text-sm" style={{ color: 'var(--color-text-muted)' }}>No thumbnail</div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Replace Thumbnail</label>
+              <input className="input-base" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setThumbnailFile(event.target.files?.[0] || null)} />
+              <p className="mt-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                {thumbnailFile ? thumbnailFile.name : 'Leave empty to keep the existing thumbnail or provider-generated thumbnail.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="lg:col-span-2 flex flex-wrap gap-4">
+            {[
+              ['isLocked', 'Subscription locked'],
+              ['isActive', 'Visible/active'],
+              ['isFeatured', 'Featured'],
+            ].map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--color-text)' }}>
+                <input type="checkbox" checked={Boolean(form[key])} onChange={(event) => setForm({ ...form, [key]: event.target.checked })} />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-5 flex justify-end gap-2" style={{ borderTop: '1px solid var(--color-border)' }}>
+          <button onClick={onClose} className="btn-ghost px-4 py-2 text-sm">Cancel</button>
+          <button onClick={onSave} className="btn-primary px-5 py-2 text-sm">Save Media</button>
+        </div>
+      </div>
     </div>
   )
 }

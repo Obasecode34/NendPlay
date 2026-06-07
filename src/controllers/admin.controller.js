@@ -49,7 +49,7 @@ class AdminController {
   });
 
   updateMedia = wrap(async (req, res) => {
-    const media = await adminService.updateMedia(req.params.id, req.body, req.admin);
+    const media = await adminService.updateMedia(req.params.id, req.body, req.admin, req.files || {});
     return ApiResponse.success(res, { message: "Media updated", data: { media } });
   });
 

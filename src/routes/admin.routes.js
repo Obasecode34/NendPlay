@@ -2,6 +2,10 @@ const express = require("express");
 const router = express.Router();
 const adminController = require("../controllers/admin.controller");
 const { authMiddleware, requireAdmin } = require("../middleware/auth.middleware");
+const {
+  uploadMediaWithThumbnail,
+  handleMulterError,
+} = require("../middleware/upload.middleware");
 
 router.use(authMiddleware);
 
@@ -16,7 +20,13 @@ router.delete("/users/:id", requireAdmin("users:write"), adminController.deleteU
 
 router.get("/media", requireAdmin("media:read"), adminController.listMedia);
 router.post("/media/sync/bunny", requireAdmin("media:write"), adminController.syncBunnyMedia);
-router.patch("/media/:id", requireAdmin("media:write"), adminController.updateMedia);
+router.patch(
+  "/media/:id",
+  requireAdmin("media:write"),
+  uploadMediaWithThumbnail.fields([{ name: "thumbnail", maxCount: 1 }]),
+  handleMulterError,
+  adminController.updateMedia
+);
 router.post("/media/:id/approve", requireAdmin("media:write"), adminController.approveMedia);
 router.post("/media/:id/reject", requireAdmin("media:write"), adminController.rejectMedia);
 router.delete("/media/:id", requireAdmin("media:write"), adminController.deleteMedia);

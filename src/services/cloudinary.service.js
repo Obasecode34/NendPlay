@@ -162,6 +162,19 @@ class CloudinaryService {
     }
     return cloudinaryResult.secure_url;
   }
+
+  getVideoThumbnailUrl(publicId) {
+    if (!publicId) return "";
+    return cloudinary.url(publicId, {
+      resource_type: "video",
+      format: "jpg",
+      transformation: [
+        { width: 1280, height: 720, crop: "fill", gravity: "auto" },
+        { quality: "auto", fetch_format: "auto" },
+      ],
+      secure: true,
+    });
+  }
 }
 
 module.exports = new CloudinaryService();

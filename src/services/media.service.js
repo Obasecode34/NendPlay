@@ -26,8 +26,16 @@ const { getMediaCategory } = require("../middleware/upload.middleware");
 const parseList = (value) => {
   if (!value) return [];
   if (Array.isArray(value)) return value.map((item) => `${item}`.trim()).filter(Boolean);
-  return `${value}`.split(",").map((item) => item.trim()).filter(Boolean);
+  const raw = `${value}`.trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parseList(parsed);
+  } catch {}
+  return raw.split(",").map((item) => item.trim()).filter(Boolean);
 };
+
+const parseLimitedList = (value, limit = 5) => parseList(value).slice(0, limit);
 
 const parseBoolean = (value) => value === true || value === "true";
 const isAdminUser = (user = {}) => ["admin", "super_admin"].includes(user.role);
@@ -196,6 +204,8 @@ class MediaService {
       description,
       type,
       category,
+      categories,
+      navigationLabels,
       tags,
       genre,
       language,
@@ -275,10 +285,15 @@ class MediaService {
         // Non-fatal — media still saved without thumbnail
       }
     }
+    if (!thumbnailUrl && isVideoUpload) {
+      thumbnailUrl = cloudinaryService.getVideoThumbnailUrl(cloudinaryResult.public_id);
+    }
 
     // 6. Parse tags from string or array
     const parsedTags = parseList(tags);
-    const parsedHomeSections = parseList(homeSections);
+    const parsedHomeSections = parseLimitedList(homeSections || navigationLabels, 5);
+    const parsedCategories = parseLimitedList(categories || category || "general", 5);
+    const parsedNavigationLabels = parseLimitedList(navigationLabels || homeSections, 5);
     const parsedAvailabilityCountries = parseList(availabilityCountries);
     const rightsMetadata = parseRightsMetadata(body);
     const reviewState = this.getInitialReviewState(body, user);
@@ -288,7 +303,9 @@ class MediaService {
       title,
       description: description || "",
       type: type || (isShort ? "short" : "video"),
-      category: category || "general",
+      category: parsedCategories[0] || category || "general",
+      categories: parsedCategories,
+      navigationLabels: parsedNavigationLabels,
       tags: parsedTags,
       genre: genre || "",
       language: language || "",
@@ -514,6 +531,7 @@ class MediaService {
         mediaUrl: playback.hlsUrl || `mux://uploads/${directUploadId}`,
         playbackUrl: playback.playbackUrl || "",
         hlsUrl: playback.hlsUrl || "",
+        thumbnailUrl: body.thumbnailUrl || playback.thumbnailUrl || "",
         duration: asset?.duration || body.duration || 0,
         storageProvider: "mux",
         storageKey: asset?.id || upload.asset_id || directUploadId,
@@ -547,6 +565,7 @@ class MediaService {
     media.playbackUrl = playback.playbackUrl || media.playbackUrl;
     media.hlsUrl = playback.hlsUrl || media.hlsUrl;
     media.mediaUrl = playback.hlsUrl || media.mediaUrl;
+    media.thumbnailUrl = media.thumbnailUrl || playback.thumbnailUrl || "";
     media.processingStatus = asset.status === "ready" ? "ready" : "processing";
     media.publishStatus = asset.status === "ready" && media.reviewStatus === "approved" ? "published" : asset.status === "ready" ? "pending_review" : "processing";
     await media.save();
@@ -560,6 +579,8 @@ class MediaService {
       description,
       type,
       category,
+      categories,
+      navigationLabels,
       tags,
       genre,
       language,
@@ -600,7 +621,9 @@ class MediaService {
       title,
       description: description || "",
       type: type || "movie",
-      category: category || "general",
+      category: parseLimitedList(categories || category || "general", 5)[0] || category || "general",
+      categories: parseLimitedList(categories || category || "general", 5),
+      navigationLabels: parseLimitedList(navigationLabels || homeSections, 5),
       tags: parseList(tags),
       genre: genre || "",
       language: language || "",
@@ -611,7 +634,7 @@ class MediaService {
       reviewStatus: reviewState.reviewStatus,
       reviewedBy: reviewState.reviewedBy,
       reviewedAt: reviewState.reviewedAt,
-      homeSections: parseList(homeSections),
+      homeSections: parseLimitedList(homeSections || navigationLabels, 5),
       isFeatured: parseBoolean(isFeatured),
       featuredRank: featuredRank ? parseInt(featuredRank) : 0,
       availabilityCountries: parseList(availabilityCountries),
@@ -645,10 +668,14 @@ class MediaService {
     const query = { isActive: true, ...publicPublishFilter() };
 
     if (type) query.type = type;
-    if (category) query.category = category;
+    if (category) query.$or = [{ category }, { categories: category }];
     if (language) query.language = new RegExp(`^${language}$`, "i");
     if (country) query.country = new RegExp(`^${country}$`, "i");
-    if (homeSection) query.homeSections = homeSection;
+    if (homeSection) query.$or = [
+      ...(query.$or || []),
+      { homeSections: homeSection },
+      { navigationLabels: homeSection },
+    ];
     if (isLocked !== undefined) query.isLocked = isLocked === "true";
     if (isShort !== undefined) query.isShort = isShort === "true";
     if (isLive !== undefined) query.isLive = isLive === "true";
@@ -711,7 +738,7 @@ class MediaService {
     }
 
     const allowedUpdates = [
-      "title", "description", "category", "tags",
+      "title", "description", "category", "categories", "navigationLabels", "tags",
       "genre", "language", "country", "contentRating",
       "releaseStatus", "homeSections", "isFeatured",
       "featuredRank", "availabilityCountries", "artist", "releaseYear",
@@ -723,8 +750,14 @@ class MediaService {
 
     allowedUpdates.forEach((field) => {
       if (updates[field] !== undefined) {
-        if (["tags", "homeSections", "availabilityCountries"].includes(field)) {
-          media[field] = parseList(updates[field]);
+        if (field === "categories") {
+          media.categories = parseLimitedList(updates[field], 5);
+          media.category = media.categories[0] || media.category || "general";
+        } else if (field === "navigationLabels") {
+          media.navigationLabels = parseLimitedList(updates[field], 5);
+          media.homeSections = media.navigationLabels;
+        } else if (["tags", "homeSections", "availabilityCountries"].includes(field)) {
+          media[field] = field === "homeSections" ? parseLimitedList(updates[field], 5) : parseList(updates[field]);
         } else if (field === "licenseType") {
           media[field] = LICENSE_TYPES.has(updates[field]) ? updates[field] : "unknown";
         } else if (["requiresAttribution", "isRightsVerified"].includes(field)) {

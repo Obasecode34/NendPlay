@@ -44,6 +44,26 @@ function pickAllowed(body, allowed) {
   }, {});
 }
 
+function parseList(value, maxItems = null) {
+  if (value === undefined || value === null) return [];
+  if (Array.isArray(value)) {
+    const next = value.map((item) => `${item}`.trim()).filter(Boolean);
+    return maxItems ? next.slice(0, maxItems) : next;
+  }
+  const raw = `${value}`.trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parseList(parsed, maxItems);
+  } catch {}
+  const next = raw.split(",").map((item) => item.trim()).filter(Boolean);
+  return maxItems ? next.slice(0, maxItems) : next;
+}
+
+function firstListValue(values, fallback = "general") {
+  return values?.[0] || fallback;
+}
+
 function getBunnyVideoId(video = {}) {
   return video.guid || video.id || video.videoLibraryId || video.videoId || "";
 }
@@ -359,6 +379,9 @@ class AdminService {
         { title: search },
         { description: search },
         { category: search },
+        { categories: search },
+        { navigationLabels: search },
+        { homeSections: search },
         { genre: search },
         { licenseType: search },
         { sourceName: search },
@@ -374,11 +397,13 @@ class AdminService {
     return { media: items, pagination: pagination(page, limit, total) };
   }
 
-  async updateMedia(mediaId, body, admin = null) {
+  async updateMedia(mediaId, body, admin = null, files = {}) {
     const updates = pickAllowed(body, [
       "title",
       "description",
       "category",
+      "categories",
+      "navigationLabels",
       "genre",
       "language",
       "country",
@@ -402,7 +427,33 @@ class AdminService {
       "rightsVerifiedAt",
       "reviewStatus",
       "reviewNote",
+      "thumbnailUrl",
     ]);
+
+    if (updates.categories !== undefined) {
+      updates.categories = parseList(updates.categories, 5);
+      updates.category = firstListValue(updates.categories, updates.category || body.category || "general");
+    }
+    if (updates.navigationLabels !== undefined) {
+      updates.navigationLabels = parseList(updates.navigationLabels, 5);
+      updates.homeSections = updates.navigationLabels;
+    }
+    if (updates.homeSections !== undefined) updates.homeSections = parseList(updates.homeSections, 5);
+    if (updates.availabilityCountries !== undefined) updates.availabilityCountries = parseList(updates.availabilityCountries);
+
+    const thumbnailFile = files?.thumbnail?.[0] || files?.thumbnail || null;
+    if (thumbnailFile) {
+      const existing = await Media.findById(mediaId).select("thumbnailCloudinaryId");
+      if (!existing) throw { status: 404, message: "Media not found" };
+      const thumbResult = await cloudinaryService.uploadThumbnail(thumbnailFile.buffer, {
+        folder: "nendplay/thumbnails",
+      });
+      if (existing.thumbnailCloudinaryId) {
+        cloudinaryService.deleteFile(existing.thumbnailCloudinaryId, "image");
+      }
+      updates.thumbnailUrl = thumbResult.secure_url;
+      updates.thumbnailCloudinaryId = thumbResult.public_id;
+    }
 
     if (updates.publishStatus === "published") {
       updates.reviewStatus = "approved";
@@ -422,8 +473,11 @@ class AdminService {
       updates.isActive = true;
     }
 
-    const media = await Media.findByIdAndUpdate(mediaId, updates, { new: true });
+    let media = await Media.findByIdAndUpdate(mediaId, updates, { new: true });
     if (!media) throw { status: 404, message: "Media not found" };
+    if (!media.thumbnailUrl) {
+      media = await this.refreshMediaPlaybackState(media);
+    }
     return media;
   }
 
@@ -450,6 +504,7 @@ class AdminService {
         media.playbackUrl = playback.playbackUrl || media.playbackUrl;
         media.hlsUrl = playback.hlsUrl || media.hlsUrl;
         media.mediaUrl = playback.hlsUrl || media.mediaUrl;
+        media.thumbnailUrl = media.thumbnailUrl || playback.thumbnailUrl || "";
         media.processingStatus = asset.status === "ready" ? "ready" : "processing";
         await media.save();
       }
@@ -532,6 +587,8 @@ class AdminService {
           description: existing?.description || "",
           type: existing?.type || defaultType,
           category: existing?.category || defaultCategory,
+          categories: existing?.categories?.length ? existing.categories : [defaultCategory],
+          navigationLabels: existing?.navigationLabels?.length ? existing.navigationLabels : defaultHomeSections.slice(0, 5),
           homeSections: existing?.homeSections?.length ? existing.homeSections : defaultHomeSections,
           mediaUrl: playback.hlsUrl || existing?.mediaUrl || `bunny://videos/${videoId}`,
           playbackUrl: playback.playbackUrl || existing?.playbackUrl || "",

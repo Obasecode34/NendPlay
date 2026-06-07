@@ -71,6 +71,24 @@ const mediaSchema = new mongoose.Schema(
       default: "general",
     },
 
+    categories: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (items) => !items || items.length <= 5,
+        message: "A media file can have up to 5 categories",
+      },
+    },
+
+    navigationLabels: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (items) => !items || items.length <= 5,
+        message: "A media file can have up to 5 navigation labels",
+      },
+    },
+
     tags: {
       type: [String],
       default: [],
@@ -420,6 +438,8 @@ mediaSchema.index({
   artist: "text",
   genre: "text",
   category: "text",
+  categories: "text",
+  navigationLabels: "text",
   language: "text",
   country: "text",
   homeSections: "text",
