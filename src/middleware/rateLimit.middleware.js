@@ -29,6 +29,7 @@ const generalLimiter = rateLimit({
   max: 200,                  // 200 requests per 15 min per IP
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => /^\/api\/media\/[^/]+\/(stream|hls)$/.test(req.path),
   handler: (req, res) => {
     return ApiResponse.error(res, {
       statusCode: 429,
