@@ -140,6 +140,7 @@ export default function AdminDashboardPage() {
     screen: 'Home',
   })
   const [pushSending, setPushSending] = useState(false)
+  const [bunnySyncing, setBunnySyncing] = useState(false)
 
   const isAdmin = ['admin', 'super_admin'].includes(user?.role)
   const isSuperAdmin = user?.role === 'super_admin'
@@ -232,6 +233,25 @@ export default function AdminDashboardPage() {
       toast.error(err.response?.data?.message || 'Could not send push notification')
     } finally {
       setPushSending(false)
+    }
+  }
+
+  const syncBunnyLibrary = async () => {
+    setBunnySyncing(true)
+    try {
+      const res = await adminService.syncBunnyMedia({
+        limit: 100,
+        maxPages: 10,
+        autoApprove: false,
+      })
+      const data = res.data?.data || {}
+      toast.success(`Bunny synced: ${data.imported || 0} imported, ${data.updated || 0} updated`)
+      if (activeTab === 'media') loadTable(1)
+      else loadDashboard()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not sync Bunny library')
+    } finally {
+      setBunnySyncing(false)
     }
   }
 
@@ -510,16 +530,28 @@ export default function AdminDashboardPage() {
             search={search}
             setSearch={setSearch}
             filters={
-              <select className="input-base py-2" value={status} onChange={(event) => setStatus(event.target.value)}>
-                <option value="">All status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="pending_review">Pending Review</option>
-                <option value="published">Published</option>
-                <option value="rejected">Rejected</option>
-                <option value="archived">Archived</option>
-                <option value="failed">Failed</option>
-              </select>
+              <>
+                {activeTab === 'media' && (
+                  <button
+                    type="button"
+                    className="btn-primary px-4 py-2 text-sm"
+                    disabled={bunnySyncing}
+                    onClick={syncBunnyLibrary}
+                  >
+                    {bunnySyncing ? 'Syncing Bunny...' : 'Sync Bunny'}
+                  </button>
+                )}
+                <select className="input-base py-2" value={status} onChange={(event) => setStatus(event.target.value)}>
+                  <option value="">All status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="pending_review">Pending Review</option>
+                  <option value="published">Published</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="archived">Archived</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </>
             }>
             <DataTable columns={columns} rows={rows} renderActions={['users', 'media', 'documents', 'ads'].includes(activeTab) ? renderActions : null} />
           </TableShell>

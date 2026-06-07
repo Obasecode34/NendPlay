@@ -15,6 +15,7 @@ router.post("/users/:id/email", requireAdmin("users:write"), adminController.sen
 router.delete("/users/:id", requireAdmin("users:write"), adminController.deleteUser);
 
 router.get("/media", requireAdmin("media:read"), adminController.listMedia);
+router.post("/media/sync/bunny", requireAdmin("media:write"), adminController.syncBunnyMedia);
 router.patch("/media/:id", requireAdmin("media:write"), adminController.updateMedia);
 router.post("/media/:id/approve", requireAdmin("media:write"), adminController.approveMedia);
 router.post("/media/:id/reject", requireAdmin("media:write"), adminController.rejectMedia);

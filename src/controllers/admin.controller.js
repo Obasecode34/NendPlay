@@ -58,6 +58,11 @@ class AdminController {
     return ApiResponse.success(res, { message: "Media approved", data: { media } });
   });
 
+  syncBunnyMedia = wrap(async (req, res) => {
+    const result = await adminService.syncBunnyLibrary(req.body, req.admin);
+    return ApiResponse.success(res, { message: result.message, data: result });
+  });
+
   rejectMedia = wrap(async (req, res) => {
     const media = await adminService.rejectMedia(req.params.id, req.body, req.admin);
     return ApiResponse.success(res, { message: "Media rejected", data: { media } });

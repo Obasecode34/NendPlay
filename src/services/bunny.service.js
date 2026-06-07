@@ -89,6 +89,26 @@ class BunnyService {
     return data;
   }
 
+  async listVideos({ page = 1, itemsPerPage = 100, search = "" } = {}) {
+    this.ensureConfigured();
+    const { data } = await this.client.get("/videos", {
+      params: {
+        page,
+        itemsPerPage,
+        search: search || undefined,
+      },
+    });
+
+    const items = data.items || data.videos || [];
+    return {
+      items,
+      totalItems: data.totalItems || data.total || items.length,
+      currentPage: data.currentPage || page,
+      itemsPerPage: data.itemsPerPage || itemsPerPage,
+      raw: data,
+    };
+  }
+
   async deleteVideo(videoId) {
     this.ensureConfigured();
     if (!videoId) return null;

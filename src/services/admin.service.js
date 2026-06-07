@@ -44,6 +44,10 @@ function pickAllowed(body, allowed) {
   }, {});
 }
 
+function getBunnyVideoId(video = {}) {
+  return video.guid || video.id || video.videoLibraryId || video.videoId || "";
+}
+
 class AdminService {
   assertSuperAdmin(admin) {
     if (admin?.role !== "super_admin") {
@@ -476,6 +480,111 @@ class AdminService {
     );
     if (!media) throw { status: 404, message: "Media not found" };
     return media;
+  }
+
+  async syncBunnyLibrary(body = {}, admin) {
+    const pageSize = Math.min(Math.max(parseInt(body.limit, 10) || 100, 1), 100);
+    const maxPages = Math.min(Math.max(parseInt(body.maxPages, 10) || 5, 1), 25);
+    const autoApprove = body.autoApprove === true || body.autoApprove === "true";
+    const defaultType = body.type || "video";
+    const defaultCategory = body.category || "bunny";
+    const defaultHomeSections = Array.isArray(body.homeSections)
+      ? body.homeSections
+      : String(body.homeSections || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+    let page = 1;
+    let imported = 0;
+    let updated = 0;
+    let skipped = 0;
+    let totalSeen = 0;
+
+    while (page <= maxPages) {
+      const result = await bunnyService.listVideos({
+        page,
+        itemsPerPage: pageSize,
+        search: body.search || "",
+      });
+      const videos = result.items || [];
+      if (videos.length === 0) break;
+
+      for (const video of videos) {
+        totalSeen += 1;
+        const videoId = getBunnyVideoId(video);
+        if (!videoId) {
+          skipped += 1;
+          continue;
+        }
+
+        const playback = bunnyService.getPlayback(videoId);
+        const processingStatus = bunnyService.getProcessingStatus(video);
+        const isReady = processingStatus === "ready";
+        const existing = await Media.findOne({ storageProvider: "bunny", storageKey: videoId });
+        const approved = autoApprove || existing?.reviewStatus === "approved";
+        const publishStatus = isReady
+          ? (approved ? "published" : "pending_review")
+          : processingStatus;
+
+        const common = {
+          title: video.title || video.name || existing?.title || `Bunny video ${videoId}`,
+          description: existing?.description || "",
+          type: existing?.type || defaultType,
+          category: existing?.category || defaultCategory,
+          homeSections: existing?.homeSections?.length ? existing.homeSections : defaultHomeSections,
+          mediaUrl: playback.hlsUrl || existing?.mediaUrl || `bunny://videos/${videoId}`,
+          playbackUrl: playback.playbackUrl || existing?.playbackUrl || "",
+          hlsUrl: playback.hlsUrl || existing?.hlsUrl || "",
+          thumbnailUrl: existing?.thumbnailUrl || playback.thumbnailUrl || video.thumbnailUrl || "",
+          duration: video.length || video.duration || existing?.duration || 0,
+          fileSize: video.storageSize || video.size || existing?.fileSize || 0,
+          mimeType: existing?.mimeType || "application/vnd.apple.mpegurl",
+          storageProvider: "bunny",
+          storageKey: videoId,
+          transcodingProvider: "bunny",
+          processingStatus,
+          publishStatus,
+          reviewStatus: approved ? "approved" : (existing?.reviewStatus || "pending"),
+          reviewedBy: approved ? admin.id : (existing?.reviewedBy || null),
+          reviewedAt: approved ? new Date() : (existing?.reviewedAt || null),
+          isActive: true,
+          isUserUpload: false,
+          uploadedBy: existing?.uploadedBy || admin.id,
+          licenseType: existing?.licenseType || "owned",
+          sourceName: existing?.sourceName || "Bunny Stream",
+          sourceUrl: existing?.sourceUrl || "",
+          rightsSummary: existing?.rightsSummary || "Imported from the NendPlay Bunny Stream library.",
+          isRightsVerified: existing?.isRightsVerified ?? autoApprove,
+          rightsVerifiedAt: existing?.rightsVerifiedAt || (autoApprove ? new Date() : null),
+        };
+
+        if (existing) {
+          Object.assign(existing, common);
+          await existing.save();
+          updated += 1;
+        } else {
+          await Media.create(common);
+          imported += 1;
+        }
+      }
+
+      const totalItems = Number(result.totalItems || 0);
+      if (videos.length < pageSize || (totalItems && page * pageSize >= totalItems)) break;
+      page += 1;
+    }
+
+    return {
+      provider: "bunny",
+      totalSeen,
+      imported,
+      updated,
+      skipped,
+      autoApprove,
+      message: autoApprove
+        ? "Bunny library synced and ready videos were published."
+        : "Bunny library synced. Review imported videos in the Media tab.",
+    };
   }
 
   async rejectMedia(mediaId, body, admin) {

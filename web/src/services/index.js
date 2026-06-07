@@ -115,6 +115,7 @@ export const adminService = {
   sendUserEmail: (id, data) => api.post(`/admin/users/${id}/email`, data),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
   getMedia: (params) => api.get('/admin/media', { params }),
+  syncBunnyMedia: (data) => api.post('/admin/media/sync/bunny', data),
   updateMedia: (id, data) => api.patch(`/admin/media/${id}`, data),
   approveMedia: (id) => api.post(`/admin/media/${id}/approve`),
   rejectMedia: (id, data) => api.post(`/admin/media/${id}/reject`, data),
