@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { RiPlayFill, RiUploadLine, RiBroadcastFill } from 'react-icons/ri'
+import { RiPlayFill, RiBroadcastFill } from 'react-icons/ri'
 import { useInView } from 'react-intersection-observer'
 import toast from 'react-hot-toast'
 import { mediaService, novelService } from '../services/index'
@@ -19,6 +19,14 @@ const CATEGORY_LABELS = {
 }
 const CATEGORY_ORDER = ['movie', 'music', 'tv_show', 'podcast', 'comedy', 'talk_show', 'short']
 const HOME_TABS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon']
+const HOME_CATEGORIES = [
+  { label: 'All', terms: [] },
+  { label: 'Hollywood', terms: ['hollywood'] },
+  { label: 'Nollywood', terms: ['nollywood', 'nigeria', 'naija'] },
+  { label: 'Bollywood', terms: ['bollywood', 'india', 'hindi'] },
+  { label: 'Western', terms: ['western', 'america', 'usa', 'united states'] },
+  { label: 'K-Drama', terms: ['k-drama', 'kdrama', 'korean', 'korea'] },
+]
 const HOME_PAGE_LIMIT = 40
 const SEARCH_PAGE_LIMIT = 20
 
@@ -50,6 +58,14 @@ function matchesAny(item, terms) {
   if (!terms?.length) return true
   const text = getSearchText(item)
   return terms.some((term) => text.includes(term))
+}
+
+function matchesHomeTab(item, tab) {
+  if (tab === 'Shorts') return item.type === 'short' || item.isShort
+  if (tab === 'Movie') return item.type === 'movie'
+  if (tab === 'Anime') return matchesAny(item, ['anime'])
+  if (tab === 'Cartoon') return matchesAny(item, ['cartoon', 'animation', 'animated'])
+  return true
 }
 
 function byPopularity(items) {
@@ -99,6 +115,8 @@ export default function HomePage() {
   const [loadingMoreSearch, setLoadingMoreSearch] = useState(false)
   const [featuredItems, setFeaturedItems] = useState([])
   const [featuredIndex, setFeaturedIndex] = useState(0)
+  const [activeHomeTab, setActiveHomeTab] = useState('Trending')
+  const [activeCategory, setActiveCategory] = useState(HOME_CATEGORIES[0])
   const movieSectionRef = useRef(null)
   const firstSectionRef = useRef(null)
   const { ref: loadMoreRef, inView: loadMoreInView } = useInView({ rootMargin: '320px' })
@@ -187,28 +205,33 @@ export default function HomePage() {
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const movies = allMedia.filter((item) => item.type === 'movie')
-  const series = allMedia.filter((item) => item.type === 'tv_show')
-  const shorts = allMedia.filter((item) => item.type === 'short' || item.isShort)
-  const comedy = allMedia.filter((item) => item.type === 'comedy' || matchesAny(item, ['funny', 'comedy', 'buzz']))
+  const tabMedia = allMedia.filter((item) => matchesHomeTab(item, activeHomeTab))
+  const visibleMedia = tabMedia.filter((item) => matchesAny(item, activeCategory.terms))
+  const visibleSections = groupMedia(visibleMedia)
+  const movies = visibleMedia.filter((item) => item.type === 'movie')
+  const series = visibleMedia.filter((item) => item.type === 'tv_show')
+  const shorts = visibleMedia.filter((item) => item.type === 'short' || item.isShort)
+  const comedy = visibleMedia.filter((item) => item.type === 'comedy' || matchesAny(item, ['funny', 'comedy', 'buzz']))
   const nollywood = movies.filter((item) => matchesAny(item, ['nollywood', 'nigeria', 'naija']))
-  const anime = allMedia.filter((item) => matchesAny(item, ['anime', 'dubbed']))
-  const kDrama = allMedia.filter((item) => matchesAny(item, ['k-drama', 'kdrama', 'korean', 'korea']))
+  const anime = visibleMedia.filter((item) => matchesAny(item, ['anime', 'dubbed']))
+  const kDrama = visibleMedia.filter((item) => matchesAny(item, ['k-drama', 'kdrama', 'korean', 'korea']))
   const actionMovies = movies.filter((item) => matchesAny(item, ['action']))
-  const trending = byPopularity(allMedia)
+  const trending = byPopularity(visibleMedia)
 
   return (
     <div className="animate-fade-in">
       {!searchQuery && (
         <div className="mb-5 flex gap-7 overflow-x-auto no-scrollbar text-lg font-semibold">
-          {HOME_TABS.map((tab, index) => (
-            <span
+          {HOME_TABS.map((tab) => (
+            <button
               key={tab}
-              style={{ color: index === 1 ? 'var(--color-text)' : 'var(--color-text-muted)' }}
-              className={index === 1 ? 'font-black' : ''}
+              type="button"
+              onClick={() => setActiveHomeTab(tab)}
+              style={{ color: activeHomeTab === tab ? 'var(--color-text)' : 'var(--color-text-muted)' }}
+              className={`whitespace-nowrap ${activeHomeTab === tab ? 'font-black' : ''}`}
             >
               {tab}
-            </span>
+            </button>
           ))}
         </div>
       )}
@@ -325,24 +348,26 @@ export default function HomePage() {
             Categories
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {[
-              { icon: RiPlayFill, label: 'All', action: () => {} },
-              { icon: RiPlayFill, label: 'Hollywood', action: () => {} },
-              { icon: RiPlayFill, label: 'Nollywood', action: openMovieCategory },
-              { icon: RiPlayFill, label: 'Anime', action: () => {} },
-              { icon: RiUploadLine, label: 'Upload Media', action: () => navigate('/profile') },
-            ].map(({ icon: Icon, label, action }) => (
+            {HOME_CATEGORIES.map((category) => (
               <button
-                key={label}
-                onClick={action}
+                key={category.label}
+                onClick={() => setActiveCategory(category)}
                 className="flex items-center gap-3 p-4 rounded-xl text-left transition-all hover:scale-105"
-                style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                style={{
+                  background: activeCategory.label === category.label ? 'var(--color-primary)' : 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                }}>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'var(--color-surface-high)', color: 'var(--color-primary)' }}>
-                  <Icon />
+                  style={{
+                    background: activeCategory.label === category.label ? 'rgba(255,255,255,0.16)' : 'var(--color-surface-high)',
+                    color: activeCategory.label === category.label ? '#FFFFFF' : 'var(--color-primary)',
+                  }}>
+                  <RiPlayFill />
                 </div>
-                <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
-                  {label}
+                <span
+                  className="text-sm font-medium"
+                  style={{ color: activeCategory.label === category.label ? '#FFFFFF' : 'var(--color-text)' }}>
+                  {category.label}
                 </span>
               </button>
             ))}
@@ -377,7 +402,12 @@ export default function HomePage() {
           <MediaRow title="Anime [English Dubbed]" items={anime.slice(0, 12)} size="md" />
           <MediaRow title="K-Drama" items={kDrama.slice(0, 12)} size="md" />
           <MediaRow title="Action" items={actionMovies.slice(0, 12)} size="md" />
-          <MediaRow title="More to Watch" items={allMedia} size="md" />
+          <MediaRow title="More to Watch" items={visibleMedia} size="md" />
+          {visibleMedia.length === 0 && (
+            <div className="mb-8 rounded-xl p-6 text-center" style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
+              No media found for {activeCategory.label} {activeHomeTab}.
+            </div>
+          )}
         </>
       )}
 
@@ -389,7 +419,7 @@ export default function HomePage() {
           <MediaRow title="" items={[]} loading={true} />
         </>
       ) : (
-        Object.entries(sections).filter(([title]) => ![
+        Object.entries(searchQuery ? sections : visibleSections).filter(([title]) => ![
           'Movies', 'TV Shows', 'Shorts', 'Comedy',
         ].includes(title)).map(([title, items], index) => (
           <div
