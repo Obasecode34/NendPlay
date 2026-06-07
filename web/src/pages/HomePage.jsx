@@ -18,7 +18,7 @@ const CATEGORY_LABELS = {
   short: 'Shorts',
 }
 const CATEGORY_ORDER = ['movie', 'music', 'tv_show', 'podcast', 'comedy', 'talk_show', 'short']
-const HOME_TABS = ['FightZone', 'Trending', 'Movie', 'TV', 'Anime', 'ShortTV']
+const HOME_TABS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon']
 const HOME_PAGE_LIMIT = 40
 const SEARCH_PAGE_LIMIT = 20
 
