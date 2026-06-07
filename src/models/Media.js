@@ -426,6 +426,10 @@ mediaSchema.index({
   licenseType: "text",
   sourceName: "text",
   attributionText: "text",
+}, {
+  name: "media_text_search",
+  default_language: "none",
+  language_override: "__textSearchLanguage",
 });
 
 // Compound indexes for common filter queries
