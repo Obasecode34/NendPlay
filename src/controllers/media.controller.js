@@ -8,6 +8,39 @@ const mediaService = require("../services/media.service");
 const ApiResponse = require("../utils/apiResponse");
 const axios = require("axios");
 
+const BUNNY_REFERER = process.env.BUNNY_STREAM_REFERER || "https://nendplay.com";
+
+const isPlaylistPath = (value = "") => value.includes(".m3u8");
+
+function getBunnyProxyHeaders() {
+  return {
+    Referer: `${BUNNY_REFERER.replace(/\/+$/, "")}/`,
+    Origin: BUNNY_REFERER.replace(/\/+$/, ""),
+    "User-Agent": "Mozilla/5.0 NendPlayMedia/1.0",
+  };
+}
+
+function rewriteHlsPlaylist({ playlist, mediaId, playbackToken, currentPath = "" }) {
+  const baseDir = currentPath.includes("/")
+    ? currentPath.split("/").slice(0, -1).join("/")
+    : "";
+
+  return playlist
+    .split(/\r?\n/)
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#") || /^https?:\/\//i.test(trimmed)) return line;
+
+      const nextPath = baseDir ? `${baseDir}/${trimmed}` : trimmed;
+      const params = new URLSearchParams({
+        playbackToken,
+        path: nextPath,
+      });
+      return `/api/media/${mediaId}/hls?${params.toString()}`;
+    })
+    .join("\n");
+}
+
 class MediaController {
   // POST /api/media/upload
   async uploadMedia(req, res) {
@@ -233,6 +266,24 @@ class MediaController {
       }
 
       if (sourceUrl.includes(".m3u8")) {
+        if (media.storageProvider === "bunny") {
+          try {
+            const response = await axios.get(sourceUrl, {
+              headers: getBunnyProxyHeaders(),
+              responseType: "text",
+            });
+            res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+            res.setHeader("Cache-Control", "private, max-age=30");
+            return res.send(rewriteHlsPlaylist({
+              playlist: response.data,
+              mediaId: media._id,
+              playbackToken,
+            }));
+          } catch (err) {
+            return ApiResponse.error(res, { message: "Bunny playlist unavailable" });
+          }
+        }
+
         return res.redirect(sourceUrl);
       }
 
@@ -292,6 +343,68 @@ class MediaController {
         return ApiResponse.error(res, { statusCode: err.status, message: err.message });
       }
       return ApiResponse.error(res);
+    }
+  }
+
+  async proxyHlsMedia(req, res) {
+    try {
+      const media = await mediaService.getMediaById(req.params.id);
+      const playbackToken = req.query.playbackToken || req.query.token;
+      const decodedPlayback = mediaService.verifyPlaybackToken(playbackToken, media._id);
+      const tokenUserId = decodedPlayback?.userId || req.user?.userId || null;
+      const canPlay = decodedPlayback
+        ? await mediaService.canUserAccessMedia(media, tokenUserId)
+        : await mediaService.canUserAccessMedia(media, req.user?.userId);
+
+      if (!canPlay) {
+        return ApiResponse.unauthorized(res, "Subscribe to access this stream");
+      }
+
+      if (media.storageProvider !== "bunny") {
+        return ApiResponse.badRequest(res, "HLS proxy is only available for Bunny media");
+      }
+
+      const sourceUrl = mediaService.getBestPlaybackUrl(media);
+      if (!sourceUrl) {
+        return ApiResponse.notFound(res, "Media file not found");
+      }
+
+      const path = String(req.query.path || "").replace(/^\/+/, "");
+      if (!path || path.includes("..")) {
+        return ApiResponse.badRequest(res, "Invalid HLS path");
+      }
+
+      const base = new URL(sourceUrl);
+      const sourceDir = base.pathname.split("/").slice(0, -1).join("/");
+      base.pathname = `${sourceDir}/${path}`;
+
+      const response = await axios.get(base.toString(), {
+        headers: getBunnyProxyHeaders(),
+        responseType: isPlaylistPath(path) ? "text" : "stream",
+      });
+
+      if (isPlaylistPath(path)) {
+        res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+        res.setHeader("Cache-Control", "private, max-age=30");
+        return res.send(rewriteHlsPlaylist({
+          playlist: response.data,
+          mediaId: media._id,
+          playbackToken,
+          currentPath: path,
+        }));
+      }
+
+      res.setHeader("Content-Type", response.headers["content-type"] || "video/mp2t");
+      res.setHeader("Cache-Control", "private, max-age=300");
+      if (response.headers["content-length"]) {
+        res.setHeader("Content-Length", response.headers["content-length"]);
+      }
+      return response.data.pipe(res);
+    } catch (err) {
+      if (err.status) {
+        return ApiResponse.error(res, { statusCode: err.status, message: err.message });
+      }
+      return ApiResponse.error(res, { message: "HLS proxy failed" });
     }
   }
 

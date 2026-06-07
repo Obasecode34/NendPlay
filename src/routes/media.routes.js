@@ -41,6 +41,7 @@ router.post("/external", authMiddleware, mediaController.completeExternalUpload)
 // ── CRUD ──────────────────────────────────────────────────────────────────
 router.get("/",          mediaController.getAllMedia);
 router.get("/:id/playback", optionalAuthMiddleware, mediaController.getPlayback);
+router.get("/:id/hls", optionalAuthMiddleware, mediaController.proxyHlsMedia);
 router.get("/:id",       optionalAuthMiddleware, mediaController.getMediaById);
 router.get("/:id/stream", optionalAuthMiddleware, mediaController.streamMedia);
 router.patch("/:id",     authMiddleware, mediaController.updateMedia);
