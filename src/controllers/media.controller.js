@@ -20,7 +20,11 @@ function getBunnyProxyHeaders() {
   };
 }
 
-function rewriteHlsPlaylist({ playlist, mediaId, playbackToken, currentPath = "" }) {
+function getRequestOrigin(req) {
+  return `${req.protocol}://${req.get("host")}`.replace(/\/+$/, "");
+}
+
+function rewriteHlsPlaylist({ playlist, mediaId, playbackToken, currentPath = "", requestOrigin = "" }) {
   const baseDir = currentPath.includes("/")
     ? currentPath.split("/").slice(0, -1).join("/")
     : "";
@@ -36,7 +40,8 @@ function rewriteHlsPlaylist({ playlist, mediaId, playbackToken, currentPath = ""
         playbackToken,
         path: nextPath,
       });
-      return `/api/media/${mediaId}/hls?${params.toString()}`;
+      const proxyPath = `/api/media/${mediaId}/hls?${params.toString()}`;
+      return requestOrigin ? `${requestOrigin}${proxyPath}` : proxyPath;
     })
     .join("\n");
 }
@@ -278,6 +283,7 @@ class MediaController {
               playlist: response.data,
               mediaId: media._id,
               playbackToken,
+              requestOrigin: getRequestOrigin(req),
             }));
           } catch (err) {
             return ApiResponse.error(res, { message: "Bunny playlist unavailable" });
@@ -391,6 +397,7 @@ class MediaController {
           mediaId: media._id,
           playbackToken,
           currentPath: path,
+          requestOrigin: getRequestOrigin(req),
         }));
       }
 

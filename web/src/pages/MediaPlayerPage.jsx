@@ -214,6 +214,10 @@ export default function MediaPlayerPage() {
                   setProgress(playedSeconds)
                 }}
                 onDuration={(d) => { setLocalDuration(d); setDuration(d) }}
+                onError={(error) => {
+                  console.error('Media playback error', error)
+                  toast.error('Playback failed. Please try again in a moment.')
+                }}
                 config={{ file: { attributes: { controlsList: 'nodownload' } } }}
               />
 
