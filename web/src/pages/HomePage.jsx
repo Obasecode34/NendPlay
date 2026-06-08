@@ -36,7 +36,7 @@ const MOVIE_GENRES = [
   'Horror', 'Mystery', 'Crime', 'Fantasy', 'Science Fiction', 'Animation',
   'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography',
 ]
-const HOME_PAGE_LIMIT = 40
+const HOME_PAGE_LIMIT = 120
 const SEARCH_PAGE_LIMIT = 20
 
 function getCategoryLabel(type) {
@@ -59,9 +59,23 @@ function getSearchText(item) {
   return [
     item.title, item.description, item.type, item.category, item.genre,
     item.language, item.country, item.contentRating, item.releaseStatus,
-    ...(item.categories || []), ...(item.navigationLabels || []),
+    ...(item.genres || []), ...(item.categories || []), ...(item.navigationLabels || []),
     ...(item.tags || []), ...(item.homeSections || []),
   ].filter(Boolean).join(' ').toLowerCase()
+}
+
+function getNormalizedLabels(item, fields) {
+  return fields
+    .flatMap((field) => {
+      const value = item[field]
+      return Array.isArray(value) ? value : [value]
+    })
+    .filter(Boolean)
+    .map((value) => normalizeGenre(value))
+}
+
+function hasLabel(item, label, fields) {
+  return getNormalizedLabels(item, fields).includes(normalizeGenre(label))
 }
 
 function matchesAny(item, terms) {
@@ -83,10 +97,11 @@ function isShortMedia(item) {
 
 function matchesHomeTab(item, tab) {
   if (tab === 'Shorts') return isShortMedia(item)
+  if (hasLabel(item, tab, ['navigationLabels', 'homeSections'])) return true
   if (tab === 'Movie') return item.type === 'movie'
   if (tab === 'Anime') return matchesAny(item, ['anime'])
   if (tab === 'Cartoon') return matchesAny(item, ['cartoon', 'animation', 'animated'])
-  if (tab === 'Sports') return matchesAny(item, ['sports', 'sport', 'football', 'soccer', 'basketball', 'tennis', 'boxing', 'wrestling'])
+  if (tab === 'Sports') return hasMovieGenre(item, 'Sports') || matchesAny(item, ['sports', 'sport', 'football', 'soccer', 'basketball', 'tennis', 'boxing', 'wrestling'])
   return true
 }
 
@@ -244,11 +259,14 @@ export default function HomePage() {
   }
 
   const tabMedia = allMedia.filter((item) => matchesHomeTab(item, activeHomeTab))
-  const visibleMedia = tabMedia.filter((item) => matchesAny(item, activeCategory.terms))
+  const visibleMedia = tabMedia.filter((item) => (
+    activeCategory.label === 'All'
+    || hasLabel(item, activeCategory.label, ['category', 'categories'])
+    || matchesAny(item, activeCategory.terms)
+  ))
   const visibleSections = groupMedia(visibleMedia)
-  const movies = visibleMedia.filter((item) => item.type === 'movie')
   const shorts = visibleMedia.filter(isShortMedia)
-  const genreMovies = movies.filter((item) => MOVIE_GENRES.some((genre) => hasMovieGenre(item, genre)))
+  const genreMovies = visibleMedia.filter((item) => !isShortMedia(item) && MOVIE_GENRES.some((genre) => hasMovieGenre(item, genre)))
   const genreSections = MOVIE_GENRES.map((genre) => ({
     genre,
     items: genreMovies.filter((item) => hasMovieGenre(item, genre)),
