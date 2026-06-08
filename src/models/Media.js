@@ -500,8 +500,6 @@ mediaSchema.index({
   language: "text",
   country: "text",
   homeSections: "text",
-  parentTitle: "text",
-  episodeTitle: "text",
   licenseType: "text",
   sourceName: "text",
   attributionText: "text",
