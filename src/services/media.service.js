@@ -36,6 +36,7 @@ const parseList = (value) => {
 };
 
 const parseLimitedList = (value, limit = 5) => parseList(value).slice(0, limit);
+const parseGenres = (genres, genre) => parseLimitedList(genres || genre, 5);
 
 const parseBoolean = (value) => value === true || value === "true";
 const isAdminUser = (user = {}) => ["admin", "super_admin"].includes(user.role);
@@ -208,6 +209,7 @@ class MediaService {
       navigationLabels,
       tags,
       genre,
+      genres,
       language,
       country,
       contentRating,
@@ -294,6 +296,7 @@ class MediaService {
     const parsedHomeSections = parseLimitedList(homeSections || navigationLabels, 5);
     const parsedCategories = parseLimitedList(categories || category || "general", 5);
     const parsedNavigationLabels = parseLimitedList(navigationLabels || homeSections, 5);
+    const parsedGenres = parseGenres(genres, genre);
     const parsedAvailabilityCountries = parseList(availabilityCountries);
     const rightsMetadata = parseRightsMetadata(body);
     const reviewState = this.getInitialReviewState(body, user);
@@ -307,7 +310,8 @@ class MediaService {
       categories: parsedCategories,
       navigationLabels: parsedNavigationLabels,
       tags: parsedTags,
-      genre: genre || "",
+      genre: parsedGenres[0] || genre || "",
+      genres: parsedGenres,
       language: language || "",
       country: country || "",
       contentRating: contentRating || "",
@@ -583,6 +587,7 @@ class MediaService {
       navigationLabels,
       tags,
       genre,
+      genres,
       language,
       country,
       contentRating,
@@ -616,6 +621,7 @@ class MediaService {
     }
 
     const reviewState = this.getInitialReviewState(body, user);
+    const parsedGenres = parseGenres(genres, genre);
 
     const media = await Media.create({
       title,
@@ -625,7 +631,8 @@ class MediaService {
       categories: parseLimitedList(categories || category || "general", 5),
       navigationLabels: parseLimitedList(navigationLabels || homeSections, 5),
       tags: parseList(tags),
-      genre: genre || "",
+      genre: parsedGenres[0] || genre || "",
+      genres: parsedGenres,
       language: language || "",
       country: country || "",
       contentRating: contentRating || "",
@@ -739,7 +746,7 @@ class MediaService {
 
     const allowedUpdates = [
       "title", "description", "category", "categories", "navigationLabels", "tags",
-      "genre", "language", "country", "contentRating",
+      "genre", "genres", "language", "country", "contentRating",
       "releaseStatus", "homeSections", "isFeatured",
       "featuredRank", "availabilityCountries", "artist", "releaseYear",
       "isLocked", "liveScheduledAt", "playbackUrl", "hlsUrl",
@@ -753,6 +760,9 @@ class MediaService {
         if (field === "categories") {
           media.categories = parseLimitedList(updates[field], 5);
           media.category = media.categories[0] || media.category || "general";
+        } else if (field === "genres") {
+          media.genres = parseGenres(updates[field], updates.genre);
+          media.genre = media.genres[0] || media.genre || "";
         } else if (field === "navigationLabels") {
           media.navigationLabels = parseLimitedList(updates[field], 5);
           media.homeSections = media.navigationLabels;
@@ -934,8 +944,10 @@ class MediaService {
       description: data.description?.trim() || `Remix of ${source.title}`,
       type: "short",
       category: source.category || "general",
+      categories: source.categories || [],
       tags: Array.from(new Set([...(source.tags || []), "remix"])),
       genre: source.genre || "",
+      genres: source.genres || [],
       artist: source.artist || "",
       licenseType: source.licenseType || "unknown",
       licenseUrl: source.licenseUrl || "",

@@ -100,6 +100,15 @@ const mediaSchema = new mongoose.Schema(
       default: "",
     },
 
+    genres: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (items) => !items || items.length <= 5,
+        message: "A movie can have up to 5 genres",
+      },
+    },
+
     language: {
       type: String,
       trim: true,
@@ -437,6 +446,7 @@ mediaSchema.index({
   tags: "text",
   artist: "text",
   genre: "text",
+  genres: "text",
   category: "text",
   categories: "text",
   navigationLabels: "text",

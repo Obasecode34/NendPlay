@@ -18,7 +18,7 @@ const CATEGORY_LABELS = {
   short: 'Shorts',
 }
 const CATEGORY_ORDER = ['movie', 'music', 'tv_show', 'podcast', 'comedy', 'talk_show', 'short']
-const HOME_TABS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon']
+const HOME_TABS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon', 'Sports']
 const HOME_CATEGORIES = [
   { label: 'All', terms: [] },
   { label: 'Hollywood', terms: ['hollywood'] },
@@ -26,6 +26,15 @@ const HOME_CATEGORIES = [
   { label: 'Bollywood', terms: ['bollywood', 'india', 'hindi'] },
   { label: 'Western', terms: ['western', 'america', 'usa', 'united states'] },
   { label: 'K-Drama', terms: ['k-drama', 'kdrama', 'korean', 'korea'] },
+  { label: 'Chinese Cinema', terms: ['chinese cinema', 'china', 'chinese', 'mandarin'] },
+  { label: 'Hong Kong Cinema', terms: ['hong kong cinema', 'hong kong', 'cantonese'] },
+  { label: 'Japanese Cinema', terms: ['japanese cinema', 'japan', 'japanese'] },
+  { label: 'European Cinema', terms: ['european cinema', 'europe', 'british', 'french', 'german', 'italian', 'spanish'] },
+]
+const MOVIE_GENRES = [
+  'Action', 'Adventure', 'Sports', 'Martial Arts', 'Comedy', 'Drama', 'Romance',
+  'Horror', 'Mystery', 'Crime', 'Fantasy', 'Science Fiction', 'Animation',
+  'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography',
 ]
 const HOME_PAGE_LIMIT = 40
 const SEARCH_PAGE_LIMIT = 20
@@ -61,12 +70,40 @@ function matchesAny(item, terms) {
   return terms.some((term) => text.includes(term))
 }
 
+function isShortMedia(item) {
+  const labels = [
+    item.type,
+    item.category,
+    ...(item.categories || []),
+    ...(item.navigationLabels || []),
+    ...(item.homeSections || []),
+  ].filter(Boolean).map((value) => String(value).toLowerCase())
+  return item.type === 'short' || item.isShort || labels.includes('shorts') || labels.includes('short')
+}
+
 function matchesHomeTab(item, tab) {
-  if (tab === 'Shorts') return item.type === 'short' || item.isShort
+  if (tab === 'Shorts') return isShortMedia(item)
   if (tab === 'Movie') return item.type === 'movie'
   if (tab === 'Anime') return matchesAny(item, ['anime'])
   if (tab === 'Cartoon') return matchesAny(item, ['cartoon', 'animation', 'animated'])
+  if (tab === 'Sports') return matchesAny(item, ['sports', 'sport', 'football', 'soccer', 'basketball', 'tennis', 'boxing', 'wrestling'])
   return true
+}
+
+function normalizeGenre(value = '') {
+  return String(value).trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function getMediaGenres(item) {
+  const values = [
+    ...(item.genres || []),
+    ...String(item.genre || '').split(','),
+  ]
+  return values.map(normalizeGenre).filter(Boolean)
+}
+
+function hasMovieGenre(item, genre) {
+  return getMediaGenres(item).includes(normalizeGenre(genre))
 }
 
 function byPopularity(items) {
@@ -96,7 +133,7 @@ export default function HomePage() {
   const searchQuery = searchParams.get('search')
 
   const navigateMedia = (media) => {
-    if (media?.type === 'short') {
+    if (isShortMedia(media)) {
       navigate(`/shorts?open=${media._id}`)
       return
     }
@@ -210,14 +247,12 @@ export default function HomePage() {
   const visibleMedia = tabMedia.filter((item) => matchesAny(item, activeCategory.terms))
   const visibleSections = groupMedia(visibleMedia)
   const movies = visibleMedia.filter((item) => item.type === 'movie')
-  const series = visibleMedia.filter((item) => item.type === 'tv_show')
-  const shorts = visibleMedia.filter((item) => item.type === 'short' || item.isShort)
-  const comedy = visibleMedia.filter((item) => item.type === 'comedy' || matchesAny(item, ['funny', 'comedy', 'buzz']))
-  const nollywood = movies.filter((item) => matchesAny(item, ['nollywood', 'nigeria', 'naija']))
-  const anime = visibleMedia.filter((item) => matchesAny(item, ['anime', 'dubbed']))
-  const kDrama = visibleMedia.filter((item) => matchesAny(item, ['k-drama', 'kdrama', 'korean', 'korea']))
-  const actionMovies = movies.filter((item) => matchesAny(item, ['action']))
-  const trending = byPopularity(visibleMedia)
+  const shorts = visibleMedia.filter(isShortMedia)
+  const genreMovies = movies.filter((item) => MOVIE_GENRES.some((genre) => hasMovieGenre(item, genre)))
+  const genreSections = MOVIE_GENRES.map((genre) => ({
+    genre,
+    items: genreMovies.filter((item) => hasMovieGenre(item, genre)),
+  })).filter((section) => section.items.length > 0)
 
   return (
     <div className="animate-fade-in">
@@ -378,14 +413,24 @@ export default function HomePage() {
 
       {!searchQuery && (
         <>
-          <MediaRow title="Series Rankings" items={byPopularity(series.length ? series : trending).slice(0, 12)} size="md" />
-          <div ref={movieSectionRef}>
-            <MediaRow title="Movie Rankings" items={byPopularity(movies.length ? movies : trending).slice(0, 12)} size="md" />
-          </div>
-          <MediaRow title="BuzzBox - Short & Funny" items={(comedy.length ? comedy : shorts).slice(0, 12)} size="md" />
-          {liveEvents.length > 0 && <MediaRow title="Upcoming Calendar" items={liveEvents} size="md" />}
-          <MediaRow title="Nollywood Movie" items={(nollywood.length ? nollywood : movies).slice(0, 12)} size="md" />
-          <div
+          {activeHomeTab === 'Shorts' && (
+            <>
+              <MediaRow title="Shorts Videos" items={byPopularity(shorts).slice(0, 24)} size="md" />
+              <MediaRow title="More Shorts" items={shorts} size="md" />
+            </>
+          )}
+          {activeHomeTab !== 'Shorts' && (
+            <>
+              <div ref={movieSectionRef}>
+                {genreSections.map((section, index) => (
+                  <div key={section.genre} ref={(element) => {
+                    if (index === 0) firstSectionRef.current = element
+                  }}>
+                    <MediaRow title={section.genre} items={byPopularity(section.items).slice(0, 24)} size="md" />
+                  </div>
+                ))}
+              </div>
+              <div
             onClick={() => navigate('/novelhub')}
             className="mb-8 flex cursor-pointer items-center gap-6 rounded-xl p-6"
             style={{ background: '#063F32' }}
@@ -399,14 +444,16 @@ export default function HomePage() {
             </div>
             <span className="text-4xl text-white/70">›</span>
           </div>
-          <MediaRow title="Fight Zone Shorts" items={shorts.slice(0, 12)} size="md" />
-          <MediaRow title="Anime [English Dubbed]" items={anime.slice(0, 12)} size="md" />
-          <MediaRow title="K-Drama" items={kDrama.slice(0, 12)} size="md" />
-          <MediaRow title="Action" items={actionMovies.slice(0, 12)} size="md" />
-          <MediaRow title="More to Watch" items={visibleMedia} size="md" />
-          {visibleMedia.length === 0 && (
+            </>
+          )}
+          {activeHomeTab !== 'Shorts' && genreSections.length === 0 && (
             <div className="mb-8 rounded-xl p-6 text-center" style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
-              No media found for {activeCategory.label} {activeHomeTab}.
+              No movies found with the selected category and approved genres.
+            </div>
+          )}
+          {activeHomeTab === 'Shorts' && visibleMedia.length === 0 && (
+            <div className="mb-8 rounded-xl p-6 text-center" style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
+              No media found for {activeCategory.label} Shorts.
             </div>
           )}
         </>
@@ -420,7 +467,7 @@ export default function HomePage() {
           <MediaRow title="" items={[]} loading={true} />
         </>
       ) : (
-        Object.entries(searchQuery ? sections : visibleSections).filter(([title]) => ![
+        searchQuery && Object.entries(sections).filter(([title]) => ![
           'Movies', 'TV Shows', 'Shorts', 'Comedy',
         ].includes(title)).map(([title, items], index) => (
           <div

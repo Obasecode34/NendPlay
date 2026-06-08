@@ -44,8 +44,16 @@ const badgeColors = {
   failed: '#EF4444',
 }
 
-const MEDIA_CATEGORY_OPTIONS = ['All', 'Hollywood', 'Nollywood', 'Bollywood', 'Western', 'K-Drama']
-const MEDIA_NAVIGATION_OPTIONS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon']
+const MEDIA_CATEGORY_OPTIONS = [
+  'All', 'Hollywood', 'Nollywood', 'Bollywood', 'Western', 'K-Drama',
+  'Chinese Cinema', 'Hong Kong Cinema', 'Japanese Cinema', 'European Cinema',
+]
+const MEDIA_NAVIGATION_OPTIONS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon', 'Sports']
+const MOVIE_GENRE_OPTIONS = [
+  'Action', 'Adventure', 'Sports', 'Martial Arts', 'Comedy', 'Drama', 'Romance',
+  'Horror', 'Mystery', 'Crime', 'Fantasy', 'Science Fiction', 'Animation',
+  'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography',
+]
 const MEDIA_TYPE_OPTIONS = ['movie', 'video', 'music', 'tv_show', 'comedy', 'talk_show', 'podcast', 'short', 'live_event']
 const PUBLISH_STATUS_OPTIONS = ['draft', 'processing', 'pending_review', 'published', 'rejected', 'failed', 'archived']
 
@@ -359,6 +367,7 @@ export default function AdminDashboardPage() {
       type: row.type || 'video',
       categories: listToInput(row.categories?.length ? row.categories : [row.category].filter(Boolean)),
       navigationLabels: listToInput(row.navigationLabels?.length ? row.navigationLabels : row.homeSections || []),
+      genres: listToInput(row.genres?.length ? row.genres : [row.genre].filter(Boolean)),
       genre: row.genre || '',
       language: row.language || '',
       country: row.country || '',
@@ -377,12 +386,13 @@ export default function AdminDashboardPage() {
     if (!mediaEditTarget || !mediaEditForm) return
     const categories = normalizeInputList(mediaEditForm.categories)
     const navigationLabels = normalizeInputList(mediaEditForm.navigationLabels)
+    const genres = normalizeInputList(mediaEditForm.genres || mediaEditForm.genre)
     if (!mediaEditForm.title.trim()) {
       toast.error('Media title is required')
       return
     }
-    if (categories.length > 5 || navigationLabels.length > 5) {
-      toast.error('Use up to 5 categories and 5 navigation labels')
+    if (categories.length > 5 || navigationLabels.length > 5 || genres.length > 5) {
+      toast.error('Use up to 5 categories, 5 navigation labels, and 5 genres')
       return
     }
 
@@ -391,6 +401,8 @@ export default function AdminDashboardPage() {
       title: mediaEditForm.title.trim(),
       categories,
       navigationLabels,
+      genres,
+      genre: genres[0] || '',
       category: categories[0] || mediaEditForm.category || 'general',
       homeSections: navigationLabels,
       featuredRank: Number(mediaEditForm.featuredRank) || 0,
@@ -426,7 +438,7 @@ export default function AdminDashboardPage() {
       { key: 'createdAt', label: 'Joined', render: (row) => new Date(row.createdAt).toLocaleDateString() },
     ]
     if (activeTab === 'media') return [
-      { key: 'title', label: 'Title', render: (row) => <div><p className="font-bold max-w-sm truncate">{row.title}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.type} · {(row.categories?.length ? row.categories : [row.category]).filter(Boolean).join(', ')}</p></div> },
+      { key: 'title', label: 'Title', render: (row) => <div><p className="font-bold max-w-sm truncate">{row.title}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.type} · {(row.genres?.length ? row.genres : [row.genre]).filter(Boolean).join(', ') || (row.categories?.length ? row.categories : [row.category]).filter(Boolean).join(', ')}</p></div> },
       { key: 'navigationLabels', label: 'Nav Labels', render: (row) => (row.navigationLabels?.length ? row.navigationLabels : row.homeSections || []).join(', ') || '-' },
       { key: 'publishStatus', label: 'Publish', render: (row) => <Badge>{row.publishStatus}</Badge> },
       { key: 'reviewStatus', label: 'Review', render: (row) => <Badge>{row.reviewStatus || 'pending'}</Badge> },
@@ -756,8 +768,15 @@ function MediaEditModal({ media, form, setForm, thumbnailFile, setThumbnailFile,
           </div>
 
           <div>
-            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Genre</label>
-            <input className="input-base" value={form.genre} onChange={(event) => setForm({ ...form, genre: event.target.value })} />
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Genres (up to 5)</label>
+            <input className="input-base" value={form.genres} onChange={(event) => setForm({ ...form, genres: event.target.value })} placeholder="Action, Adventure, Drama" />
+            <div className="mt-2 flex flex-wrap gap-2">
+              {MOVIE_GENRE_OPTIONS.map((item) => (
+                <button key={item} type="button" className="btn-ghost px-3 py-1 text-xs" onClick={() => applyOption('genres', item)}>
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Language</label>

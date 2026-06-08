@@ -383,6 +383,7 @@ class AdminService {
         { navigationLabels: search },
         { homeSections: search },
         { genre: search },
+        { genres: search },
         { licenseType: search },
         { sourceName: search },
         { attributionText: search },
@@ -405,6 +406,7 @@ class AdminService {
       "categories",
       "navigationLabels",
       "genre",
+      "genres",
       "language",
       "country",
       "contentRating",
@@ -437,6 +439,14 @@ class AdminService {
     if (updates.navigationLabels !== undefined) {
       updates.navigationLabels = parseList(updates.navigationLabels, 5);
       updates.homeSections = updates.navigationLabels;
+    }
+    if (updates.genres !== undefined) {
+      updates.genres = parseList(updates.genres, 5);
+      updates.genre = updates.genres[0] || updates.genre || body.genre || "";
+    } else if (updates.genre !== undefined && !Array.isArray(updates.genre)) {
+      const parsedGenre = parseList(updates.genre, 5);
+      updates.genres = parsedGenre;
+      updates.genre = parsedGenre[0] || updates.genre || "";
     }
     if (updates.homeSections !== undefined) updates.homeSections = parseList(updates.homeSections, 5);
     if (updates.availabilityCountries !== undefined) updates.availabilityCountries = parseList(updates.availabilityCountries);

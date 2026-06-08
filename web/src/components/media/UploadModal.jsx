@@ -16,6 +16,12 @@ const MEDIA_TYPES = [
   { value: 'live_event', label: '🔴 Live Event' },
 ]
 
+const MOVIE_GENRE_OPTIONS = [
+  'Action', 'Adventure', 'Sports', 'Martial Arts', 'Comedy', 'Drama', 'Romance',
+  'Horror', 'Mystery', 'Crime', 'Fantasy', 'Science Fiction', 'Animation',
+  'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography',
+]
+
 const LICENSE_TYPES = [
   { value: 'unknown', label: 'Rights not set yet' },
   { value: 'public_domain', label: 'Public domain' },
@@ -37,7 +43,7 @@ export default function UploadModal({ onClose, onSuccess }) {
   const [form, setForm] = useState({
     title: '', description: '', type: 'video',
     category: 'general', tags: '', artist: '',
-    genre: '', language: '', country: '', contentRating: '',
+    genre: '', genres: '', language: '', country: '', contentRating: '',
     releaseStatus: 'released', publishStatus: 'pending_review',
     homeSections: '', availabilityCountries: '',
     releaseYear: '', isLocked: false, isShort: false,
@@ -342,9 +348,29 @@ export default function UploadModal({ onClose, onSuccess }) {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <input type="text" placeholder="Genre e.g. Action" value={form.genre}
-              onChange={(e) => setForm({ ...form, genre: e.target.value })}
-              className="input-base" />
+            <div>
+              <input type="text" placeholder="Genres e.g. Action, Adventure" value={form.genres}
+                onChange={(e) => {
+                  const firstGenre = e.target.value.split(',')[0]?.trim() || ''
+                  setForm({ ...form, genres: e.target.value, genre: firstGenre })
+                }}
+                className="input-base" />
+              <div className="mt-2 flex flex-wrap gap-2">
+                {MOVIE_GENRE_OPTIONS.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className="btn-ghost px-3 py-1 text-xs"
+                    onClick={() => {
+                      const current = form.genres.split(',').map((value) => value.trim()).filter(Boolean)
+                      const next = current.includes(item) ? current : [...current, item].slice(0, 5)
+                      setForm({ ...form, genres: next.join(', '), genre: next[0] || '' })
+                    }}>
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
             <input type="number" placeholder="Release year" value={form.releaseYear}
               onChange={(e) => setForm({ ...form, releaseYear: e.target.value })}
               className="input-base" />
