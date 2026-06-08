@@ -118,7 +118,7 @@ export default function MediaPlayerPage() {
         return
       }
 
-      const fileUrl = res.data.data.fileUrl || mediaService.getStreamUrl(id)
+      const fileUrl = playbackUrl || mediaService.resolveStreamUrl(mediaService.getStreamUrl(id)) || res.data.data.fileUrl
       const cachedFile = await cacheDownloadFile({
         fileUrl,
         contentType: 'media',
@@ -153,6 +153,24 @@ export default function MediaPlayerPage() {
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Download failed')
+    }
+  }
+
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/watch/${id}`
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: media?.title || 'NendPlay media',
+          text: `Watch ${media?.title || 'this media'} on NendPlay`,
+          url: shareUrl,
+        })
+      } else {
+        await navigator.clipboard.writeText(`${media?.title || 'NendPlay media'} - ${shareUrl}`)
+        toast.success('Share link copied to clipboard')
+      }
+    } catch {
+      toast.error('Unable to share this media')
     }
   }
 
@@ -325,6 +343,7 @@ export default function MediaPlayerPage() {
                 </button>
 
                 <button
+                  onClick={handleShare}
                   className="w-10 h-10 rounded-xl flex items-center justify-center"
                   style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}>
                   <RiShareLine />
