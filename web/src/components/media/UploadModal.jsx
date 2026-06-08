@@ -22,6 +22,12 @@ const MOVIE_GENRE_OPTIONS = [
   'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography',
 ]
 
+const COLLECTION_TYPE_OPTIONS = [
+  { value: 'single', label: 'Single title' },
+  { value: 'movie_part', label: 'Movie with parts' },
+  { value: 'series_episode', label: 'Series/episode' },
+]
+
 const LICENSE_TYPES = [
   { value: 'unknown', label: 'Rights not set yet' },
   { value: 'public_domain', label: 'Public domain' },
@@ -51,6 +57,8 @@ export default function UploadModal({ onClose, onSuccess }) {
     licenseType: 'unknown', sourceName: '', sourceUrl: '',
     licenseUrl: '', attributionText: '', rightsSummary: '',
     requiresAttribution: false,
+    collectionType: 'single', parentTitle: '', seasonNumber: '',
+    episodeNumber: '', partNumber: '', episodeTitle: '',
     uploadProvider: 'auto',
   })
   const [mediaFile, setMediaFile] = useState(null)
@@ -149,6 +157,10 @@ export default function UploadModal({ onClose, onSuccess }) {
     e.preventDefault()
     if (!mediaFile || !form.title) {
       toast.error('Please provide a title and media file')
+      return
+    }
+    if (form.collectionType !== 'single' && !form.parentTitle.trim()) {
+      toast.error('Enter the series/movie title for grouped media')
       return
     }
     setUploading(true)
@@ -296,6 +308,38 @@ export default function UploadModal({ onClose, onSuccess }) {
           <textarea placeholder="Description" value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             className="input-base resize-none" rows={3} />
+
+          <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--color-surface-high)', border: '1px solid var(--color-border)' }}>
+            <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Parts and seasons</p>
+            <select value={form.collectionType}
+              onChange={(e) => setForm({ ...form, collectionType: e.target.value })}
+              className="input-base">
+              {COLLECTION_TYPE_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            {form.collectionType !== 'single' && (
+              <input type="text" placeholder="Series/Movie title e.g. The Blacklist" value={form.parentTitle}
+                onChange={(e) => setForm({ ...form, parentTitle: e.target.value })}
+                className="input-base" />
+            )}
+            {form.collectionType === 'movie_part' && (
+              <input type="number" min="1" placeholder="Part number" value={form.partNumber}
+                onChange={(e) => setForm({ ...form, partNumber: e.target.value })}
+                className="input-base" />
+            )}
+            {form.collectionType === 'series_episode' && (
+              <div className="grid grid-cols-2 gap-3">
+                <input type="number" min="0" placeholder="Season" value={form.seasonNumber}
+                  onChange={(e) => setForm({ ...form, seasonNumber: e.target.value })}
+                  className="input-base" />
+                <input type="number" min="1" placeholder="Episode" value={form.episodeNumber}
+                  onChange={(e) => setForm({ ...form, episodeNumber: e.target.value })}
+                  className="input-base" />
+                <input type="text" placeholder="Episode title (optional)" value={form.episodeTitle}
+                  onChange={(e) => setForm({ ...form, episodeTitle: e.target.value })}
+                  className="input-base col-span-2" />
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <input type="text" placeholder="Category" value={form.category}

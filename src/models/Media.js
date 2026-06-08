@@ -326,6 +326,53 @@ const mediaSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Groups movies with parts and shows/anime/cartoons with seasons/episodes.
+    collectionType: {
+      type: String,
+      enum: ["single", "movie_part", "series_episode"],
+      default: "single",
+    },
+
+    parentTitle: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [200, "Parent title cannot exceed 200 characters"],
+    },
+
+    parentTitleSlug: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+      index: true,
+    },
+
+    seasonNumber: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+
+    episodeNumber: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+
+    partNumber: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+
+    episodeTitle: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [200, "Episode title cannot exceed 200 characters"],
+    },
+
     // ── Access Control ─────────────────────────────────────────────────
     // isLocked: true = subscription required to watch
     isLocked: {
@@ -453,6 +500,8 @@ mediaSchema.index({
   language: "text",
   country: "text",
   homeSections: "text",
+  parentTitle: "text",
+  episodeTitle: "text",
   licenseType: "text",
   sourceName: "text",
   attributionText: "text",
@@ -467,6 +516,7 @@ mediaSchema.index({ type: 1, isActive: 1 });
 mediaSchema.index({ isLocked: 1, isActive: 1 });
 mediaSchema.index({ isShort: 1, isActive: 1 });
 mediaSchema.index({ homeSections: 1, isActive: 1 });
+mediaSchema.index({ parentTitleSlug: 1, seasonNumber: 1, episodeNumber: 1, partNumber: 1, isActive: 1 });
 mediaSchema.index({ publishStatus: 1, isActive: 1 });
 mediaSchema.index({ country: 1, language: 1, isActive: 1 });
 mediaSchema.index({ uploadedBy: 1, isActive: 1 });

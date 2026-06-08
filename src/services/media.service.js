@@ -39,6 +39,33 @@ const parseLimitedList = (value, limit = 5) => parseList(value).slice(0, limit);
 const parseGenres = (genres, genre) => parseLimitedList(genres || genre, 5);
 
 const parseBoolean = (value) => value === true || value === "true";
+const parseNumber = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const next = Number(value);
+  return Number.isFinite(next) && next >= 0 ? next : null;
+};
+const slugifyTitle = (value = "") => String(value)
+  .trim()
+  .toLowerCase()
+  .replace(/&/g, "and")
+  .replace(/[^a-z0-9]+/g, "-")
+  .replace(/^-+|-+$/g, "");
+const parseCollectionMetadata = (body = {}) => {
+  const collectionType = ["single", "movie_part", "series_episode"].includes(body.collectionType)
+    ? body.collectionType
+    : "single";
+  const parentTitle = String(body.parentTitle || "").trim();
+
+  return {
+    collectionType,
+    parentTitle,
+    parentTitleSlug: parentTitle ? slugifyTitle(parentTitle) : "",
+    seasonNumber: collectionType === "series_episode" ? parseNumber(body.seasonNumber) : null,
+    episodeNumber: collectionType === "series_episode" ? parseNumber(body.episodeNumber) : null,
+    partNumber: collectionType === "movie_part" ? parseNumber(body.partNumber) : null,
+    episodeTitle: String(body.episodeTitle || "").trim(),
+  };
+};
 const isAdminUser = (user = {}) => ["admin", "super_admin"].includes(user.role);
 const PLAYBACK_TOKEN_TTL_SECONDS = 10 * 60;
 
@@ -300,6 +327,7 @@ class MediaService {
     const parsedAvailabilityCountries = parseList(availabilityCountries);
     const rightsMetadata = parseRightsMetadata(body);
     const reviewState = this.getInitialReviewState(body, user);
+    const collectionMetadata = parseCollectionMetadata(body);
 
     // 7. Save to MongoDB
     const media = await Media.create({
@@ -327,6 +355,7 @@ class MediaService {
       ...rightsMetadata,
       artist: artist || "",
       releaseYear: releaseYear ? parseInt(releaseYear) : null,
+      ...collectionMetadata,
       mediaUrl: cloudinaryResult.secure_url,
       playbackUrl: cloudinaryResult.secure_url,
       storageProvider: "cloudinary",
@@ -622,6 +651,7 @@ class MediaService {
 
     const reviewState = this.getInitialReviewState(body, user);
     const parsedGenres = parseGenres(genres, genre);
+    const collectionMetadata = parseCollectionMetadata(body);
 
     const media = await Media.create({
       title,
@@ -648,6 +678,7 @@ class MediaService {
       ...parseRightsMetadata(body),
       artist: artist || "",
       releaseYear: releaseYear ? parseInt(releaseYear) : null,
+      ...collectionMetadata,
       mediaUrl,
       playbackUrl: playbackUrl || mediaUrl,
       hlsUrl: hlsUrl || "",
@@ -719,7 +750,8 @@ class MediaService {
   // ── Get single media by ID ────────────────────────────────────────────
   async getMediaById(mediaId) {
     const media = await Media.findById(mediaId)
-      .populate("uploadedBy", "profileName username profilePic subscriberCount");
+      .populate("uploadedBy", "profileName username profilePic subscriberCount")
+      .lean();
 
     if (!isPublicMedia(media)) {
       throw { status: 404, message: "Media not found" };
@@ -727,6 +759,20 @@ class MediaService {
 
     // Increment view count
     await Media.findByIdAndUpdate(mediaId, { $inc: { viewCount: 1 } });
+
+    if (media.parentTitleSlug) {
+      media.collectionItems = await Media.find({
+        _id: { $ne: media._id },
+        parentTitleSlug: media.parentTitleSlug,
+        isActive: true,
+        ...publicPublishFilter(),
+      })
+        .select("title episodeTitle type thumbnailUrl duration seasonNumber episodeNumber partNumber collectionType parentTitle parentTitleSlug isLocked viewCount")
+        .sort({ seasonNumber: 1, episodeNumber: 1, partNumber: 1, createdAt: 1 })
+        .lean();
+    } else {
+      media.collectionItems = [];
+    }
 
     return media;
   }
@@ -749,6 +795,8 @@ class MediaService {
       "genre", "genres", "language", "country", "contentRating",
       "releaseStatus", "homeSections", "isFeatured",
       "featuredRank", "availabilityCountries", "artist", "releaseYear",
+      "collectionType", "parentTitle", "seasonNumber", "episodeNumber",
+      "partNumber", "episodeTitle",
       "isLocked", "liveScheduledAt", "playbackUrl", "hlsUrl",
       "processingStatus", "processingError", "licenseType", "licenseUrl",
       "sourceUrl", "sourceName", "attributionText", "rightsSummary",
@@ -774,11 +822,28 @@ class MediaService {
           media[field] = parseBoolean(updates[field]);
         } else if (field === "rightsVerifiedAt") {
           media[field] = updates[field] ? new Date(updates[field]) : null;
+        } else if (["seasonNumber", "episodeNumber", "partNumber"].includes(field)) {
+          media[field] = parseNumber(updates[field]);
+        } else if (field === "collectionType") {
+          media[field] = ["single", "movie_part", "series_episode"].includes(updates[field]) ? updates[field] : "single";
         } else {
           media[field] = updates[field];
         }
       }
     });
+    if (updates.parentTitle !== undefined || updates.collectionType !== undefined) {
+      media.parentTitleSlug = media.parentTitle ? slugifyTitle(media.parentTitle) : "";
+    }
+    if (media.collectionType === "single") {
+      media.seasonNumber = null;
+      media.episodeNumber = null;
+      media.partNumber = null;
+    } else if (media.collectionType === "movie_part") {
+      media.seasonNumber = null;
+      media.episodeNumber = null;
+    } else if (media.collectionType === "series_episode") {
+      media.partNumber = null;
+    }
 
     await media.save();
     return media;

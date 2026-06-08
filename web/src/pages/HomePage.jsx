@@ -58,6 +58,7 @@ function shuffleItems(items) {
 function getSearchText(item) {
   return [
     item.title, item.description, item.type, item.category, item.genre,
+    item.parentTitle, item.episodeTitle, item.collectionType,
     item.language, item.country, item.contentRating, item.releaseStatus,
     ...(item.genres || []), ...(item.categories || []), ...(item.navigationLabels || []),
     ...(item.tags || []), ...(item.homeSections || []),

@@ -56,6 +56,11 @@ const MOVIE_GENRE_OPTIONS = [
 ]
 const MEDIA_TYPE_OPTIONS = ['movie', 'video', 'music', 'tv_show', 'comedy', 'talk_show', 'podcast', 'short', 'live_event']
 const PUBLISH_STATUS_OPTIONS = ['draft', 'processing', 'pending_review', 'published', 'rejected', 'failed', 'archived']
+const COLLECTION_TYPE_OPTIONS = [
+  { value: 'single', label: 'Single title' },
+  { value: 'movie_part', label: 'Movie with parts' },
+  { value: 'series_episode', label: 'Series/episode' },
+]
 
 function listToInput(value) {
   return Array.isArray(value) ? value.join(', ') : value || ''
@@ -379,6 +384,12 @@ export default function AdminDashboardPage() {
       isFeatured: Boolean(row.isFeatured),
       featuredRank: row.featuredRank || 0,
       thumbnailUrl: row.thumbnailUrl || '',
+      collectionType: row.collectionType || 'single',
+      parentTitle: row.parentTitle || '',
+      seasonNumber: row.seasonNumber ?? '',
+      episodeNumber: row.episodeNumber ?? '',
+      partNumber: row.partNumber ?? '',
+      episodeTitle: row.episodeTitle || '',
     })
   }
 
@@ -395,6 +406,10 @@ export default function AdminDashboardPage() {
       toast.error('Use up to 5 categories, 5 navigation labels, and 5 genres')
       return
     }
+    if (mediaEditForm.collectionType !== 'single' && !mediaEditForm.parentTitle.trim()) {
+      toast.error('Enter the series/movie title for grouped media')
+      return
+    }
 
     const payload = {
       ...mediaEditForm,
@@ -406,6 +421,12 @@ export default function AdminDashboardPage() {
       category: categories[0] || mediaEditForm.category || 'general',
       homeSections: navigationLabels,
       featuredRank: Number(mediaEditForm.featuredRank) || 0,
+      collectionType: mediaEditForm.collectionType || 'single',
+      parentTitle: mediaEditForm.collectionType === 'single' ? '' : mediaEditForm.parentTitle.trim(),
+      seasonNumber: mediaEditForm.collectionType === 'series_episode' ? mediaEditForm.seasonNumber : '',
+      episodeNumber: mediaEditForm.collectionType === 'series_episode' ? mediaEditForm.episodeNumber : '',
+      partNumber: mediaEditForm.collectionType === 'movie_part' ? mediaEditForm.partNumber : '',
+      episodeTitle: mediaEditForm.collectionType === 'series_episode' ? mediaEditForm.episodeTitle.trim() : '',
     }
 
     try {
@@ -742,6 +763,44 @@ function MediaEditModal({ media, form, setForm, thumbnailFile, setThumbnailFile,
             <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Description</label>
             <textarea className="input-base min-h-28 resize-y" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
           </div>
+
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Title Structure</label>
+            <select className="input-base" value={form.collectionType} onChange={(event) => setForm({ ...form, collectionType: event.target.value })}>
+              {COLLECTION_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </div>
+
+          {form.collectionType !== 'single' && (
+            <div>
+              <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Series/Movie Title</label>
+              <input className="input-base" value={form.parentTitle} onChange={(event) => setForm({ ...form, parentTitle: event.target.value })} placeholder="Example: The Blacklist" />
+            </div>
+          )}
+
+          {form.collectionType === 'movie_part' && (
+            <div>
+              <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Part Number</label>
+              <input className="input-base" type="number" min="1" value={form.partNumber} onChange={(event) => setForm({ ...form, partNumber: event.target.value })} />
+            </div>
+          )}
+
+          {form.collectionType === 'series_episode' && (
+            <>
+              <div>
+                <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Season Number</label>
+                <input className="input-base" type="number" min="0" value={form.seasonNumber} onChange={(event) => setForm({ ...form, seasonNumber: event.target.value })} />
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Episode Number</label>
+                <input className="input-base" type="number" min="1" value={form.episodeNumber} onChange={(event) => setForm({ ...form, episodeNumber: event.target.value })} />
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Episode Title</label>
+                <input className="input-base" value={form.episodeTitle} onChange={(event) => setForm({ ...form, episodeTitle: event.target.value })} placeholder="Optional episode name" />
+              </div>
+            </>
+          )}
 
           <div>
             <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Categories, max 5</label>

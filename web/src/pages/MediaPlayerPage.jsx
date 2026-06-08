@@ -13,6 +13,18 @@ import useAuthStore from '../stores/authStore'
 import usePlayerStore from '../stores/playerStore'
 import MediaCard from '../components/media/MediaCard'
 
+function getCollectionLabel(item) {
+  if (item.collectionType === 'series_episode') {
+    const season = item.seasonNumber !== null && item.seasonNumber !== undefined ? `S${item.seasonNumber}` : 'Season'
+    const episode = item.episodeNumber !== null && item.episodeNumber !== undefined ? `E${item.episodeNumber}` : 'Episode'
+    return `${season}:${episode}${item.episodeTitle ? ` · ${item.episodeTitle}` : ''}`
+  }
+  if (item.collectionType === 'movie_part') {
+    return `Part ${item.partNumber || ''}`.trim()
+  }
+  return item.title
+}
+
 export default function MediaPlayerPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -22,6 +34,7 @@ export default function MediaPlayerPage() {
   const playerRef = useRef(null)
   const [media, setMediaData] = useState(null)
   const [related, setRelated] = useState([])
+  const [collectionItems, setCollectionItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [locked, setLocked] = useState(false)
   const [playbackUrl, setPlaybackUrl] = useState('')
@@ -47,6 +60,12 @@ export default function MediaPlayerPage() {
       setMediaData(m)
       setLocked(isLocked)
       setPlaybackUrl('')
+      setCollectionItems([m, ...(m.collectionItems || [])].sort((a, b) => (
+        (a.seasonNumber || 0) - (b.seasonNumber || 0)
+        || (a.episodeNumber || 0) - (b.episodeNumber || 0)
+        || (a.partNumber || 0) - (b.partNumber || 0)
+        || new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+      )))
 
       // Load related content
       const relRes = await mediaService.getAll({ type: m.type, limit: 10 })
@@ -317,6 +336,37 @@ export default function MediaPlayerPage() {
               <p className="mt-4 text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
                 {media.description}
               </p>
+            )}
+
+            {collectionItems.length > 1 && (
+              <div className="mt-6">
+                <h2 className="font-display font-bold text-lg mb-3" style={{ color: 'var(--color-text)' }}>
+                  {media.parentTitle || 'Episodes & Parts'}
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {collectionItems.map((item) => (
+                    <button
+                      key={item._id}
+                      type="button"
+                      onClick={() => item._id !== id && navigate(`/watch/${item._id}`)}
+                      className="text-left rounded-xl p-3 flex gap-3 transition-colors"
+                      style={{
+                        background: item._id === id ? 'var(--color-primary)' : 'var(--color-surface)',
+                        color: item._id === id ? '#fff' : 'var(--color-text)',
+                        border: '1px solid var(--color-border)',
+                      }}
+                    >
+                      <div className="w-24 aspect-video rounded-lg overflow-hidden flex-shrink-0" style={{ background: 'rgba(0,0,0,0.25)' }}>
+                        {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="w-full h-full object-cover" /> : null}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black text-sm truncate">{getCollectionLabel(item)}</p>
+                        <p className="text-xs opacity-70 truncate">{item.title}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </div>

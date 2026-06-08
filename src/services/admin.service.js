@@ -64,6 +64,21 @@ function firstListValue(values, fallback = "general") {
   return values?.[0] || fallback;
 }
 
+function parseNumber(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const next = Number(value);
+  return Number.isFinite(next) && next >= 0 ? next : null;
+}
+
+function slugifyTitle(value = "") {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function getBunnyVideoId(video = {}) {
   return video.guid || video.id || video.videoLibraryId || video.videoId || "";
 }
@@ -384,6 +399,8 @@ class AdminService {
         { homeSections: search },
         { genre: search },
         { genres: search },
+        { parentTitle: search },
+        { episodeTitle: search },
         { licenseType: search },
         { sourceName: search },
         { attributionText: search },
@@ -418,6 +435,12 @@ class AdminService {
       "availabilityCountries",
       "isLocked",
       "isActive",
+      "collectionType",
+      "parentTitle",
+      "seasonNumber",
+      "episodeNumber",
+      "partNumber",
+      "episodeTitle",
       "licenseType",
       "licenseUrl",
       "sourceUrl",
@@ -450,6 +473,28 @@ class AdminService {
     }
     if (updates.homeSections !== undefined) updates.homeSections = parseList(updates.homeSections, 5);
     if (updates.availabilityCountries !== undefined) updates.availabilityCountries = parseList(updates.availabilityCountries);
+    if (updates.collectionType !== undefined && !["single", "movie_part", "series_episode"].includes(updates.collectionType)) {
+      updates.collectionType = "single";
+    }
+    if (updates.parentTitle !== undefined || updates.collectionType !== undefined) {
+      updates.parentTitleSlug = updates.parentTitle ? slugifyTitle(updates.parentTitle) : "";
+    }
+    if (updates.seasonNumber !== undefined) updates.seasonNumber = parseNumber(updates.seasonNumber);
+    if (updates.episodeNumber !== undefined) updates.episodeNumber = parseNumber(updates.episodeNumber);
+    if (updates.partNumber !== undefined) updates.partNumber = parseNumber(updates.partNumber);
+    if (updates.collectionType === "single") {
+      updates.parentTitle = "";
+      updates.parentTitleSlug = "";
+      updates.seasonNumber = null;
+      updates.episodeNumber = null;
+      updates.partNumber = null;
+      updates.episodeTitle = "";
+    } else if (updates.collectionType === "movie_part") {
+      updates.seasonNumber = null;
+      updates.episodeNumber = null;
+    } else if (updates.collectionType === "series_episode") {
+      updates.partNumber = null;
+    }
 
     const thumbnailFile = files?.thumbnail?.[0] || files?.thumbnail || null;
     if (thumbnailFile) {
