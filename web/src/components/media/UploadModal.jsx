@@ -19,7 +19,7 @@ const MEDIA_TYPES = [
 const MOVIE_GENRE_OPTIONS = [
   'Action', 'Adventure', 'Sports', 'Martial Arts', 'Comedy', 'Drama', 'Romance',
   'Horror', 'Mystery', 'Crime', 'Fantasy', 'Science Fiction', 'Animation',
-  'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography',
+  'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography', 'WWE',
 ]
 
 const COLLECTION_TYPE_OPTIONS = [

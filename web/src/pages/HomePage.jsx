@@ -18,7 +18,7 @@ const CATEGORY_LABELS = {
   short: 'Shorts',
 }
 const CATEGORY_ORDER = ['movie', 'music', 'tv_show', 'podcast', 'comedy', 'talk_show', 'short']
-const HOME_TABS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon', 'Sports']
+const HOME_TABS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon', 'Sports', 'WWE']
 const HOME_CATEGORIES = [
   { label: 'All', terms: [] },
   { label: 'Hollywood', terms: ['hollywood'] },
@@ -34,7 +34,7 @@ const HOME_CATEGORIES = [
 const MOVIE_GENRES = [
   'Action', 'Adventure', 'Sports', 'Martial Arts', 'Comedy', 'Drama', 'Romance',
   'Horror', 'Mystery', 'Crime', 'Fantasy', 'Science Fiction', 'Animation',
-  'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography',
+  'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography', 'WWE',
 ]
 const HOME_PAGE_LIMIT = 120
 const SEARCH_PAGE_LIMIT = 20
@@ -103,6 +103,7 @@ function matchesHomeTab(item, tab) {
   if (tab === 'Anime') return matchesAny(item, ['anime'])
   if (tab === 'Cartoon') return matchesAny(item, ['cartoon', 'animation', 'animated'])
   if (tab === 'Sports') return hasMovieGenre(item, 'Sports') || matchesAny(item, ['sports', 'sport', 'football', 'soccer', 'basketball', 'tennis', 'boxing', 'wrestling'])
+  if (tab === 'WWE') return hasMovieGenre(item, 'WWE') || matchesAny(item, ['wwe', 'wrestling', 'wrestlemania', 'raw', 'smackdown'])
   return true
 }
 

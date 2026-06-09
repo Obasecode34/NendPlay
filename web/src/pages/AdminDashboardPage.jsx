@@ -48,11 +48,11 @@ const MEDIA_CATEGORY_OPTIONS = [
   'All', 'Hollywood', 'Nollywood', 'Bollywood', 'Western', 'K-Drama',
   'Chinese Cinema', 'Hong Kong Cinema', 'Japanese Cinema', 'European Cinema',
 ]
-const MEDIA_NAVIGATION_OPTIONS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon', 'Sports']
+const MEDIA_NAVIGATION_OPTIONS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon', 'Sports', 'WWE']
 const MOVIE_GENRE_OPTIONS = [
   'Action', 'Adventure', 'Sports', 'Martial Arts', 'Comedy', 'Drama', 'Romance',
   'Horror', 'Mystery', 'Crime', 'Fantasy', 'Science Fiction', 'Animation',
-  'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography',
+  'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography', 'WWE',
 ]
 const MEDIA_TYPE_OPTIONS = ['movie', 'video', 'music', 'tv_show', 'comedy', 'talk_show', 'podcast', 'short', 'live_event']
 const PUBLISH_STATUS_OPTIONS = ['draft', 'processing', 'pending_review', 'published', 'rejected', 'failed', 'archived']
