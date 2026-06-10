@@ -141,7 +141,7 @@ export default function MediaPlayerPage() {
         },
       })
 
-      if (isAuthenticated && res.data.data.download?._id) {
+      if (res.data.data.download?._id) {
         await downloadService.complete({
           downloadId: res.data.data.download._id,
           storageKey: cachedFile.storageKey,

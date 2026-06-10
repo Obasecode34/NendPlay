@@ -13,7 +13,7 @@ const { authMiddleware, optionalAuthMiddleware } = require("../middleware/auth.m
 router.get("/devices",              authMiddleware, downloadController.getDownloadDevices);
 router.get("/check",                authMiddleware, downloadController.checkDownload);
 router.post("/authorize",           optionalAuthMiddleware, downloadController.authorizeDownload);
-router.post("/complete",            authMiddleware, downloadController.completeDownload);
+router.post("/complete",            optionalAuthMiddleware, downloadController.completeDownload);
 router.delete("/device/:deviceId",  authMiddleware, downloadController.deleteDeviceDownloads);
 
 // General routes

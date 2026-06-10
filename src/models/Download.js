@@ -26,7 +26,14 @@ const downloadSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
+      index: true,
+    },
+
+    guestId: {
+      type: String,
+      default: "",
+      trim: true,
       index: true,
     },
 
@@ -116,6 +123,7 @@ const downloadSchema = new mongoose.Schema(
 downloadSchema.index({ userId: 1, status: 1 });
 downloadSchema.index({ userId: 1, deviceId: 1 });
 downloadSchema.index({ userId: 1, contentId: 1, deviceId: 1 }, { unique: true });
+downloadSchema.index({ guestId: 1, contentId: 1, deviceId: 1 });
 downloadSchema.index({ contentType: 1, userId: 1 });
 
 module.exports = mongoose.model("Download", downloadSchema);

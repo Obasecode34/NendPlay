@@ -54,7 +54,7 @@ class DownloadController {
 
       const download = await downloadService.completeDownload({
         downloadId,
-        userId: req.user.userId,
+        userId: req.user?.userId,
         storageKey,
         storedFileSize,
       });

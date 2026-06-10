@@ -144,7 +144,7 @@ export default function MediaPlayerScreen({ route, navigation }) {
           fileUrl,
         },
       })
-      if (isAuthenticated && res.data.data.download?._id) {
+      if (res.data.data.download?._id) {
         await downloadService.complete({
           downloadId: res.data.data.download._id,
           storageKey: savedFile.storageKey,

@@ -371,7 +371,7 @@ export default function NovelHubPage() {
           attributionText: doc.attributionText || '',
         },
       })
-      if (isAuthenticated && res.data.data.download?._id) {
+      if (res.data.data.download?._id) {
         await downloadService.complete({
           downloadId: res.data.data.download._id,
           storageKey: cachedFile.storageKey,

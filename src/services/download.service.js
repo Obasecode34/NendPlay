@@ -4,17 +4,14 @@
 //
 // The flow:
 //   1. Frontend requests authorization to download a file
-//   2. Backend checks: is user subscribed? how many download devices?
-//   3. If allowed: returns the file URL + creates a Download record
+//   2. Backend checks that the content exists and is visible
+//   3. Returns the file URL + creates a Download record when possible
 //   4. Frontend downloads the file and stores it locally
 //   5. Frontend calls "complete" to mark the download as done
 //   6. Downloads tab reads from the Download collection
 //
-// Device limit logic:
-//   Count distinct deviceIds with status "completed" for this user.
-//   If that count >= plan's maxDownloadDevices, block new devices.
-//   If the requesting deviceId is already in the list, allow it
-//   (downloading more content on an existing device is always fine).
+// Downloads do not require super_admin/admin approval. Admin approval belongs
+// to uploaded content before it becomes visible, not to each user download.
 
 const Download = require("../models/Download");
 const User = require("../models/User");
@@ -39,14 +36,15 @@ class DownloadService {
       if (!user) throw { status: 404, message: "User not found" };
     }
 
-    const existingDownload = userId
-      ? await Download.findOne({
-        userId,
-        contentId,
-        deviceId,
-        status: { $in: ["completed", "pending"] },
-      })
-      : null;
+    const guestId = userId ? "" : `guest:${deviceId}`;
+    const ownerFilter = userId ? { userId } : { userId: null, guestId };
+
+    const existingDownload = await Download.findOne({
+      ...ownerFilter,
+      contentId,
+      deviceId,
+      status: { $in: ["completed", "pending"] },
+    });
 
     if (existingDownload) {
       // Already downloaded on this device — return existing record
@@ -54,6 +52,8 @@ class DownloadService {
         alreadyDownloaded: true,
         download: existingDownload,
         message: "Already downloaded on this device",
+        requiresAdminApproval: false,
+        approvalStatus: "not_required",
       };
     }
 
@@ -78,21 +78,10 @@ class DownloadService {
 
     const sourceUrl = content.hlsUrl || content.playbackUrl || content.mediaUrl || content.fileUrl || "";
 
-    if (!userId) {
-      return {
-        alreadyDownloaded: false,
-        download: null,
-        guest: true,
-        fileUrl: sourceUrl,
-        title: content.title,
-        mimeType: content.mimeType,
-        fileSize: content.fileSize,
-      };
-    }
-
     // 6. Create download record (pending until frontend confirms completion)
     const download = await Download.create({
-      userId,
+      userId: userId || null,
+      guestId,
       contentType,
       contentId,
       contentModel,
@@ -115,17 +104,21 @@ class DownloadService {
     return {
       alreadyDownloaded: false,
       download,
+      guest: !userId,
       fileUrl: sourceUrl,
       title: content.title,
       mimeType: content.mimeType,
       fileSize: content.fileSize,
+      requiresAdminApproval: false,
+      approvalStatus: "not_required",
     };
   }
 
   // ── Mark download as complete ─────────────────────────────────────────
   // Called by frontend after file is saved locally
   async completeDownload({ downloadId, userId, storageKey, storedFileSize }) {
-    const download = await Download.findOne({ _id: downloadId, userId });
+    const ownerFilter = userId ? { userId } : { userId: null };
+    const download = await Download.findOne({ _id: downloadId, ...ownerFilter });
     if (!download) throw { status: 404, message: "Download record not found" };
 
     if (download.status === "completed") {
