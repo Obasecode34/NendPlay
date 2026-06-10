@@ -112,11 +112,13 @@ function ShortCard({ short, isActive, onActivate }) {
         },
       })
       if (res.data.data.download?._id) {
-        await downloadService.complete({
-          downloadId: res.data.data.download._id,
-          storageKey: cachedFile.storageKey,
-          storedFileSize: cachedFile.storedFileSize || res.data.data.fileSize || 0,
-        })
+        try {
+          await downloadService.complete({
+            downloadId: res.data.data.download._id,
+            storageKey: cachedFile.storageKey,
+            storedFileSize: cachedFile.storedFileSize || res.data.data.fileSize || 0,
+          })
+        } catch {}
       }
       toast.success('Saved to Downloads for offline playback')
     } catch (err) {

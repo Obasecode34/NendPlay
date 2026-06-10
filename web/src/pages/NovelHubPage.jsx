@@ -372,11 +372,13 @@ export default function NovelHubPage() {
         },
       })
       if (res.data.data.download?._id) {
-        await downloadService.complete({
-          downloadId: res.data.data.download._id,
-          storageKey: cachedFile.storageKey,
-          storedFileSize: cachedFile.storedFileSize || doc.fileSize || 0,
-        })
+        try {
+          await downloadService.complete({
+            downloadId: res.data.data.download._id,
+            storageKey: cachedFile.storageKey,
+            storedFileSize: cachedFile.storedFileSize || doc.fileSize || 0,
+          })
+        } catch {}
       }
       toast.success('Full PDF saved to NovelHub Downloads')
       setSelectedPdf(null)

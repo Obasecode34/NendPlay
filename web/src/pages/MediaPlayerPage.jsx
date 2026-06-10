@@ -142,15 +142,15 @@ export default function MediaPlayerPage() {
       })
 
       if (res.data.data.download?._id) {
-        await downloadService.complete({
-          downloadId: res.data.data.download._id,
-          storageKey: cachedFile.storageKey,
-          storedFileSize: cachedFile.storedFileSize || media?.fileSize || 0,
-        })
-        toast.success('Added to downloads!')
-      } else {
-        toast.success('Saved to Downloads for offline playback.')
+        try {
+          await downloadService.complete({
+            downloadId: res.data.data.download._id,
+            storageKey: cachedFile.storageKey,
+            storedFileSize: cachedFile.storedFileSize || media?.fileSize || 0,
+          })
+        } catch {}
       }
+      toast.success('Saved to Downloads for offline playback.')
     } catch (err) {
       toast.error(err.response?.data?.message || 'Download failed')
     }

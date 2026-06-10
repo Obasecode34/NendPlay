@@ -13,6 +13,10 @@ function writeIndex(items) {
   localStorage.setItem(INDEX_KEY, JSON.stringify(items))
 }
 
+function cacheKey(storageKey) {
+  return storageKey?.startsWith('/') ? new Request(storageKey) : storageKey
+}
+
 function snapshotFrom(download = {}, fallback = {}) {
   const snap = download.contentSnapshot || {}
   return {
@@ -29,7 +33,7 @@ function snapshotFrom(download = {}, fallback = {}) {
 
 export async function cacheDownloadFile({ fileUrl, contentType, contentId }) {
   if (!fileUrl) throw new Error('No file URL available for this download.')
-  const storageKey = `nendplay-download:${contentType}:${contentId}`
+  const storageKey = `/__nendplay_downloads__/${encodeURIComponent(contentType)}-${encodeURIComponent(contentId)}`
   if (!('caches' in window)) return { storageKey, storedFileSize: 0, cached: false }
 
   const response = await fetch(fileUrl, { mode: 'cors' })
@@ -37,7 +41,7 @@ export async function cacheDownloadFile({ fileUrl, contentType, contentId }) {
   const clone = response.clone()
   const blob = await response.blob()
   const cache = await caches.open(CACHE_NAME)
-  await cache.put(storageKey, clone)
+  await cache.put(new Request(storageKey), clone)
   return { storageKey, storedFileSize: blob.size || 0, cached: true }
 }
 
@@ -80,7 +84,7 @@ export async function getLocalDownloads({ contentType } = {}) {
   const valid = []
   const validKeys = new Set()
   for (const item of items) {
-    const match = await cache.match(item.storageKey)
+    const match = await cache.match(cacheKey(item.storageKey))
     if (!match) continue
     validKeys.add(item.storageKey)
     if (contentType && item.contentType !== contentType) continue
@@ -95,7 +99,7 @@ export async function getLocalDownloads({ contentType } = {}) {
 export async function getCachedObjectUrl(storageKey) {
   if (!storageKey || !('caches' in window)) return ''
   const cache = await caches.open(CACHE_NAME)
-  const response = await cache.match(storageKey)
+  const response = await cache.match(cacheKey(storageKey))
   if (!response) return ''
   const blob = await response.blob()
   return URL.createObjectURL(blob)
@@ -104,7 +108,7 @@ export async function getCachedObjectUrl(storageKey) {
 export async function deleteLocalDownload(storageKey) {
   if (storageKey && 'caches' in window) {
     const cache = await caches.open(CACHE_NAME)
-    await cache.delete(storageKey)
+    await cache.delete(cacheKey(storageKey))
   }
   writeIndex(readIndex().filter((item) => item.storageKey !== storageKey && item._id !== storageKey))
 }

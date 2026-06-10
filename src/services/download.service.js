@@ -43,7 +43,13 @@ class DownloadService {
       ...ownerFilter,
       contentId,
       deviceId,
-      status: { $in: ["completed", "pending"] },
+      status: "completed",
+    });
+    const pendingDownload = await Download.findOne({
+      ...ownerFilter,
+      contentId,
+      deviceId,
+      status: "pending",
     });
 
     if (existingDownload) {
@@ -78,8 +84,7 @@ class DownloadService {
 
     const sourceUrl = content.hlsUrl || content.playbackUrl || content.mediaUrl || content.fileUrl || "";
 
-    // 6. Create download record (pending until frontend confirms completion)
-    const download = await Download.create({
+    const downloadPayload = {
       userId: userId || null,
       guestId,
       contentType,
@@ -99,7 +104,12 @@ class DownloadService {
         mimeType: content.mimeType || "",
         fileUrl: sourceUrl,
       },
-    });
+    };
+
+    // Reuse an unfinished pending record so retrying a failed save can complete it.
+    const download = pendingDownload
+      ? await Download.findByIdAndUpdate(pendingDownload._id, downloadPayload, { new: true })
+      : await Download.create(downloadPayload);
 
     return {
       alreadyDownloaded: false,
