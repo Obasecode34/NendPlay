@@ -19,6 +19,17 @@ const TYPE_LABELS = {
   podcast: 'Podcast', short: 'Short', live_event: '🔴 Live',
 }
 
+function isShortMedia(media) {
+  const labels = [
+    media.type,
+    media.category,
+    ...(media.categories || []),
+    ...(media.navigationLabels || []),
+    ...(media.homeSections || []),
+  ].filter(Boolean).map((value) => String(value).toLowerCase())
+  return media.type === 'short' || media.isShort || labels.includes('shorts') || labels.includes('short')
+}
+
 export default function MediaCard({ media, size = 'md' }) {
   const navigate = useNavigate()
 
@@ -29,7 +40,7 @@ export default function MediaCard({ media, size = 'md' }) {
     full: 'w-full',
   }
 
-  const targetPath = media.type === 'short'
+  const targetPath = isShortMedia(media)
     ? `/shorts?open=${media._id}`
     : `/watch/${media._id}`
 

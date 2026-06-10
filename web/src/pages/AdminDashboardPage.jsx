@@ -259,7 +259,13 @@ export default function AdminDashboardPage() {
       }
       const res = await adminService.sendPushNotification(payload)
       const data = res.data?.data
-      toast.success(`Sent ${data?.sent || 0} notification${data?.sent === 1 ? '' : 's'}`)
+      const adminTokens = data?.recipientStats?.adminTokens || 0
+      const guestTokens = data?.recipientStats?.guestTokens || 0
+      const parts = []
+      if (adminTokens) parts.push(`${adminTokens} admin device${adminTokens === 1 ? '' : 's'}`)
+      if (guestTokens) parts.push(`${guestTokens} guest device${guestTokens === 1 ? '' : 's'}`)
+      const audienceNote = parts.length ? `, including ${parts.join(' and ')}` : ''
+      toast.success(`Sent ${data?.sent || 0} notification${data?.sent === 1 ? '' : 's'}${audienceNote}`)
       setPushForm({ audience: 'all', userId: '', title: '', body: '', screen: 'Home' })
       loadPushStats()
     } catch (err) {
@@ -913,10 +919,12 @@ function MediaEditModal({ media, form, setForm, thumbnailFile, setThumbnailFile,
 function NotificationPanel({ stats, form, setForm, sending, onSend }) {
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <StatCard label="Total Tokens" value={stats?.totalTokens || 0} icon={RiNotification3Line} />
         <StatCard label="Active Tokens" value={stats?.activeTokens || 0} icon={RiNotification3Line} />
         <StatCard label="Reachable Users" value={stats?.usersWithTokens || 0} icon={RiUserLine} />
+        <StatCard label="Admin Tokens" value={stats?.adminActiveTokens || 0} icon={RiShieldUserLine} />
+        <StatCard label="Guest Tokens" value={stats?.guestActiveTokens || 0} icon={RiUserLine} />
       </div>
 
       <div className="card p-5">
@@ -925,7 +933,7 @@ function NotificationPanel({ stats, form, setForm, sending, onSend }) {
             Send Push Notification
           </h2>
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            Send updates to users who allowed notifications in the mobile app.
+            Send updates to everyone who allowed mobile notifications, including guests, users, admins, and super-admins.
           </p>
         </div>
 
@@ -937,7 +945,7 @@ function NotificationPanel({ stats, form, setForm, sending, onSend }) {
               value={form.audience}
               onChange={(event) => setForm({ ...form, audience: event.target.value })}
             >
-              <option value="all">All users</option>
+              <option value="all">Guests + users + admins</option>
               <option value="subscribers">Subscribed users</option>
               <option value="free_users">Free users</option>
               <option value="user">One user ID</option>

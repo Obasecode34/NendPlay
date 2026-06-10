@@ -180,16 +180,18 @@ export default function DownloadsPage({ embedded = false, contentType = '' }) {
       <div className="animate-fade-in max-w-3xl">
         <div className="card p-8 text-center">
           <RiDownloadLine className="text-5xl mx-auto mb-4" style={{ color: 'var(--color-text-muted)' }} />
-          <h1 className="font-display font-bold text-3xl mb-3 gradient-text">Downloads History</h1>
+          <h1 className="font-display font-bold text-3xl mb-3 gradient-text">No downloads yet</h1>
           <p className="text-sm mb-6" style={{ color: 'var(--color-text-muted)' }}>
-            You can download files without subscribing. Sign in if you want NendPlay to save your download history here.
+            You can browse, watch, read, and download files without an account. Downloaded files saved in this browser will appear here for offline access.
           </p>
-          <div className="flex justify-center gap-3">
-            <button onClick={() => navigate('/login')} className="btn-primary px-5 py-3">Sign In</button>
+          <div className="flex flex-wrap justify-center gap-3">
+            <button onClick={() => navigate(contentType === 'document' ? '/novelhub' : '/home')} className="btn-primary px-5 py-3">
+              Browse Content
+            </button>
             <button onClick={() => navigate('/register')}
               className="px-5 py-3 rounded-xl font-bold"
               style={{ background: 'var(--color-surface-high)', color: 'var(--color-text)' }}>
-              Create Account
+              Create Account to Sync History
             </button>
           </div>
         </div>
