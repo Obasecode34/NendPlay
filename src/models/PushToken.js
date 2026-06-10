@@ -5,7 +5,13 @@ const pushTokenSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      index: true,
+      default: null,
+    },
+    guestId: {
+      type: String,
+      default: "",
+      trim: true,
       index: true,
     },
     token: {
@@ -37,5 +43,6 @@ const pushTokenSchema = new mongoose.Schema(
 );
 
 pushTokenSchema.index({ userId: 1, platform: 1, deviceId: 1 });
+pushTokenSchema.index({ guestId: 1, platform: 1, deviceId: 1 });
 
 module.exports = mongoose.model("PushToken", pushTokenSchema);

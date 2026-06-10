@@ -18,13 +18,15 @@ function isExpoPushToken(token) {
 }
 
 class NotificationService {
-  async registerPushToken({ userId, token, platform = "unknown", deviceId = "" }) {
+  async registerPushToken({ userId, guestId = "", token, platform = "unknown", deviceId = "" }) {
     if (!token) throw { status: 400, message: "Push token is required" };
 
+    const normalizedGuestId = String(guestId || deviceId || "").trim();
     const pushToken = await PushToken.findOneAndUpdate(
       { token },
       {
-        userId,
+        userId: userId || null,
+        guestId: normalizedGuestId,
         token,
         platform,
         deviceId,
@@ -37,13 +39,14 @@ class NotificationService {
     return pushToken;
   }
 
-  async unregisterPushToken({ userId, token }) {
+  async unregisterPushToken({ userId, guestId = "", token }) {
     if (!token) throw { status: 400, message: "Push token is required" };
 
-    await PushToken.findOneAndUpdate(
-      { userId, token },
-      { isActive: false, lastSeenAt: new Date() }
-    );
+    const filter = { token };
+    if (userId) filter.userId = userId;
+    else if (guestId) filter.guestId = guestId;
+
+    await PushToken.findOneAndUpdate(filter, { isActive: false, lastSeenAt: new Date() });
 
     return { message: "Push token disabled" };
   }
@@ -55,16 +58,83 @@ class NotificationService {
   }
 
   async getPushTokenStats() {
-    const [totalTokens, activeTokens, usersWithTokens] = await Promise.all([
+    const adminUsers = await User.find({
+      role: { $in: ["admin", "super_admin"] },
+      isActive: true,
+    }).select("_id").lean();
+    const adminUserIds = adminUsers.map((user) => user._id);
+
+    const [
+      totalTokens,
+      activeTokens,
+      usersWithTokens,
+      adminActiveTokens,
+      adminUsersWithTokens,
+      guestActiveTokens,
+    ] = await Promise.all([
       PushToken.countDocuments(),
       PushToken.countDocuments({ isActive: true }),
-      PushToken.distinct("userId", { isActive: true }),
+      PushToken.distinct("userId", { isActive: true, userId: { $ne: null } }),
+      PushToken.countDocuments({ isActive: true, userId: { $in: adminUserIds } }),
+      PushToken.distinct("userId", { isActive: true, userId: { $in: adminUserIds } }),
+      PushToken.countDocuments({
+        isActive: true,
+        $or: [{ userId: null }, { userId: { $exists: false } }],
+      }),
     ]);
 
     return {
       totalTokens,
       activeTokens,
       usersWithTokens: usersWithTokens.length,
+      adminActiveTokens,
+      adminUsersWithTokens: adminUsersWithTokens.length,
+      guestActiveTokens,
+    };
+  }
+
+  async getRecipientRoleStats(tokens) {
+    const userIds = [...new Set(tokens.map((item) => String(item.userId || "")).filter(Boolean))];
+    if (!userIds.length) {
+      return {
+        adminTokens: 0,
+        adminUsers: 0,
+        userTokens: 0,
+        userUsers: 0,
+        guestTokens: tokens.length,
+      };
+    }
+
+    const users = await User.find({ _id: { $in: userIds } }).select("_id role").lean();
+    const roleByUserId = new Map(users.map((user) => [String(user._id), user.role || "user"]));
+    const adminUserIds = new Set();
+    const regularUserIds = new Set();
+    let adminTokens = 0;
+    let userTokens = 0;
+    let guestTokens = 0;
+
+    tokens.forEach((item) => {
+      const id = String(item.userId || "");
+      if (!id) {
+        guestTokens += 1;
+        return;
+      }
+      const role = roleByUserId.get(id);
+      if (role === "admin" || role === "super_admin") {
+        adminTokens += 1;
+        adminUserIds.add(id);
+      } else {
+        userTokens += 1;
+        if (id) regularUserIds.add(id);
+      }
+    });
+
+    return {
+      adminTokens,
+      adminUsers: adminUserIds.size,
+      userTokens,
+      userUsers: regularUserIds.size,
+      guestTokens,
     };
   }
 
@@ -128,6 +198,7 @@ class NotificationService {
     if (cleanBody.length > 180) throw { status: 400, message: "Notification message cannot exceed 180 characters" };
 
     const tokens = await this.resolveAudience({ audience, userId, userIds });
+    const recipientStats = await this.getRecipientRoleStats(tokens);
     const messages = this.buildExpoMessages(tokens, {
       title: cleanTitle,
       body: cleanBody,
@@ -144,6 +215,8 @@ class NotificationService {
         validTokens: 0,
         sent: 0,
         errors: 0,
+        recipientStats,
+        includesAdmins: (audience || "all") === "all" || recipientStats.adminTokens > 0,
         tickets: [],
       };
     }
@@ -182,6 +255,8 @@ class NotificationService {
       sent: messages.length - errors,
       errors,
       invalidatedTokens: invalidTokens.length,
+      recipientStats,
+      includesAdmins: (audience || "all") === "all" || recipientStats.adminTokens > 0,
       tickets,
     };
   }

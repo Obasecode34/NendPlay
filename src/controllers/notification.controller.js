@@ -4,9 +4,10 @@ const ApiResponse = require("../utils/apiResponse");
 class NotificationController {
   async registerPushToken(req, res) {
     try {
-      const { token, platform, deviceId } = req.body;
+      const { token, platform, deviceId, guestId } = req.body;
       const pushToken = await notificationService.registerPushToken({
-        userId: req.user.userId,
+        userId: req.user?.userId,
+        guestId,
         token,
         platform,
         deviceId,
@@ -26,9 +27,10 @@ class NotificationController {
 
   async unregisterPushToken(req, res) {
     try {
-      const { token } = req.body;
+      const { token, guestId } = req.body;
       const result = await notificationService.unregisterPushToken({
-        userId: req.user.userId,
+        userId: req.user?.userId,
+        guestId,
         token,
       });
 
