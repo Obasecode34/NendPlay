@@ -1,5 +1,18 @@
 const notificationService = require("../services/notification.service");
+const cloudinaryService = require("../services/cloudinary.service");
 const ApiResponse = require("../utils/apiResponse");
+
+function parseNotificationPayload(body = {}) {
+  const payload = { ...body };
+  if (typeof payload.data === "string") {
+    try {
+      payload.data = JSON.parse(payload.data);
+    } catch {
+      payload.data = {};
+    }
+  }
+  return payload;
+}
 
 class NotificationController {
   async registerPushToken(req, res) {
@@ -63,7 +76,16 @@ class NotificationController {
 
   async sendPushNotification(req, res) {
     try {
-      const result = await notificationService.sendPushNotification(req.body, req.admin);
+      const payload = parseNotificationPayload(req.body);
+      if (req.file) {
+        const upload = await cloudinaryService.uploadThumbnail(req.file.buffer, {
+          folder: "nendplay/notifications",
+        });
+        payload.imageUrl = upload.secure_url;
+        payload.imageCloudinaryId = upload.public_id;
+      }
+
+      const result = await notificationService.sendPushNotification(payload, req.admin);
       return ApiResponse.success(res, {
         message: "Push notification sent",
         data: result,

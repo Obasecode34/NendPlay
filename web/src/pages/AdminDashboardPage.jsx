@@ -188,6 +188,7 @@ export default function AdminDashboardPage() {
     body: '',
     screen: 'Home',
   })
+  const [pushImageFile, setPushImageFile] = useState(null)
   const [pushSending, setPushSending] = useState(false)
   const [bunnySyncing, setBunnySyncing] = useState(false)
   const [newsRows, setNewsRows] = useState([])
@@ -306,7 +307,16 @@ export default function AdminDashboardPage() {
           source: 'admin',
         },
       }
-      const res = await adminService.sendPushNotification(payload)
+      let requestBody = payload
+      if (pushImageFile) {
+        requestBody = new FormData()
+        Object.entries(payload).forEach(([key, value]) => {
+          if (value === undefined || value === null) return
+          requestBody.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value))
+        })
+        requestBody.append('image', pushImageFile)
+      }
+      const res = await adminService.sendPushNotification(requestBody)
       const data = res.data?.data
       const adminTokens = data?.recipientStats?.adminTokens || 0
       const guestTokens = data?.recipientStats?.guestTokens || 0
@@ -316,6 +326,7 @@ export default function AdminDashboardPage() {
       const audienceNote = parts.length ? `, including ${parts.join(' and ')}` : ''
       toast.success(`Sent ${data?.sent || 0} notification${data?.sent === 1 ? '' : 's'}${audienceNote}`)
       setPushForm({ audience: 'all', userId: '', title: '', body: '', screen: 'Home' })
+      setPushImageFile(null)
       loadPushStats()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not send push notification')
@@ -697,6 +708,8 @@ export default function AdminDashboardPage() {
             stats={pushStats}
             form={pushForm}
             setForm={setPushForm}
+            imageFile={pushImageFile}
+            setImageFile={setPushImageFile}
             sending={pushSending}
             onSend={sendPushNotification}
           />
@@ -1112,7 +1125,15 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
   )
 }
 
-function NotificationPanel({ stats, form, setForm, sending, onSend }) {
+function NotificationPanel({ stats, form, setForm, imageFile, setImageFile, sending, onSend }) {
+  const imagePreview = useMemo(() => (imageFile ? URL.createObjectURL(imageFile) : ''), [imageFile])
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview)
+    }
+  }, [imagePreview])
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -1198,6 +1219,35 @@ function NotificationPanel({ stats, form, setForm, sending, onSend }) {
               onChange={(event) => setForm({ ...form, body: event.target.value })}
               placeholder="Tell users what is new..."
             />
+          </div>
+
+          <div className="lg:col-span-2">
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Notification Image</label>
+            <div className="grid grid-cols-1 md:grid-cols-[220px,1fr] gap-4 items-center">
+              <div className="aspect-video rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: 'var(--color-surface-high)', color: 'var(--color-text-muted)' }}>
+                {imagePreview ? (
+                  <img src={imagePreview} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <RiNewspaperLine className="text-4xl" />
+                )}
+              </div>
+              <div>
+                <input
+                  className="input-base"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(event) => setImageFile(event.target.files?.[0] || null)}
+                />
+                <p className="mt-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  Optional. Use JPEG, PNG, or WebP. The image is uploaded securely and attached to supported push notifications.
+                </p>
+                {imageFile && (
+                  <button type="button" className="btn-ghost px-3 py-2 text-xs mt-3" onClick={() => setImageFile(null)}>
+                    Remove image
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

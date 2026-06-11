@@ -172,7 +172,8 @@ class NotificationService {
     return PushToken.find(filter).lean();
   }
 
-  buildExpoMessages(tokens, { title, body, data = {}, sound = "default", priority = "high" }) {
+  buildExpoMessages(tokens, { title, body, data = {}, sound = "default", priority = "high", imageUrl = "" }) {
+    const cleanImageUrl = String(imageUrl || "").trim();
     return tokens
       .filter((item) => isExpoPushToken(item.token))
       .map((item) => ({
@@ -181,16 +182,19 @@ class NotificationService {
         body,
         data: {
           ...data,
+          ...(cleanImageUrl ? { imageUrl: cleanImageUrl } : {}),
           sentAt: new Date().toISOString(),
         },
+        ...(cleanImageUrl ? { richContent: { image: cleanImageUrl } } : {}),
         sound,
         priority,
       }));
   }
 
-  async sendPushNotification({ audience, userId, userIds, title, body, data, sound, priority }, admin) {
+  async sendPushNotification({ audience, userId, userIds, title, body, data, sound, priority, imageUrl, imageCloudinaryId }, admin) {
     const cleanTitle = String(title || "").trim();
     const cleanBody = String(body || "").trim();
+    const cleanImageUrl = String(imageUrl || "").trim();
 
     if (!cleanTitle) throw { status: 400, message: "Notification title is required" };
     if (!cleanBody) throw { status: 400, message: "Notification message is required" };
@@ -205,6 +209,7 @@ class NotificationService {
       data,
       sound,
       priority,
+      imageUrl: cleanImageUrl,
     });
 
     if (!messages.length) {
@@ -216,6 +221,8 @@ class NotificationService {
         sent: 0,
         errors: 0,
         recipientStats,
+        imageUrl: cleanImageUrl,
+        imageCloudinaryId: imageCloudinaryId || "",
         includesAdmins: (audience || "all") === "all" || recipientStats.adminTokens > 0,
         tickets: [],
       };
@@ -256,6 +263,8 @@ class NotificationService {
       errors,
       invalidatedTokens: invalidTokens.length,
       recipientStats,
+      imageUrl: cleanImageUrl,
+      imageCloudinaryId: imageCloudinaryId || "",
       includesAdmins: (audience || "all") === "all" || recipientStats.adminTokens > 0,
       tickets,
     };

@@ -135,5 +135,7 @@ export const adminService = {
   getDownloads: (params) => api.get('/admin/downloads', { params }),
   getRewards: (params) => api.get('/admin/rewards', { params }),
   getPushStats: () => api.get('/notifications/admin/stats'),
-  sendPushNotification: (data) => api.post('/notifications/admin/send', data),
+  sendPushNotification: (data) => api.post('/notifications/admin/send', data, data instanceof FormData
+    ? { headers: { 'Content-Type': 'multipart/form-data' } }
+    : undefined),
 }
