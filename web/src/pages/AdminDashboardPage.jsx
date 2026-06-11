@@ -1158,6 +1158,7 @@ function NotificationPanel({ stats, form, setForm, sending, onSend }) {
               <option value="Home">Home</option>
               <option value="Shorts">Shorts</option>
               <option value="NovelHub">NovelHub</option>
+              <option value="News">News</option>
               <option value="Rewards">Rewards</option>
               <option value="Subscription">Subscription</option>
               <option value="Downloads">Downloads</option>
