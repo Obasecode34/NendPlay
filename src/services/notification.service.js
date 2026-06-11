@@ -1,4 +1,5 @@
 const PushToken = require("../models/PushToken");
+const InAppNotification = require("../models/InAppNotification");
 const User = require("../models/User");
 const axios = require("axios");
 
@@ -18,6 +19,47 @@ function isExpoPushToken(token) {
 }
 
 class NotificationService {
+  normalizeNotificationAudience({ audience = "all", userId, userIds = [] } = {}) {
+    const ids = [];
+    if (userId) ids.push(userId);
+    if (Array.isArray(userIds)) ids.push(...userIds.filter(Boolean));
+
+    return {
+      audience: ids.length ? "selected_users" : audience || "all",
+      userIds: ids,
+    };
+  }
+
+  buildInAppVisibilityFilter(user) {
+    const now = new Date();
+    const userId = user?._id || user?.userId;
+    const role = user?.role || "user";
+    const isAdmin = ["admin", "super_admin"].includes(role);
+    const isSubscriber = Boolean(
+      user?.subscriptionPlan &&
+      user.subscriptionPlan !== "none" &&
+      user.subscriptionExpiry &&
+      new Date(user.subscriptionExpiry) > now
+    );
+
+    const audienceFilters = [
+      { audience: "all" },
+      { audience: "users" },
+      { audience: "selected_users", userIds: userId },
+    ];
+    if (isAdmin) audienceFilters.push({ audience: "admins" });
+    if (isSubscriber) audienceFilters.push({ audience: "subscribers" });
+    else audienceFilters.push({ audience: "free_users" });
+
+    return {
+      isActive: true,
+      $and: [
+        { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] },
+        { $or: audienceFilters },
+      ],
+    };
+  }
+
   async registerPushToken({ userId, guestId = "", token, platform = "unknown", deviceId = "" }) {
     if (!token) throw { status: 400, message: "Push token is required" };
 
@@ -136,6 +178,16 @@ class NotificationService {
       userUsers: regularUserIds.size,
       guestTokens,
     };
+  }
+
+  async getInAppNotificationStats() {
+    const [total, active, unreadEligibleUsers] = await Promise.all([
+      InAppNotification.countDocuments(),
+      InAppNotification.countDocuments({ isActive: true }),
+      User.countDocuments({ isActive: true }),
+    ]);
+
+    return { total, active, eligibleUsers: unreadEligibleUsers };
   }
 
   async resolveAudience({ audience = "all", userId, userIds = [] } = {}) {
@@ -268,6 +320,102 @@ class NotificationService {
       includesAdmins: (audience || "all") === "all" || recipientStats.adminTokens > 0,
       tickets,
     };
+  }
+
+  async createInAppNotification({ audience, userId, userIds, title, body, screen = "Home", imageUrl, imageCloudinaryId, expiresAt }, admin) {
+    const cleanTitle = String(title || "").trim();
+    const cleanBody = String(body || "").trim();
+    const cleanImageUrl = String(imageUrl || "").trim();
+    const normalized = this.normalizeNotificationAudience({ audience, userId, userIds });
+
+    if (!cleanTitle) throw { status: 400, message: "Notification title is required" };
+    if (!cleanBody) throw { status: 400, message: "Notification message is required" };
+    if (cleanTitle.length > 120) throw { status: 400, message: "Notification title cannot exceed 120 characters" };
+    if (cleanBody.length > 800) throw { status: 400, message: "Notification message cannot exceed 800 characters" };
+
+    const notification = await InAppNotification.create({
+      title: cleanTitle,
+      body: cleanBody,
+      audience: normalized.audience,
+      userIds: normalized.userIds,
+      sentBy: admin?.id || null,
+      screen: String(screen || "Home").trim() || "Home",
+      imageUrl: cleanImageUrl,
+      imageCloudinaryId: imageCloudinaryId || "",
+      expiresAt: expiresAt ? new Date(expiresAt) : null,
+    });
+
+    return notification;
+  }
+
+  async getUserNotifications(userId, { page = 1, limit = 20, unreadOnly = false } = {}) {
+    const user = await User.findById(userId)
+      .select("role subscriptionPlan subscriptionExpiry")
+      .lean();
+    if (!user) throw { status: 404, message: "User not found" };
+
+    const safePage = Math.max(Number(page) || 1, 1);
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+    const filter = this.buildInAppVisibilityFilter(user);
+    if (unreadOnly === true || unreadOnly === "true") {
+      filter["readBy.userId"] = { $ne: user._id };
+    }
+
+    const [items, total, unread] = await Promise.all([
+      InAppNotification.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit)
+        .populate("sentBy", "profileName username role profilePic")
+        .lean(),
+      InAppNotification.countDocuments(filter),
+      InAppNotification.countDocuments({
+        ...this.buildInAppVisibilityFilter(user),
+        "readBy.userId": { $ne: user._id },
+      }),
+    ]);
+
+    const notifications = items.map((item) => ({
+      ...item,
+      isRead: item.readBy?.some((entry) => String(entry.userId) === String(user._id)) || false,
+      readBy: undefined,
+    }));
+
+    return {
+      notifications,
+      unread,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        pages: Math.ceil(total / safeLimit) || 1,
+      },
+    };
+  }
+
+  async markNotificationRead(userId, notificationId) {
+    const notification = await InAppNotification.findById(notificationId);
+    if (!notification) throw { status: 404, message: "Notification not found" };
+
+    await InAppNotification.updateOne(
+      { _id: notificationId, "readBy.userId": { $ne: userId } },
+      { $push: { readBy: { userId, readAt: new Date() } } }
+    );
+
+    return { message: "Notification marked as read" };
+  }
+
+  async markAllNotificationsRead(userId) {
+    const { notifications } = await this.getUserNotifications(userId, { page: 1, limit: 50, unreadOnly: true });
+    const ids = notifications.map((item) => item._id);
+    if (!ids.length) return { modified: 0 };
+
+    const result = await InAppNotification.updateMany(
+      { _id: { $in: ids }, "readBy.userId": { $ne: userId } },
+      { $push: { readBy: { userId, readAt: new Date() } } }
+    );
+
+    return { modified: result.modifiedCount || 0 };
   }
 }
 

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, ActivityIndicator, Alert, Switch, Image,
+  TextInput, ActivityIndicator, Alert, Switch, Image, Modal,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -10,7 +10,7 @@ import * as SecureStore from 'expo-secure-store'
 import * as ImagePicker from 'expo-image-picker'
 import useThemeStore, { } from '../stores/themeStore'
 import useAuthStore from '../services/authStore.native'
-import { authService, mediaService, subscriptionService } from '../services/index'
+import { authService, mediaService, notificationService, subscriptionService } from '../services/index'
 import { getAllThemes } from '../theme/themes'
 
 const PROFILE_PAGE_LIMIT = 20
@@ -42,6 +42,10 @@ export default function ProfileScreen({ navigation }) {
   const [savedLoadingMore, setSavedLoadingMore] = useState(false)
   const [activeTab, setActiveTab] = useState('account')
   const [avatarUploading, setAvatarUploading] = useState(false)
+  const [notificationModalVisible, setNotificationModalVisible] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [notificationsLoading, setNotificationsLoading] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const themes = getAllThemes()
 
   const PLAN_COLORS = {
@@ -65,6 +69,9 @@ export default function ProfileScreen({ navigation }) {
       fetchSavedMedia(1, false)
     }
   }, [activeTab, isAuthenticated])
+  useEffect(() => {
+    if (isAuthenticated) fetchNotifications(false)
+  }, [isAuthenticated])
 
   const fetchSubscription = async () => {
     if (!isAuthenticated) {
@@ -97,6 +104,65 @@ export default function ProfileScreen({ navigation }) {
   const loadMoreSavedMedia = () => {
     if (!isAuthenticated || activeTab !== 'saved' || savedLoading || savedLoadingMore || !savedHasMore) return
     fetchSavedMedia(savedPage + 1, true)
+  }
+
+  const fetchNotifications = async (showLoader = true) => {
+    if (!isAuthenticated) return
+    if (showLoader) setNotificationsLoading(true)
+    try {
+      const res = await notificationService.getMine({ page: 1, limit: 30 })
+      const data = res.data?.data || {}
+      setNotifications(data.notifications || [])
+      setUnreadCount(data.unread || 0)
+    } catch (err) {
+      if (showLoader) {
+        Alert.alert('Notifications', err.response?.data?.message || 'Could not load notifications.')
+      }
+    } finally {
+      setNotificationsLoading(false)
+    }
+  }
+
+  const openNotifications = async () => {
+    setNotificationModalVisible(true)
+    fetchNotifications(true)
+  }
+
+  const handleNotificationPress = async (item) => {
+    try {
+      if (!item.isRead) {
+        await notificationService.markRead(item._id)
+        setNotifications((current) => current.map((entry) => (
+          entry._id === item._id ? { ...entry, isRead: true } : entry
+        )))
+        setUnreadCount((count) => Math.max(count - 1, 0))
+      }
+      setNotificationModalVisible(false)
+      const screenMap = {
+        Home: () => navigation.navigate('Home'),
+        Shorts: () => navigation.navigate('Shorts'),
+        NovelHub: () => navigation.navigate('NovelHub'),
+        News: () => navigation.navigate('Home', { screen: 'DailyNews' }),
+        Rewards: () => navigation.navigate('Rewards'),
+        Subscription: () => navigation.navigate('Subscribe'),
+        Downloads: () => navigation.navigate('Downloads'),
+        Profile: () => navigation.navigate('Profile'),
+      }
+      const action = screenMap[item.screen]
+      if (action) action()
+    } catch {
+      Alert.alert('Notifications', 'Could not open notification.')
+    }
+  }
+
+  const markAllNotificationsRead = async () => {
+    try {
+      await notificationService.markAllRead()
+      setNotifications((current) => current.map((item) => ({ ...item, isRead: true })))
+      setUnreadCount(0)
+    } catch {
+      Alert.alert('Notifications', 'Could not mark notifications as read.')
+    }
   }
 
   const handleSaveName = async () => {
@@ -235,6 +301,37 @@ export default function ProfileScreen({ navigation }) {
       borderColor: c.bgDeep,
     },
     avatarText: { color: 'white', fontSize: 30, fontWeight: '900' },
+    headerActions: {
+      position: 'absolute',
+      top: insets.top + 10,
+      right: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    bellButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    unreadBadge: {
+      position: 'absolute',
+      top: -5,
+      right: -5,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      backgroundColor: '#EF4444',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    unreadBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     name: { color: c.text, fontSize: 20, fontWeight: '800' },
     username: { color: c.textMuted, fontSize: 13 },
@@ -298,6 +395,36 @@ export default function ProfileScreen({ navigation }) {
       alignItems: 'center', flexDirection: 'row',
       justifyContent: 'center', gap: 8, marginBottom: 12,
     },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.68)',
+      justifyContent: 'flex-end',
+    },
+    notificationSheet: {
+      maxHeight: '82%',
+      backgroundColor: c.bg,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: insets.bottom + 18,
+    },
+    notificationCard: {
+      flexDirection: 'row',
+      gap: 12,
+      padding: 12,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+      marginBottom: 10,
+    },
+    notificationImage: { width: 58, height: 58, borderRadius: 12, backgroundColor: c.bgDeep },
+    notificationTitle: { color: c.text, fontSize: 14, fontWeight: '900', marginBottom: 4 },
+    notificationBody: { color: c.textMuted, fontSize: 12, lineHeight: 17 },
+    notificationDate: { color: c.textMuted, fontSize: 11, marginTop: 8 },
   })
 
   if (!isAuthenticated) {
@@ -371,6 +498,16 @@ export default function ProfileScreen({ navigation }) {
     <View style={s.container}>
       {/* Profile header */}
       <View style={s.header}>
+        <View style={s.headerActions}>
+          <TouchableOpacity style={s.bellButton} onPress={openNotifications}>
+            <Ionicons name={unreadCount > 0 ? 'notifications' : 'notifications-outline'} size={22} color={c.primary} />
+            {unreadCount > 0 && (
+              <View style={s.unreadBadge}>
+                <Text style={s.unreadBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity
           style={s.avatar}
           onPress={handleChangeProfilePicture}
@@ -727,6 +864,63 @@ export default function ProfileScreen({ navigation }) {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={notificationModalVisible} transparent animationType="slide" onRequestClose={() => setNotificationModalVisible(false)}>
+        <View style={s.modalBackdrop}>
+          <View style={s.notificationSheet}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <View>
+                <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>Notifications</Text>
+                <Text style={{ color: c.textMuted, fontSize: 12 }}>{unreadCount} unread</Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity onPress={markAllNotificationsRead} style={[s.bellButton, { width: 40, height: 40 }]}>
+                  <Ionicons name="checkmark-done" size={19} color={c.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setNotificationModalVisible(false)} style={[s.bellButton, { width: 40, height: 40 }]}>
+                  <Ionicons name="close" size={20} color={c.text} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {notificationsLoading ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                <ActivityIndicator color={c.primary} size="large" />
+              </View>
+            ) : notifications.length === 0 ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                <Ionicons name="notifications-off-outline" size={42} color={c.textMuted} />
+                <Text style={{ color: c.text, fontSize: 16, fontWeight: '900', marginTop: 12 }}>No notifications yet</Text>
+                <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 4 }}>Admin updates will appear here.</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {notifications.map((item) => (
+                  <TouchableOpacity key={item._id} style={s.notificationCard} onPress={() => handleNotificationPress(item)}>
+                    {item.imageUrl ? (
+                      <Image source={{ uri: item.imageUrl }} style={s.notificationImage} />
+                    ) : (
+                      <View style={[s.notificationImage, { alignItems: 'center', justifyContent: 'center' }]}>
+                        <Ionicons name="notifications" size={24} color={c.primary} />
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                        {!item.isRead && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.primary }} />}
+                        <Text style={s.notificationTitle} numberOfLines={2}>{item.title}</Text>
+                      </View>
+                      <Text style={s.notificationBody} numberOfLines={3}>{item.body}</Text>
+                      <Text style={s.notificationDate}>
+                        {item.createdAt ? new Date(item.createdAt).toLocaleString() : 'Just now'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }

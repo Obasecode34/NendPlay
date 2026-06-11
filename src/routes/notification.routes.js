@@ -8,6 +8,9 @@ const { uploadThumbnail, handleMulterError } = require("../middleware/upload.mid
 router.post("/register", optionalAuthMiddleware, notificationController.registerPushToken);
 router.post("/unregister", optionalAuthMiddleware, notificationController.unregisterPushToken);
 router.get("/tokens", authMiddleware, notificationController.getPushTokens);
+router.get("/me", authMiddleware, notificationController.getMyNotifications);
+router.patch("/me/read-all", authMiddleware, notificationController.markAllNotificationsRead);
+router.patch("/me/:id/read", authMiddleware, notificationController.markNotificationRead);
 router.get("/admin/stats", authMiddleware, requireAdmin("notifications:read"), notificationController.getPushStats);
 router.post(
   "/admin/send",
@@ -16,6 +19,14 @@ router.post(
   uploadThumbnail.single("image"),
   handleMulterError,
   notificationController.sendPushNotification
+);
+router.post(
+  "/admin/in-app",
+  authMiddleware,
+  requireAdmin("notifications:write"),
+  uploadThumbnail.single("image"),
+  handleMulterError,
+  notificationController.sendInAppNotification
 );
 
 module.exports = router;

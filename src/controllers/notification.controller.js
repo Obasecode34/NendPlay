@@ -67,7 +67,11 @@ class NotificationController {
 
   async getPushStats(req, res) {
     try {
-      const stats = await notificationService.getPushTokenStats();
+      const [stats, inAppStats] = await Promise.all([
+        notificationService.getPushTokenStats(),
+        notificationService.getInAppNotificationStats(),
+      ]);
+      stats.inApp = inAppStats;
       return ApiResponse.success(res, { data: { stats } });
     } catch (err) {
       return ApiResponse.error(res, { message: err.message || "Failed to load push notification stats" });
@@ -95,6 +99,66 @@ class NotificationController {
         return ApiResponse.error(res, { statusCode: err.status, message: err.message });
       }
       return ApiResponse.error(res, { message: err.message || "Failed to send push notification" });
+    }
+  }
+
+  async sendInAppNotification(req, res) {
+    try {
+      const payload = parseNotificationPayload(req.body);
+      if (req.file) {
+        const upload = await cloudinaryService.uploadThumbnail(req.file.buffer, {
+          folder: "nendplay/notifications",
+        });
+        payload.imageUrl = upload.secure_url;
+        payload.imageCloudinaryId = upload.public_id;
+      }
+
+      const notification = await notificationService.createInAppNotification(payload, req.admin);
+      return ApiResponse.created(res, {
+        message: "Notification sent",
+        data: { notification },
+      });
+    } catch (err) {
+      if (err.status) {
+        return ApiResponse.error(res, { statusCode: err.status, message: err.message });
+      }
+      return ApiResponse.error(res, { message: err.message || "Failed to send notification" });
+    }
+  }
+
+  async getMyNotifications(req, res) {
+    try {
+      const result = await notificationService.getUserNotifications(req.user.userId, req.query);
+      return ApiResponse.success(res, { data: result });
+    } catch (err) {
+      if (err.status) {
+        return ApiResponse.error(res, { statusCode: err.status, message: err.message });
+      }
+      return ApiResponse.error(res, { message: err.message || "Failed to load notifications" });
+    }
+  }
+
+  async markNotificationRead(req, res) {
+    try {
+      const result = await notificationService.markNotificationRead(req.user.userId, req.params.id);
+      return ApiResponse.success(res, { data: result });
+    } catch (err) {
+      if (err.status) {
+        return ApiResponse.error(res, { statusCode: err.status, message: err.message });
+      }
+      return ApiResponse.error(res, { message: err.message || "Failed to update notification" });
+    }
+  }
+
+  async markAllNotificationsRead(req, res) {
+    try {
+      const result = await notificationService.markAllNotificationsRead(req.user.userId);
+      return ApiResponse.success(res, { data: result });
+    } catch (err) {
+      if (err.status) {
+        return ApiResponse.error(res, { statusCode: err.status, message: err.message });
+      }
+      return ApiResponse.error(res, { message: err.message || "Failed to update notifications" });
     }
   }
 }

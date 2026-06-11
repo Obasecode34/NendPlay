@@ -188,8 +188,18 @@ export default function AdminDashboardPage() {
     body: '',
     screen: 'Home',
   })
+  const [notificationMode, setNotificationMode] = useState('push')
+  const [inAppForm, setInAppForm] = useState({
+    audience: 'all',
+    userId: '',
+    title: '',
+    body: '',
+    screen: 'Home',
+  })
   const [pushImageFile, setPushImageFile] = useState(null)
+  const [inAppImageFile, setInAppImageFile] = useState(null)
   const [pushSending, setPushSending] = useState(false)
+  const [inAppSending, setInAppSending] = useState(false)
   const [bunnySyncing, setBunnySyncing] = useState(false)
   const [newsRows, setNewsRows] = useState([])
   const [newsMeta, setNewsMeta] = useState(null)
@@ -339,6 +349,46 @@ export default function AdminDashboardPage() {
       toast.error(err.response?.data?.message || 'Could not send push notification')
     } finally {
       setPushSending(false)
+    }
+  }
+
+  const sendInAppNotification = async () => {
+    if (!inAppForm.title.trim() || !inAppForm.body.trim()) {
+      toast.error('Enter a title and message')
+      return
+    }
+    if (inAppForm.audience === 'user' && !inAppForm.userId.trim()) {
+      toast.error('Enter a user ID for a single-user notification')
+      return
+    }
+
+    setInAppSending(true)
+    try {
+      const payload = {
+        audience: inAppForm.audience === 'user' ? undefined : inAppForm.audience,
+        userId: inAppForm.audience === 'user' ? inAppForm.userId.trim() : undefined,
+        title: inAppForm.title.trim(),
+        body: inAppForm.body.trim(),
+        screen: inAppForm.screen,
+      }
+      let requestBody = payload
+      if (inAppImageFile) {
+        requestBody = new FormData()
+        Object.entries(payload).forEach(([key, value]) => {
+          if (value === undefined || value === null) return
+          requestBody.append(key, String(value))
+        })
+        requestBody.append('image', inAppImageFile)
+      }
+      await adminService.sendInAppNotification(requestBody)
+      toast.success('Notification added to users bell inbox')
+      setInAppForm({ audience: 'all', userId: '', title: '', body: '', screen: 'Home' })
+      setInAppImageFile(null)
+      loadPushStats()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not send notification')
+    } finally {
+      setInAppSending(false)
     }
   }
 
@@ -713,12 +763,20 @@ export default function AdminDashboardPage() {
         activeTab === 'notifications' ? (
           <NotificationPanel
             stats={pushStats}
+            mode={notificationMode}
+            setMode={setNotificationMode}
             form={pushForm}
             setForm={setPushForm}
             imageFile={pushImageFile}
             setImageFile={setPushImageFile}
             sending={pushSending}
             onSend={sendPushNotification}
+            inAppForm={inAppForm}
+            setInAppForm={setInAppForm}
+            inAppImageFile={inAppImageFile}
+            setInAppImageFile={setInAppImageFile}
+            inAppSending={inAppSending}
+            onSendInApp={sendInAppNotification}
           />
         ) : activeTab === 'news' ? (
           <NewsPanel
@@ -1132,8 +1190,30 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
   )
 }
 
-function NotificationPanel({ stats, form, setForm, imageFile, setImageFile, sending, onSend }) {
-  const imagePreview = useMemo(() => (imageFile ? URL.createObjectURL(imageFile) : ''), [imageFile])
+function NotificationPanel({
+  stats,
+  mode,
+  setMode,
+  form,
+  setForm,
+  imageFile,
+  setImageFile,
+  sending,
+  onSend,
+  inAppForm,
+  setInAppForm,
+  inAppImageFile,
+  setInAppImageFile,
+  inAppSending,
+  onSendInApp,
+}) {
+  const activeForm = mode === 'push' ? form : inAppForm
+  const setActiveForm = mode === 'push' ? setForm : setInAppForm
+  const activeImageFile = mode === 'push' ? imageFile : inAppImageFile
+  const setActiveImageFile = mode === 'push' ? setImageFile : setInAppImageFile
+  const activeSending = mode === 'push' ? sending : inAppSending
+  const activeSend = mode === 'push' ? onSend : onSendInApp
+  const imagePreview = useMemo(() => (activeImageFile ? URL.createObjectURL(activeImageFile) : ''), [activeImageFile])
 
   useEffect(() => {
     return () => {
@@ -1148,16 +1228,37 @@ function NotificationPanel({ stats, form, setForm, imageFile, setImageFile, send
         <StatCard label="Active Tokens" value={stats?.activeTokens || 0} icon={RiNotification3Line} />
         <StatCard label="Reachable Users" value={stats?.usersWithTokens || 0} icon={RiUserLine} />
         <StatCard label="Admin Tokens" value={stats?.adminActiveTokens || 0} icon={RiShieldUserLine} />
-        <StatCard label="Guest Tokens" value={stats?.guestActiveTokens || 0} icon={RiUserLine} />
+        <StatCard label="Bell Notices" value={stats?.inApp?.active || 0} icon={RiNotification3Line} />
       </div>
 
       <div className="card p-5">
+        <div className="mb-5 flex flex-wrap gap-2">
+          {[
+            { id: 'push', label: 'Push Notifications' },
+            { id: 'in-app', label: 'Notifications' },
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setMode(item.id)}
+              className="px-4 py-2 rounded-xl text-sm font-black"
+              style={{
+                background: mode === item.id ? 'var(--color-primary)' : 'var(--color-surface-high)',
+                color: mode === item.id ? '#fff' : 'var(--color-text-muted)',
+              }}>
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         <div className="mb-5">
           <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>
-            Send Push Notification
+            {mode === 'push' ? 'Send Push Notification' : 'Send Bell Notification'}
           </h2>
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            Send updates to everyone who allowed mobile notifications, including guests, users, admins, and super-admins.
+            {mode === 'push'
+              ? 'Send updates to everyone who allowed mobile notifications, including guests, users, admins, and super-admins.'
+              : 'Send an in-app notification that appears when users tap the bell icon in NendPlay.'}
           </p>
         </div>
 
@@ -1166,10 +1267,11 @@ function NotificationPanel({ stats, form, setForm, imageFile, setImageFile, send
             <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Audience</label>
             <select
               className="input-base"
-              value={form.audience}
-              onChange={(event) => setForm({ ...form, audience: event.target.value })}
+              value={activeForm.audience}
+              onChange={(event) => setActiveForm({ ...activeForm, audience: event.target.value })}
             >
-              <option value="all">Guests + users + admins</option>
+              <option value="all">{mode === 'push' ? 'Guests + users + admins' : 'All registered users + admins'}</option>
+              {mode === 'in-app' && <option value="admins">Admins only</option>}
               <option value="subscribers">Subscribed users</option>
               <option value="free_users">Free users</option>
               <option value="user">One user ID</option>
@@ -1180,8 +1282,8 @@ function NotificationPanel({ stats, form, setForm, imageFile, setImageFile, send
             <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Open Screen</label>
             <select
               className="input-base"
-              value={form.screen}
-              onChange={(event) => setForm({ ...form, screen: event.target.value })}
+              value={activeForm.screen}
+              onChange={(event) => setActiveForm({ ...activeForm, screen: event.target.value })}
             >
               <option value="Home">Home</option>
               <option value="Shorts">Shorts</option>
@@ -1194,13 +1296,13 @@ function NotificationPanel({ stats, form, setForm, imageFile, setImageFile, send
             </select>
           </div>
 
-          {form.audience === 'user' && (
+          {activeForm.audience === 'user' && (
             <div className="lg:col-span-2">
               <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>User ID</label>
               <input
                 className="input-base"
-                value={form.userId}
-                onChange={(event) => setForm({ ...form, userId: event.target.value })}
+                value={activeForm.userId}
+                onChange={(event) => setActiveForm({ ...activeForm, userId: event.target.value })}
                 placeholder="MongoDB user ID"
               />
             </div>
@@ -1210,9 +1312,9 @@ function NotificationPanel({ stats, form, setForm, imageFile, setImageFile, send
             <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Title</label>
             <input
               className="input-base"
-              maxLength={80}
-              value={form.title}
-              onChange={(event) => setForm({ ...form, title: event.target.value })}
+              maxLength={mode === 'push' ? 80 : 120}
+              value={activeForm.title}
+              onChange={(event) => setActiveForm({ ...activeForm, title: event.target.value })}
               placeholder="New release on NendPlay"
             />
           </div>
@@ -1221,9 +1323,9 @@ function NotificationPanel({ stats, form, setForm, imageFile, setImageFile, send
             <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Message</label>
             <textarea
               className="input-base min-h-32 resize-y"
-              maxLength={180}
-              value={form.body}
-              onChange={(event) => setForm({ ...form, body: event.target.value })}
+              maxLength={mode === 'push' ? 180 : 800}
+              value={activeForm.body}
+              onChange={(event) => setActiveForm({ ...activeForm, body: event.target.value })}
               placeholder="Tell users what is new..."
             />
           </div>
@@ -1243,13 +1345,13 @@ function NotificationPanel({ stats, form, setForm, imageFile, setImageFile, send
                   className="input-base"
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
-                  onChange={(event) => setImageFile(event.target.files?.[0] || null)}
+                  onChange={(event) => setActiveImageFile(event.target.files?.[0] || null)}
                 />
                 <p className="mt-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                  Optional. Use JPEG, PNG, or WebP. The image is uploaded securely and attached to supported push notifications.
+                  Optional. Use JPEG, PNG, or WebP. The image is uploaded securely and attached to the notification.
                 </p>
-                {imageFile && (
-                  <button type="button" className="btn-ghost px-3 py-2 text-xs mt-3" onClick={() => setImageFile(null)}>
+                {activeImageFile && (
+                  <button type="button" className="btn-ghost px-3 py-2 text-xs mt-3" onClick={() => setActiveImageFile(null)}>
                     Remove image
                   </button>
                 )}
@@ -1261,10 +1363,10 @@ function NotificationPanel({ stats, form, setForm, imageFile, setImageFile, send
         <div className="mt-5 flex justify-end">
           <button
             className="btn-primary px-5 py-3 text-sm flex items-center gap-2"
-            disabled={sending}
-            onClick={onSend}
+            disabled={activeSending}
+            onClick={activeSend}
           >
-            <RiNotification3Line /> {sending ? 'Sending...' : 'Send Notification'}
+            <RiNotification3Line /> {activeSending ? 'Sending...' : mode === 'push' ? 'Send Push' : 'Send Notification'}
           </button>
         </div>
       </div>

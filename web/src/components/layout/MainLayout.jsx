@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   RiHomeFill, RiBookOpenFill, RiVideoFill, RiDownloadFill,
@@ -11,6 +11,7 @@ import useAuthStore from '../../stores/authStore'
 import useThemeStore from '../../stores/themeStore'
 import ThemePicker from '../common/ThemePicker'
 import MiniPlayer from '../media/MiniPlayer'
+import { notificationService } from '../../services'
 
 const navItems = [
   { to: '/home', icon: RiHomeFill, label: 'Home' },
@@ -33,7 +34,19 @@ export default function MainLayout() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showThemePicker, setShowThemePicker] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [notificationsLoading, setNotificationsLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+
+  useEffect(() => {
+    if (isAuthenticated) loadNotifications(false)
+    else {
+      setNotifications([])
+      setUnreadCount(0)
+    }
+  }, [isAuthenticated])
 
   const handleLogout = async () => {
     await logout()
@@ -45,6 +58,58 @@ export default function MainLayout() {
       navigate(`/home?search=${encodeURIComponent(searchQuery.trim())}`)
       setSearchQuery('')
     }
+  }
+
+  const loadNotifications = async (showLoader = true) => {
+    if (!isAuthenticated) return
+    if (showLoader) setNotificationsLoading(true)
+    try {
+      const res = await notificationService.getMine({ page: 1, limit: 20 })
+      const data = res.data?.data || {}
+      setNotifications(data.notifications || [])
+      setUnreadCount(data.unread || 0)
+    } catch {
+      setNotifications([])
+    } finally {
+      setNotificationsLoading(false)
+    }
+  }
+
+  const openNotifications = () => {
+    setShowNotifications((value) => !value)
+    loadNotifications(true)
+  }
+
+  const openNotification = async (item) => {
+    try {
+      if (!item.isRead) {
+        await notificationService.markRead(item._id)
+        setNotifications((current) => current.map((entry) => (
+          entry._id === item._id ? { ...entry, isRead: true } : entry
+        )))
+        setUnreadCount((count) => Math.max(count - 1, 0))
+      }
+    } catch {}
+    setShowNotifications(false)
+    const routes = {
+      Home: '/home',
+      Shorts: '/shorts',
+      NovelHub: '/novelhub',
+      News: '/home',
+      Rewards: '/rewards',
+      Subscription: '/subscribe',
+      Downloads: '/downloads',
+      Profile: '/profile',
+    }
+    navigate(routes[item.screen] || '/home')
+  }
+
+  const markAllNotificationsRead = async () => {
+    try {
+      await notificationService.markAllRead()
+      setNotifications((current) => current.map((item) => ({ ...item, isRead: true })))
+      setUnreadCount(0)
+    } catch {}
   }
 
   return (
@@ -237,11 +302,64 @@ export default function MainLayout() {
 
           {/* Right side */}
           <div className="flex items-center gap-3 ml-4">
-            <button
-              className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
-              style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
-              <RiNotification3Line className="text-xl" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={openNotifications}
+                className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
+                style={{ background: 'var(--color-surface)', color: unreadCount ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
+                <RiNotification3Line className="text-xl" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-[10px] font-black text-white"
+                    style={{ background: '#EF4444' }}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute right-0 mt-3 w-80 max-h-96 overflow-hidden rounded-2xl z-50"
+                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: '0 18px 50px rgba(0,0,0,0.35)' }}>
+                  <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                    <div>
+                      <p className="font-black" style={{ color: 'var(--color-text)' }}>Notifications</p>
+                      <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{unreadCount} unread</p>
+                    </div>
+                    <button className="btn-ghost px-3 py-1 text-xs" onClick={markAllNotificationsRead}>
+                      Mark all
+                    </button>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto p-2">
+                    {notificationsLoading ? (
+                      <p className="p-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>Loading...</p>
+                    ) : notifications.length === 0 ? (
+                      <p className="p-4 text-sm text-center" style={{ color: 'var(--color-text-muted)' }}>No notifications yet</p>
+                    ) : notifications.map((item) => (
+                      <button
+                        key={item._id}
+                        type="button"
+                        onClick={() => openNotification(item)}
+                        className="w-full text-left p-3 rounded-xl flex gap-3 transition-colors hover:bg-white/5">
+                        {item.imageUrl ? (
+                          <img src={item.imageUrl} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{ background: 'var(--color-surface-high)', color: 'var(--color-primary)' }}>
+                            <RiNotification3Line />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            {!item.isRead && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--color-primary)' }} />}
+                            <p className="font-black text-sm truncate" style={{ color: 'var(--color-text)' }}>{item.title}</p>
+                          </div>
+                          <p className="text-xs line-clamp-2 mt-1" style={{ color: 'var(--color-text-muted)' }}>{item.body}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* User avatar */}
             <NavLink to="/profile"

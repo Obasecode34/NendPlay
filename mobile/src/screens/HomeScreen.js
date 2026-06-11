@@ -8,7 +8,6 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import useThemeStore from '../stores/themeStore'
-import useAuthStore from '../services/authStore.native'
 import { mediaService, novelService } from '../services/index'
 import AdBanner from '../components/ads/AdBanner'
 import NativeAdvancedAd from '../components/ads/NativeAdvancedAd'
@@ -402,7 +401,6 @@ function NovelPromo({ documents, theme, onPress }) {
 
 export default function HomeScreen({ navigation }) {
   const { theme } = useThemeStore()
-  const { user } = useAuthStore()
   const insets = useSafeAreaInsets()
   const c = theme.colors
 
@@ -604,23 +602,6 @@ export default function HomeScreen({ navigation }) {
     <View style={s.container}>
       {/* Header */}
       <View style={s.header}>
-        <View style={s.headerTop}>
-          <View>
-            <Text style={s.greeting}>
-              {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening'}
-            </Text>
-            <Text style={s.greetingSub}>{user?.profileName || user?.username || 'User'}</Text>
-          </View>
-          <View style={{
-            width: 40, height: 40, borderRadius: 10, backgroundColor: c.primary,
-            alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Text style={{ color: 'white', fontWeight: '900', fontSize: 16 }}>
-              {user?.profileName?.[0]?.toUpperCase() || 'U'}
-            </Text>
-          </View>
-        </View>
-
         {/* Search */}
         <View style={s.searchWrap}>
           <Ionicons name="search" size={16} color={c.textMuted} />

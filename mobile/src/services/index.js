@@ -77,6 +77,9 @@ export const notificationService = {
   registerPushToken: (data) => api.post('/notifications/register', data),
   unregisterPushToken: (data) => api.post('/notifications/unregister', data),
   getPushTokens: () => api.get('/notifications/tokens'),
+  getMine: (params) => api.get('/notifications/me', { params }),
+  markRead: (id) => api.patch(`/notifications/me/${id}/read`),
+  markAllRead: () => api.patch('/notifications/me/read-all'),
 }
 
 export const downloadService = {

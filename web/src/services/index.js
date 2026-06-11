@@ -138,4 +138,13 @@ export const adminService = {
   sendPushNotification: (data) => api.post('/notifications/admin/send', data, data instanceof FormData
     ? { headers: { 'Content-Type': 'multipart/form-data' } }
     : undefined),
+  sendInAppNotification: (data) => api.post('/notifications/admin/in-app', data, data instanceof FormData
+    ? { headers: { 'Content-Type': 'multipart/form-data' } }
+    : undefined),
+}
+
+export const notificationService = {
+  getMine: (params) => api.get('/notifications/me', { params }),
+  markRead: (id) => api.patch(`/notifications/me/${id}/read`),
+  markAllRead: () => api.patch('/notifications/me/read-all'),
 }
