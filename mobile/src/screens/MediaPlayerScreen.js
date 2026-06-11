@@ -1,5 +1,5 @@
 // src/screens/MediaPlayerScreen.js
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert,
@@ -34,9 +34,14 @@ export default function MediaPlayerScreen({ route, navigation }) {
   const insets = useSafeAreaInsets()
   const c = theme.colors
   const [playbackUrl, setPlaybackUrl] = useState('')
+  const [playbackSourceType, setPlaybackSourceType] = useState('auto')
   const [playbackError, setPlaybackError] = useState('')
   const streamUrl = localUri || playbackUrl || mediaService.getStreamUrl(mediaId)
-  const player = useVideoPlayer({ uri: streamUrl }, (player) => {
+  const streamSource = useMemo(() => ({
+    uri: streamUrl,
+    contentType: playbackSourceType === 'hls' ? 'hls' : 'auto',
+  }), [streamUrl, playbackSourceType])
+  const player = useVideoPlayer(streamSource, (player) => {
     player.play()
   })
 
@@ -59,10 +64,13 @@ export default function MediaPlayerScreen({ route, navigation }) {
   useEffect(() => {
     if (!playbackUrl || localUri) return
     try {
-      player.replace({ uri: playbackUrl })
+      player.replace({
+        uri: playbackUrl,
+        contentType: playbackSourceType === 'hls' ? 'hls' : 'auto',
+      })
       player.play()
     } catch {}
-  }, [playbackUrl, localUri])
+  }, [playbackUrl, playbackSourceType, localUri])
 
   const fetchMedia = async () => {
     setLoading(true)
@@ -86,6 +94,7 @@ export default function MediaPlayerScreen({ route, navigation }) {
           return
         }
         setPlaybackError('')
+        setPlaybackSourceType(playback.sourceType || (resolvedUrl.includes('.m3u8') ? 'hls' : 'auto'))
         setPlaybackUrl(resolvedUrl)
       }
     } catch {

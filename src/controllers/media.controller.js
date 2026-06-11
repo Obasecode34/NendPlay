@@ -33,17 +33,41 @@ function rewriteHlsPlaylist({ playlist, mediaId, playbackToken, currentPath = ""
     .split(/\r?\n/)
     .map((line) => {
       const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#") || /^https?:\/\//i.test(trimmed)) return line;
+      if (!trimmed || trimmed.startsWith("#")) return line;
 
-      const nextPath = baseDir ? `${baseDir}/${trimmed}` : trimmed;
-      const params = new URLSearchParams({
-        playbackToken,
-        path: nextPath,
-      });
+      const params = new URLSearchParams({ playbackToken });
+      if (/^https?:\/\//i.test(trimmed)) {
+        params.set("url", trimmed);
+      } else {
+        const nextPath = baseDir ? `${baseDir}/${trimmed}` : trimmed;
+        params.set("path", nextPath);
+      }
       const proxyPath = `/api/media/${mediaId}/hls?${params.toString()}`;
       return requestOrigin ? `${requestOrigin}${proxyPath}` : proxyPath;
     })
     .join("\n");
+}
+
+function resolveHlsTargetUrl({ sourceUrl, path = "", absoluteUrl = "" }) {
+  const source = new URL(sourceUrl);
+  if (absoluteUrl) {
+    const target = new URL(absoluteUrl);
+    if (target.host !== source.host) {
+      throw { status: 400, message: "Invalid HLS host" };
+    }
+    return target.toString();
+  }
+
+  const cleanPath = String(path || "").replace(/^\/+/, "");
+  if (!cleanPath || cleanPath.includes("..")) {
+    throw { status: 400, message: "Invalid HLS path" };
+  }
+  const sourceDir = source.pathname.split("/").slice(0, -1).join("/");
+  const sourceDirWithoutSlash = sourceDir.replace(/^\/+/, "");
+  source.pathname = cleanPath.startsWith(`${sourceDirWithoutSlash}/`)
+    ? `/${cleanPath}`
+    : `${sourceDir}/${cleanPath}`;
+  return source.toString();
 }
 
 class MediaController {
@@ -376,27 +400,23 @@ class MediaController {
       }
 
       const path = String(req.query.path || "").replace(/^\/+/, "");
-      if (!path || path.includes("..")) {
-        return ApiResponse.badRequest(res, "Invalid HLS path");
-      }
+      const absoluteUrl = String(req.query.url || "");
+      const targetUrl = resolveHlsTargetUrl({ sourceUrl, path, absoluteUrl });
+      const targetIsPlaylist = isPlaylistPath(targetUrl);
 
-      const base = new URL(sourceUrl);
-      const sourceDir = base.pathname.split("/").slice(0, -1).join("/");
-      base.pathname = `${sourceDir}/${path}`;
-
-      const response = await axios.get(base.toString(), {
+      const response = await axios.get(targetUrl, {
         headers: getBunnyProxyHeaders(),
-        responseType: isPlaylistPath(path) ? "text" : "stream",
+        responseType: targetIsPlaylist ? "text" : "stream",
       });
 
-      if (isPlaylistPath(path)) {
+      if (targetIsPlaylist) {
         res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
         res.setHeader("Cache-Control", "private, max-age=30");
         return res.send(rewriteHlsPlaylist({
           playlist: response.data,
           mediaId: media._id,
           playbackToken,
-          currentPath: path,
+          currentPath: path || new URL(absoluteUrl).pathname.replace(/^\/+/, ""),
           requestOrigin: getRequestOrigin(req),
         }));
       }
