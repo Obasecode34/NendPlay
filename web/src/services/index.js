@@ -106,6 +106,10 @@ export const rewardService = {
   verifyPaidAdFree: (data) => api.post('/rewards/ad-free/verify', data),
 }
 
+export const newsService = {
+  getDailyNews: (params) => api.get('/news', { params }),
+}
+
 export const adminService = {
   getDashboard: () => api.get('/admin/dashboard'),
   getPermissions: () => api.get('/admin/permissions'),

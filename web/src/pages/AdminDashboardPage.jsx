@@ -11,13 +11,14 @@ import {
   RiFilmLine,
   RiGiftLine,
   RiMailLine,
+  RiNewspaperLine,
   RiNotification3Line,
   RiShieldUserLine,
   RiUserLine,
   RiVipCrownLine,
 } from 'react-icons/ri'
 import useAuthStore from '../stores/authStore'
-import { adminService } from '../services/index'
+import { adminService, newsService } from '../services/index'
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: RiDashboardLine },
@@ -28,6 +29,7 @@ const tabs = [
   { id: 'subscriptions', label: 'Subscriptions', icon: RiVipCrownLine },
   { id: 'downloads', label: 'Downloads', icon: RiDownloadLine },
   { id: 'rewards', label: 'Rewards', icon: RiGiftLine },
+  { id: 'news', label: 'News', icon: RiNewspaperLine },
   { id: 'notifications', label: 'Notifications', icon: RiNotification3Line },
 ]
 
@@ -60,6 +62,20 @@ const COLLECTION_TYPE_OPTIONS = [
   { value: 'single', label: 'Single title' },
   { value: 'movie_part', label: 'Movie with parts' },
   { value: 'series_episode', label: 'Series/episode' },
+]
+
+const NEWS_TAB_OPTIONS = [
+  { value: 'for-you', label: 'For You' },
+  { value: 'headlines', label: 'Headlines' },
+  { value: 'local', label: 'Local' },
+  { value: 'nigeria', label: 'Nigeria' },
+  { value: 'world', label: 'World' },
+  { value: 'business', label: 'Business' },
+  { value: 'technology', label: 'Technology' },
+  { value: 'entertainment', label: 'Entertainment' },
+  { value: 'sports', label: 'Sports' },
+  { value: 'science', label: 'Science' },
+  { value: 'health', label: 'Health' },
 ]
 
 function listToInput(value) {
@@ -174,6 +190,14 @@ export default function AdminDashboardPage() {
   })
   const [pushSending, setPushSending] = useState(false)
   const [bunnySyncing, setBunnySyncing] = useState(false)
+  const [newsRows, setNewsRows] = useState([])
+  const [newsMeta, setNewsMeta] = useState(null)
+  const [newsFilters, setNewsFilters] = useState({
+    tab: 'for-you',
+    country: 'Nigeria',
+    city: '',
+    region: '',
+  })
 
   const isAdmin = ['admin', 'super_admin'].includes(user?.role)
   const isSuperAdmin = user?.role === 'super_admin'
@@ -188,8 +212,9 @@ export default function AdminDashboardPage() {
     if (!isAdmin) return
     if (activeTab === 'overview') loadDashboard()
     else if (activeTab === 'notifications') loadPushStats()
+    else if (activeTab === 'news') loadNews(1)
     else loadTable(1)
-  }, [activeTab, isAdmin, status, debouncedSearch])
+  }, [activeTab, isAdmin, status, debouncedSearch, newsFilters.tab])
 
   const loadDashboard = async () => {
     setLoading(true)
@@ -230,6 +255,30 @@ export default function AdminDashboardPage() {
       setPushStats(res.data.data.stats)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not load notification stats')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadNews = async (nextPage = page) => {
+    setLoading(true)
+    try {
+      const res = await newsService.getDailyNews({
+        page: nextPage,
+        limit: 12,
+        search: debouncedSearch || undefined,
+        tab: newsFilters.tab,
+        country: newsFilters.country || undefined,
+        city: newsFilters.city || undefined,
+        region: newsFilters.region || undefined,
+      })
+      const payload = res.data?.data?.data || res.data?.data || {}
+      setNewsRows(payload.articles || [])
+      setNewsMeta(payload)
+      setPagination(payload.pagination || null)
+      setPage(nextPage)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not load news')
     } finally {
       setLoading(false)
     }
@@ -651,6 +700,19 @@ export default function AdminDashboardPage() {
             sending={pushSending}
             onSend={sendPushNotification}
           />
+        ) : activeTab === 'news' ? (
+          <NewsPanel
+            articles={newsRows}
+            meta={newsMeta}
+            filters={newsFilters}
+            setFilters={setNewsFilters}
+            search={search}
+            setSearch={setSearch}
+            onRefresh={() => loadNews(1)}
+            pagination={pagination}
+            page={page}
+            onPage={loadNews}
+          />
         ) : (
         <div className="space-y-4">
           <TableShell
@@ -912,6 +974,140 @@ function MediaEditModal({ media, form, setForm, thumbnailFile, setThumbnailFile,
           <button onClick={onSave} className="btn-primary px-5 py-2 text-sm">Save Media</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onRefresh, pagination, page, onPage }) {
+  const updatedAt = meta?.updatedAt ? new Date(meta.updatedAt).toLocaleString() : ''
+
+  return (
+    <div className="space-y-5">
+      <div className="card p-5">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
+          <div>
+            <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>
+              Daily News Control
+            </h2>
+            <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
+              Preview the live news feed users see in Daily News. The feed uses NewsAPI when configured and NendPlay fallback stories when a provider is unavailable.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge>{meta?.source || 'news'}</Badge>
+            {updatedAt && <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Updated {updatedAt}</span>}
+          </div>
+        </div>
+
+        <div className="mt-5 flex gap-2 overflow-x-auto pb-2">
+          {NEWS_TAB_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className="px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap"
+              onClick={() => setFilters({ ...filters, tab: option.value })}
+              style={{
+                background: filters.tab === option.value ? 'var(--color-primary)' : 'var(--color-surface-high)',
+                color: filters.tab === option.value ? '#fff' : 'var(--color-text-muted)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+          <input
+            className="input-base"
+            placeholder="Search news..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <input
+            className="input-base"
+            placeholder="Country"
+            value={filters.country}
+            onChange={(event) => setFilters({ ...filters, country: event.target.value })}
+          />
+          <input
+            className="input-base"
+            placeholder="City"
+            value={filters.city}
+            onChange={(event) => setFilters({ ...filters, city: event.target.value })}
+          />
+          <input
+            className="input-base"
+            placeholder="Region/state"
+            value={filters.region}
+            onChange={(event) => setFilters({ ...filters, region: event.target.value })}
+          />
+          <button type="button" className="btn-primary px-4 py-3 text-sm" onClick={onRefresh}>
+            Refresh News
+          </button>
+        </div>
+      </div>
+
+      {articles.length === 0 ? (
+        <div className="card p-8 text-center">
+          <RiNewspaperLine className="mx-auto text-4xl mb-3" style={{ color: 'var(--color-primary)' }} />
+          <h3 className="font-black text-xl" style={{ color: 'var(--color-text)' }}>No news found</h3>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>Try another tab, search term, or location.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {articles.map((article, index) => (
+            <article key={article.id || `${article.title}-${index}`} className="card overflow-hidden">
+              {article.imageUrl && (
+                <div className="aspect-video overflow-hidden" style={{ background: 'var(--color-surface-high)' }}>
+                  <img src={article.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                </div>
+              )}
+              <div className="p-5">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <p className="text-xs font-black uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>
+                    {article.source || 'News source'}
+                  </p>
+                  <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                    {article.publishedAt ? new Date(article.publishedAt).toLocaleString() : 'No date'}
+                  </span>
+                </div>
+                <h3 className="font-black text-lg leading-snug" style={{ color: 'var(--color-text)' }}>
+                  {article.title}
+                </h3>
+                <p className="mt-2 text-sm line-clamp-3" style={{ color: 'var(--color-text-muted)' }}>
+                  {article.summary}
+                </p>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge>{article.category || filters.tab}</Badge>
+                    <Badge>{article.region || meta?.location?.country || 'Global'}</Badge>
+                  </div>
+                  {article.url ? (
+                    <a className="btn-ghost px-4 py-2 text-sm" href={article.url} target="_blank" rel="noreferrer">
+                      Open Story
+                    </a>
+                  ) : (
+                    <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Fallback preview</span>
+                  )}
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {pagination && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            Page {pagination.page} of {pagination.pages} · {pagination.total} stories
+          </p>
+          <div className="flex gap-2">
+            <button className="btn-ghost px-4 py-2 text-sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>Previous</button>
+            <button className="btn-ghost px-4 py-2 text-sm" disabled={page >= pagination.pages} onClick={() => onPage(page + 1)}>Next</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
