@@ -324,7 +324,14 @@ export default function AdminDashboardPage() {
       if (adminTokens) parts.push(`${adminTokens} admin device${adminTokens === 1 ? '' : 's'}`)
       if (guestTokens) parts.push(`${guestTokens} guest device${guestTokens === 1 ? '' : 's'}`)
       const audienceNote = parts.length ? `, including ${parts.join(' and ')}` : ''
-      toast.success(`Sent ${data?.sent || 0} notification${data?.sent === 1 ? '' : 's'}${audienceNote}`)
+      if (!data?.sent) {
+        const reason = !data?.requestedTokens
+          ? 'No active devices have registered for push notifications yet. Open the mobile app and allow notifications, then try again.'
+          : 'Registered devices were found, but no valid Expo push tokens were available.'
+        toast.error(reason)
+      } else {
+        toast.success(`Sent ${data.sent} notification${data.sent === 1 ? '' : 's'}${audienceNote}`)
+      }
       setPushForm({ audience: 'all', userId: '', title: '', body: '', screen: 'Home' })
       setPushImageFile(null)
       loadPushStats()

@@ -3,7 +3,7 @@ import { registerRootComponent } from 'expo'
 import React, { useEffect } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
 import { StatusBar } from 'expo-status-bar'
-import { View, ActivityIndicator } from 'react-native'
+import { AppState, View, ActivityIndicator } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import useAuthStore from './src/services/authStore.native'
 import useThemeStore from './src/stores/themeStore'
@@ -37,6 +37,16 @@ export default function App() {
     if (!isAuthenticated) return
     registerForPushNotificationsAsync().catch(() => {})
   }, [isAuthenticated])
+
+  useEffect(() => {
+    if (isLoading) return undefined
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        registerForPushNotificationsAsync().catch(() => {})
+      }
+    })
+    return () => subscription.remove()
+  }, [isLoading])
 
   if (isLoading) {
     return (
