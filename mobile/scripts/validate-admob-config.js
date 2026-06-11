@@ -17,6 +17,8 @@ const unitFields = [
   ["iOS banner", "adMobIosBannerId"],
   ["Android rewarded", "adMobAndroidRewardedId"],
   ["iOS rewarded", "adMobIosRewardedId"],
+  ["Android rewarded interstitial", "adMobAndroidRewardedInterstitialId", true],
+  ["iOS rewarded interstitial", "adMobIosRewardedInterstitialId", true],
   ["Android native", "adMobAndroidNativeId"],
   ["iOS native", "adMobIosNativeId"],
   ["Android app open", "adMobAndroidAppOpenId"],
@@ -55,7 +57,11 @@ for (const [label, key] of appIdFields) {
 }
 
 console.log("\nChecking AdMob ad unit IDs...");
-for (const [label, key] of unitFields) {
+for (const [label, key, optional] of unitFields) {
+  if (optional && !extra[key]) {
+    console.warn(`WARN ${label}: missing (optional until this ad unit is enabled)`);
+    continue;
+  }
   valid = check(label, extra[key], UNIT_ID_PATTERN, "ca-app-pub-################/##########") && valid;
 }
 

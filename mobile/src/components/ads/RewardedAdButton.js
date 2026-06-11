@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, Text, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import useThemeStore from '../../stores/themeStore'
-import { areAdsEnabled, areSsvRewardsEnabled, getAdUnit } from './adUnits'
+import { areAdsEnabled, areRewardedInterstitialsEnabled, areSsvRewardsEnabled, getAdUnit } from './adUnits'
 import { getMobileAdsModule } from './mobileAds'
 import useAuthStore from '../../services/authStore.native'
 
@@ -10,6 +10,7 @@ export default function RewardedAdButton({
   rewardDescription,
   label,
   onReward,
+  adKind = 'Rewarded',
   style,
 }) {
   const { theme } = useThemeStore()
@@ -20,19 +21,22 @@ export default function RewardedAdButton({
   const ads = getMobileAdsModule()
   const userId = user?.id || user?._id
   const rewardedAd = useMemo(() => {
-    if (!ads?.RewardedAd) return null
+    const useRewardedInterstitial = adKind === 'RewardedInterstitial'
+    if (useRewardedInterstitial && !areRewardedInterstitialsEnabled()) return null
+    const AdClass = useRewardedInterstitial ? ads?.RewardedInterstitialAd : ads?.RewardedAd
+    if (!AdClass) return null
     try {
-      return ads.RewardedAd.createForAdRequest(getAdUnit('Rewarded'), {
+      return AdClass.createForAdRequest(getAdUnit(useRewardedInterstitial ? 'RewardedInterstitial' : 'Rewarded'), {
         requestNonPersonalizedAdsOnly: true,
         serverSideVerificationOptions: userId ? {
           userId: String(userId),
-          customData: 'nendplay_rewarded_ad',
+          customData: useRewardedInterstitial ? 'nendplay_rewarded_interstitial_ad' : 'nendplay_rewarded_ad',
         } : undefined,
       })
     } catch {
       return null
     }
-  }, [ads, userId])
+  }, [adKind, ads, userId])
 
   useEffect(() => {
     if (!rewardedAd || !ads?.RewardedAdEventType || !ads?.AdEventType) {
@@ -65,10 +69,11 @@ export default function RewardedAdButton({
   if (!user || !areAdsEnabled() || !rewardedAd || !rewardDescription || typeof onReward !== 'function') return null
 
   const buttonLabel = label || `Watch ad to receive ${rewardDescription}`
+  const adTitle = adKind === 'RewardedInterstitial' ? 'Rewarded interstitial ad' : 'Rewarded ad'
   const showRewardedAd = () => {
     if (!loaded) return
     Alert.alert(
-      'Rewarded ad',
+      adTitle,
       `Watch this optional ad to receive ${rewardDescription}. This reward is granted by NendPlay, has no cash value, is not transferable, and can only be used inside NendPlay. You can cancel now and continue using NendPlay normally.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -102,7 +107,7 @@ export default function RewardedAdButton({
         <Ionicons name="gift-outline" size={18} color={c.primary} />
       )}
       <Text style={{ color: loaded ? c.text : c.textMuted, fontSize: 13, fontWeight: '900' }}>
-        {loading ? 'Preparing Rewarded Ad' : buttonLabel}
+        {loading ? `Preparing ${adTitle}` : buttonLabel}
       </Text>
     </TouchableOpacity>
   )

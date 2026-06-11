@@ -45,6 +45,14 @@ const EARN_TASKS = [
     coins: 2,
     icon: 'diamond-outline',
   },
+  {
+    id: 'rewarded_interstitial_ad',
+    title: 'Watch Rewarded Interstitial AD',
+    subtitle: 'Full-screen rewarded ad',
+    coins: 2,
+    icon: 'phone-portrait-outline',
+    adKind: 'RewardedInterstitial',
+  },
 ]
 
 function formatDate(date) {
@@ -431,6 +439,7 @@ export default function RewardsScreen({ navigation }) {
                 <RewardedAdButton
                   rewardDescription={`${task.coins} reward coin${task.coins > 1 ? 's' : ''}`}
                   label="Watch"
+                  adKind={task.adKind || 'Rewarded'}
                   onReward={() => handleEarn(task)}
                   style={styles.watchBtn}
                 />
