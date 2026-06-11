@@ -35,7 +35,11 @@ class RewardController {
       const result = await admobSsvService.handleRewardCallback(req);
       return res.status(200).json({
         success: true,
-        message: result.duplicate ? "Reward already processed" : "Reward processed",
+        message: result.setupCheck
+          ? result.message || "AdMob SSV endpoint verified"
+          : result.duplicate
+            ? "Reward already processed"
+            : "Reward processed",
         data: result,
       });
     } catch (err) {

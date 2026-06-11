@@ -26,6 +26,10 @@ function getRawQuery(req) {
   return originalUrl.slice(queryStart + 1);
 }
 
+function hasSignedQuery(rawQuery = "") {
+  return rawQuery.includes(SIGNATURE_PARAM) && rawQuery.includes(KEY_ID_PARAM);
+}
+
 function parseSignedQuery(rawQuery) {
   const signatureIndex = rawQuery.indexOf(SIGNATURE_PARAM);
   if (signatureIndex === -1) {
@@ -93,14 +97,7 @@ function parseCoinAmount(value) {
   return amount >= 2 ? 2 : 1;
 }
 
-function validateCallback(query) {
-  if (!query.transaction_id) {
-    throw { status: 400, message: "Missing AdMob SSV transaction_id" };
-  }
-  if (!query.user_id) {
-    throw { status: 400, message: "Missing AdMob SSV user_id" };
-  }
-
+function validateTimestamp(query) {
   let timestamp = Number(query.timestamp);
   if (Number.isFinite(timestamp)) {
     if (timestamp > 100000000000000) timestamp = Math.floor(timestamp / 1000);
@@ -111,10 +108,48 @@ function validateCallback(query) {
   }
 }
 
+function isSetupProbe(query = {}) {
+  return !query.transaction_id || !query.user_id;
+}
+
+function validateRewardCallback(query) {
+  if (!query.transaction_id) {
+    throw { status: 400, message: "Missing AdMob SSV transaction_id" };
+  }
+  if (!query.user_id) {
+    throw { status: 400, message: "Missing AdMob SSV user_id" };
+  }
+  validateTimestamp(query);
+}
+
 class AdMobSsvService {
   async handleRewardCallback(req) {
-    validateCallback(req.query);
+    const rawQuery = getRawQuery(req);
+
+    if (!rawQuery || !hasSignedQuery(rawQuery)) {
+      return {
+        setupCheck: true,
+        duplicate: false,
+        coins: 0,
+        balanceAfter: null,
+        message: "AdMob SSV endpoint is reachable",
+      };
+    }
+
     await verifySignature(req);
+    validateTimestamp(req.query);
+
+    if (isSetupProbe(req.query)) {
+      return {
+        setupCheck: true,
+        duplicate: false,
+        coins: 0,
+        balanceAfter: null,
+        message: "AdMob SSV signature verified",
+      };
+    }
+
+    validateRewardCallback(req.query);
 
     const existing = await RewardLedger.findOne({
       source: "admob_ssv",
