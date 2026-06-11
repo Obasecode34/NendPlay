@@ -248,9 +248,18 @@ export default function MainLayout() {
               className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all"
               style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
               <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white"
+                className="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden text-xs font-bold text-white"
                 style={{ background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))' }}>
-                {user?.profileName?.[0]?.toUpperCase() || user?.username?.[0]?.toUpperCase() || 'G'}
+                {user?.profilePic ? (
+                  <img
+                    src={user.profilePic}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  user?.profileName?.[0]?.toUpperCase() || user?.username?.[0]?.toUpperCase() || 'G'
+                )}
               </div>
               <span className="text-sm font-medium hidden md:block"
                 style={{ color: 'var(--color-text)' }}>

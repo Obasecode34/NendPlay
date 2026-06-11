@@ -3,8 +3,9 @@ import React from 'react'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { createStackNavigator } from '@react-navigation/stack'
 import { Ionicons } from '@expo/vector-icons'
-import { View, Text, Platform } from 'react-native'
+import { Image, View, Text, Platform } from 'react-native'
 import useThemeStore from '../stores/themeStore'
+import useAuthStore from '../services/authStore.native'
 
 // Screens
 import HomeScreen from '../screens/HomeScreen'
@@ -50,6 +51,7 @@ function HomeStack() {
 
 function MainTabs() {
   const { theme } = useThemeStore()
+  const { user } = useAuthStore()
   const c = theme.colors
 
   return (
@@ -72,6 +74,27 @@ function MainTabs() {
           marginTop: 2,
         },
         tabBarIcon: ({ focused, color, size }) => {
+          if (route.name === 'Profile' && user?.profilePic) {
+            return (
+              <View
+                style={{
+                  width: size + 4,
+                  height: size + 4,
+                  borderRadius: (size + 4) / 2,
+                  borderWidth: focused ? 2 : 1,
+                  borderColor: focused ? c.primary : c.textMuted,
+                  overflow: 'hidden',
+                  backgroundColor: c.surface,
+                }}>
+                <Image
+                  source={{ uri: user.profilePic }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              </View>
+            )
+          }
+
           const icons = {
             Home: focused ? 'home' : 'home-outline',
             NovelHub: focused ? 'book' : 'book-outline',
