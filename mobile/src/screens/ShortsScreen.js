@@ -81,6 +81,25 @@ function ShortItem({ item, isActive, theme, itemHeight, onPausedChange }) {
   })
 
   useEffect(() => {
+    let cancelled = false
+    const loadPlayback = async () => {
+      try {
+        const res = await mediaService.getPlayback(item._id)
+        const playback = res.data.data.playback
+        const resolvedUrl = mediaService.resolveStreamUrl(playback.streamUrl)
+        if (cancelled || !resolvedUrl) return
+        player.replace({
+          uri: resolvedUrl,
+          contentType: playback.sourceType === 'hls' || resolvedUrl.includes('.m3u8') ? 'hls' : 'auto',
+        })
+        if (isActive && !isPaused) player.play()
+      } catch {}
+    }
+    loadPlayback()
+    return () => { cancelled = true }
+  }, [item._id, player])
+
+  useEffect(() => {
     if (isActive && !isPaused) {
       player.play()
       return
