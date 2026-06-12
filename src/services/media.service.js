@@ -1120,16 +1120,23 @@ class MediaService {
   // ── Get Shorts (max 3 min videos) ────────────────────────────────────
   async getShorts(page = 1, limit = 20) {
     const skip = (parseInt(page) - 1) * parseInt(limit);
+    const shortFilter = {
+      isActive: true,
+      $and: [
+        publicPublishFilter(),
+        { $or: [{ isShort: true }, { type: "short" }] },
+      ],
+    };
 
     const [media, total] = await Promise.all([
-      Media.find({ isShort: true, isActive: true, ...publicPublishFilter() })
+      Media.find(shortFilter)
         .populate("uploadedBy", "profileName username profilePic subscriberCount")
         .populate("comments.user", "username profilePic")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Media.countDocuments({ isShort: true, isActive: true, ...publicPublishFilter() }),
+      Media.countDocuments(shortFilter),
     ]);
 
     return {
@@ -1151,16 +1158,24 @@ class MediaService {
 
     const creatorIds = user.subscribedCreators || [];
     const skip = (parseInt(page) - 1) * parseInt(limit);
+    const shortFilter = {
+      isActive: true,
+      uploadedBy: { $in: creatorIds },
+      $and: [
+        publicPublishFilter(),
+        { $or: [{ isShort: true }, { type: "short" }] },
+      ],
+    };
 
     const [media, total] = await Promise.all([
-      Media.find({ isShort: true, isActive: true, ...publicPublishFilter(), uploadedBy: { $in: creatorIds } })
+      Media.find(shortFilter)
         .populate("uploadedBy", "profileName username profilePic subscriberCount")
         .populate("comments.user", "username profilePic")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Media.countDocuments({ isShort: true, isActive: true, ...publicPublishFilter(), uploadedBy: { $in: creatorIds } }),
+      Media.countDocuments(shortFilter),
     ]);
 
     return {

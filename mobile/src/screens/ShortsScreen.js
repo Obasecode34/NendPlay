@@ -416,7 +416,24 @@ export default function ShortsScreen({ route }) {
     if (index >= 0) {
       setActiveIndex(index)
       listRef.current?.scrollToIndex({ index, animated: true })
+      return
     }
+
+    let cancelled = false
+    const loadOpenShort = async () => {
+      try {
+        const res = await mediaService.getById(openId)
+        const fetched = res.data.data.media
+        if (cancelled || !fetched) return
+        setShorts((prev) => [fetched, ...prev.filter((short) => short._id !== fetched._id)])
+        setActiveIndex(0)
+        requestAnimationFrame(() => {
+          listRef.current?.scrollToIndex({ index: 0, animated: true })
+        })
+      } catch {}
+    }
+    loadOpenShort()
+    return () => { cancelled = true }
   }, [openId, shorts, loading])
 
   const viewabilityConfig = { itemVisiblePercentThreshold: 70 }

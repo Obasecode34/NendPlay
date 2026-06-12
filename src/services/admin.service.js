@@ -435,6 +435,7 @@ class AdminService {
       "featuredRank",
       "availabilityCountries",
       "isLocked",
+      "isShort",
       "isActive",
       "collectionType",
       "parentTitle",
@@ -455,6 +456,14 @@ class AdminService {
       "reviewNote",
       "thumbnailUrl",
     ]);
+
+    if (updates.type === "shorts") updates.type = "short";
+    if (updates.type === "short") updates.isShort = true;
+    if (updates.type && updates.type !== "short" && body.isShort === undefined) updates.isShort = false;
+    if (updates.isShort !== undefined) {
+      updates.isShort = updates.isShort === true || updates.isShort === "true";
+      if (updates.isShort) updates.type = "short";
+    }
 
     if (updates.categories !== undefined) {
       updates.categories = parseList(updates.categories, 5);
