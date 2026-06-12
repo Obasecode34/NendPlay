@@ -333,14 +333,15 @@ export default function MediaPlayerScreen({ route, navigation }) {
               <Text style={s.collectionTitle}>{media?.parentTitle || 'Episodes & Parts'}</Text>
               {collectionItems.map((item) => {
                 const active = item._id === mediaId
+                const thumbnailUri = mediaService.getThumbnailUrl(item) || item.thumbnailUrl || ''
                 return (
                   <TouchableOpacity
                     key={item._id}
                     style={[s.episodeCard, active && { borderColor: c.primary }]}
                     onPress={() => !active && navigation.push('MediaPlayer', { mediaId: item._id })}>
                     <View style={s.episodeThumb}>
-                      {item.thumbnailUrl ? (
-                        <Image source={{ uri: item.thumbnailUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      {thumbnailUri ? (
+                        <Image source={{ uri: thumbnailUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       ) : (
                         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                           <Ionicons name="play-circle" size={24} color={c.primary} />

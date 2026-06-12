@@ -5,6 +5,7 @@
 // it implements HTTP Range Requests for seek/resume support.
 
 const mediaService = require("../services/media.service");
+const Media = require("../models/Media");
 const ApiResponse = require("../utils/apiResponse");
 const axios = require("axios");
 
@@ -261,6 +262,38 @@ class MediaController {
         return ApiResponse.error(res, { statusCode: err.status, message: err.message });
       }
       return ApiResponse.error(res, { message: "Playback manifest failed" });
+    }
+  }
+
+  async thumbnailMedia(req, res) {
+    try {
+      const media = await Media.findById(req.params.id)
+        .select("thumbnailUrl isActive publishStatus storageProvider")
+        .lean();
+
+      if (!media || !media.isActive || (media.publishStatus && media.publishStatus !== "published")) {
+        return ApiResponse.notFound(res, "Thumbnail not found");
+      }
+
+      if (!media.thumbnailUrl) {
+        return ApiResponse.notFound(res, "Thumbnail not found");
+      }
+
+      const response = await axios.get(media.thumbnailUrl, {
+        responseType: "stream",
+        headers: media.storageProvider === "bunny" ? getBunnyProxyHeaders() : undefined,
+        timeout: 20000,
+      });
+
+      res.setHeader("Content-Type", response.headers["content-type"] || "image/jpeg");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      if (response.headers["content-length"]) {
+        res.setHeader("Content-Length", response.headers["content-length"]);
+      }
+      return response.data.pipe(res);
+    } catch (err) {
+      console.warn(`Thumbnail proxy failed for ${req.params.id}: ${err.message}`);
+      return ApiResponse.notFound(res, "Thumbnail not found");
     }
   }
 

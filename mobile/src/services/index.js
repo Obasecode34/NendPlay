@@ -43,6 +43,12 @@ export const mediaService = {
   getLiveEvents: (params) => api.get('/media/live', { params }),
   getByUser: (userId, params) => api.get(`/media/user/${userId}`, { params }),
   getStreamUrl: (id) => `${api.defaults.baseURL}/media/${id}/stream`,
+  getThumbnailUrl: (itemOrId) => {
+    const id = typeof itemOrId === 'string' ? itemOrId : itemOrId?._id
+    if (!id) return typeof itemOrId === 'object' ? itemOrId?.thumbnailUrl || '' : ''
+    const version = typeof itemOrId === 'object' ? encodeURIComponent(itemOrId?.updatedAt || itemOrId?.thumbnailUrl || '') : ''
+    return `${api.defaults.baseURL}/media/${id}/thumbnail${version ? `?v=${version}` : ''}`
+  },
   resolveStreamUrl: (url) => {
     if (!url) return ''
     if (/^https?:\/\//i.test(url)) return url

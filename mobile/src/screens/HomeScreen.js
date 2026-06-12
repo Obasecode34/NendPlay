@@ -138,8 +138,13 @@ function byPopularity(items) {
   ))
 }
 
+function getThumbnailUri(item) {
+  return mediaService.getThumbnailUrl(item) || item.thumbnailUrl || ''
+}
+
 function MediaCard({ item, onPress, theme }) {
   const c = theme.colors
+  const thumbnailUri = getThumbnailUri(item)
   return (
     <TouchableOpacity onPress={() => onPress(item)}
       style={{ width: 140, marginRight: 12 }}>
@@ -147,8 +152,8 @@ function MediaCard({ item, onPress, theme }) {
         width: 140, height: 90, borderRadius: 10, overflow: 'hidden',
         backgroundColor: c.surface, marginBottom: 8,
       }}>
-        {item.thumbnailUrl
-          ? <Image source={{ uri: item.thumbnailUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+        {thumbnailUri
+          ? <Image source={{ uri: thumbnailUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
           : <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="play-circle" size={32} color={c.primary} />
             </View>
@@ -215,8 +220,8 @@ function RankingRow({ title, items, onPress, theme, onLayout }) {
         {items.slice(0, 12).map((item, index) => (
           <TouchableOpacity key={item._id} activeOpacity={0.86} onPress={() => onPress(item)} style={{ width: 128 }}>
             <View style={{ width: 128, height: 190, borderRadius: 8, overflow: 'hidden', backgroundColor: c.surface }}>
-              {item.thumbnailUrl ? (
-                <Image source={{ uri: item.thumbnailUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              {getThumbnailUri(item) ? (
+                <Image source={{ uri: getThumbnailUri(item) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
               ) : (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="play-circle" size={34} color={c.primary} />
@@ -642,8 +647,8 @@ export default function HomeScreen({ navigation }) {
                 height: 100, borderRadius: 10, overflow: 'hidden',
                 backgroundColor: c.surface, marginBottom: 6,
               }}>
-                {item.thumbnailUrl
-                  ? <Image source={{ uri: item.thumbnailUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                {getThumbnailUri(item)
+                  ? <Image source={{ uri: getThumbnailUri(item) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                   : <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="play-circle" size={28} color={c.primary} />
                     </View>
@@ -711,8 +716,8 @@ export default function HomeScreen({ navigation }) {
                 }}
                 renderItem={({ item }) => (
                   <TouchableOpacity activeOpacity={0.9} onPress={handleOpenMovieCategory} style={s.heroSlide}>
-                    {item.thumbnailUrl
-                      ? <Image source={{ uri: item.thumbnailUrl }} style={s.heroImage} resizeMode="cover" />
+                    {getThumbnailUri(item)
+                      ? <Image source={{ uri: getThumbnailUri(item) }} style={s.heroImage} resizeMode="cover" />
                       : <View style={{ flex: 1, backgroundColor: c.surface }} />
                     }
                     <View style={[s.heroOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>

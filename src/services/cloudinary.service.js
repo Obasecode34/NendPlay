@@ -169,7 +169,7 @@ class CloudinaryService {
       resource_type: "video",
       format: "jpg",
       transformation: [
-        { width: 1280, height: 720, crop: "fill", gravity: "auto" },
+        { start_offset: "1", width: 1280, height: 720, crop: "fill", gravity: "auto" },
         { quality: "auto", fetch_format: "auto" },
       ],
       secure: true,

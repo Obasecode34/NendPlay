@@ -13,6 +13,7 @@ const jwt = require("jsonwebtoken");
 const cloudinaryService = require("./cloudinary.service");
 const bunnyService = require("./bunny.service");
 const muxService = require("./mux.service");
+const mediaThumbnailService = require("./mediaThumbnail.service");
 const {
   MAX_SHORT_DURATION_SECONDS,
   VIDEO_STORAGE_PROVIDER,
@@ -315,7 +316,10 @@ class MediaService {
       }
     }
     if (!thumbnailUrl && isVideoUpload) {
-      thumbnailUrl = cloudinaryService.getVideoThumbnailUrl(cloudinaryResult.public_id);
+      thumbnailUrl = await mediaThumbnailService.resolveGeneratedThumbnailUrl({
+        storageProvider: "cloudinary",
+        cloudinaryPublicId: cloudinaryResult.public_id,
+      });
     }
 
     // 6. Parse tags from string or array
@@ -540,6 +544,7 @@ class MediaService {
     media.thumbnailUrl = media.thumbnailUrl || playback.thumbnailUrl;
     media.processingStatus = processingStatus;
     media.publishStatus = processingStatus === "ready" && media.reviewStatus === "approved" ? "published" : processingStatus === "ready" ? "pending_review" : processingStatus;
+    await mediaThumbnailService.ensureGeneratedThumbnail(media);
     await media.save();
 
     return media;
@@ -601,6 +606,7 @@ class MediaService {
     media.thumbnailUrl = media.thumbnailUrl || playback.thumbnailUrl || "";
     media.processingStatus = asset.status === "ready" ? "ready" : "processing";
     media.publishStatus = asset.status === "ready" && media.reviewStatus === "approved" ? "published" : asset.status === "ready" ? "pending_review" : "processing";
+    await mediaThumbnailService.ensureGeneratedThumbnail(media);
     await media.save();
 
     return media;
@@ -653,6 +659,15 @@ class MediaService {
     const parsedGenres = parseGenres(genres, genre);
     const collectionMetadata = parseCollectionMetadata(body);
 
+    const generatedThumbnailUrl = await mediaThumbnailService.resolveGeneratedThumbnailUrl({
+      storageProvider: storageProvider || "external",
+      storageKey: storageKey || "",
+      mediaUrl,
+      playbackUrl: playbackUrl || mediaUrl,
+      hlsUrl: hlsUrl || "",
+      thumbnailUrl: thumbnailUrl || "",
+    });
+
     const media = await Media.create({
       title,
       description: description || "",
@@ -682,7 +697,7 @@ class MediaService {
       mediaUrl,
       playbackUrl: playbackUrl || mediaUrl,
       hlsUrl: hlsUrl || "",
-      thumbnailUrl: thumbnailUrl || "",
+      thumbnailUrl: thumbnailUrl || generatedThumbnailUrl || "",
       duration: duration ? Number(duration) : 0,
       fileSize: fileSize ? Number(fileSize) : 0,
       mimeType: mimeType || "video/mp4",
@@ -845,6 +860,7 @@ class MediaService {
       media.partNumber = null;
     }
 
+    await mediaThumbnailService.ensureGeneratedThumbnail(media);
     await media.save();
     return media;
   }

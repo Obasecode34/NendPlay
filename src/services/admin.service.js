@@ -13,6 +13,7 @@ const cloudinaryService = require("./cloudinary.service");
 const emailService = require("./email.service");
 const bunnyService = require("./bunny.service");
 const muxService = require("./mux.service");
+const mediaThumbnailService = require("./mediaThumbnail.service");
 const { ADMIN_PERMISSIONS } = require("../config/adminPermissions");
 
 const PAGE_LIMIT_MAX = 100;
@@ -530,17 +531,15 @@ class AdminService {
 
     let media = await Media.findByIdAndUpdate(mediaId, updates, { new: true });
     if (!media) throw { status: 404, message: "Media not found" };
-    if (!media.thumbnailUrl) {
-      media = await this.refreshMediaPlaybackState(media);
-    }
+    media = await this.refreshMediaPlaybackState(media);
     return media;
   }
 
   async refreshMediaPlaybackState(media) {
-    if (!media?.storageProvider || !media.storageKey) return media;
+    if (!media?.storageProvider) return media;
 
     try {
-      if (media.storageProvider === "bunny") {
+      if (media.storageProvider === "bunny" && media.storageKey) {
         const video = await bunnyService.getVideo(media.storageKey);
         const playback = bunnyService.getPlayback(media.storageKey);
         media.duration = video.length || video.duration || media.duration;
@@ -549,10 +548,11 @@ class AdminService {
         media.mediaUrl = playback.hlsUrl || media.mediaUrl;
         media.thumbnailUrl = media.thumbnailUrl || playback.thumbnailUrl || video.thumbnailUrl || "";
         media.processingStatus = bunnyService.getProcessingStatus(video);
+        await mediaThumbnailService.ensureGeneratedThumbnail(media);
         await media.save();
       }
 
-      if (media.storageProvider === "mux") {
+      if (media.storageProvider === "mux" && media.storageKey) {
         const asset = await muxService.getAsset(media.storageKey);
         const playback = muxService.getPlayback(asset.playback_ids || []);
         media.duration = asset.duration || media.duration;
@@ -561,7 +561,11 @@ class AdminService {
         media.mediaUrl = playback.hlsUrl || media.mediaUrl;
         media.thumbnailUrl = media.thumbnailUrl || playback.thumbnailUrl || "";
         media.processingStatus = asset.status === "ready" ? "ready" : "processing";
+        await mediaThumbnailService.ensureGeneratedThumbnail(media);
         await media.save();
+      }
+      if (media.storageProvider === "cloudinary") {
+        await mediaThumbnailService.ensureGeneratedThumbnail(media);
       }
     } catch (err) {
       console.warn(`Media provider refresh skipped for ${media._id}: ${err.message}`);
@@ -673,10 +677,12 @@ class AdminService {
 
         if (existing) {
           Object.assign(existing, common);
+          await mediaThumbnailService.ensureGeneratedThumbnail(existing);
           await existing.save();
           updated += 1;
         } else {
-          await Media.create(common);
+          const media = await Media.create(common);
+          await mediaThumbnailService.ensureGeneratedThumbnail(media);
           imported += 1;
         }
       }

@@ -28,7 +28,7 @@ function getCreator(item) {
   const creator = item.uploadedBy || {}
   return {
     name: creator.username || creator.profileName || 'creator',
-    avatar: creator.profilePic || item.thumbnailUrl || '',
+    avatar: creator.profilePic || mediaService.getThumbnailUrl(item) || item.thumbnailUrl || '',
   }
 }
 
