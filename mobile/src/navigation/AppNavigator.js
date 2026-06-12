@@ -23,6 +23,7 @@ import RewardsScreen from '../screens/RewardsScreen'
 import AdvertiseScreen from '../screens/AdvertiseScreen'
 import DeviceMediaScreen from '../screens/DeviceMediaScreen'
 import DailyNewsScreen from '../screens/DailyNewsScreen'
+import NewsDetailScreen from '../screens/NewsDetailScreen'
 
 const Tab = createBottomTabNavigator()
 const Stack = createStackNavigator()
@@ -45,6 +46,7 @@ function HomeStack() {
       <Stack.Screen name="Advertise" component={AdvertiseScreen} />
       <Stack.Screen name="DeviceMedia" component={DeviceMediaScreen} />
       <Stack.Screen name="DailyNews" component={DailyNewsScreen} />
+      <Stack.Screen name="NewsDetail" component={NewsDetailScreen} />
     </Stack.Navigator>
   )
 }
@@ -137,6 +139,7 @@ export default function AppNavigator() {
       <Stack.Screen name="Referrals" component={ReferralScreen} />
       <Stack.Screen name="Rewards" component={RewardsScreen} />
       <Stack.Screen name="Advertise" component={AdvertiseScreen} />
+      <Stack.Screen name="NewsDetail" component={NewsDetailScreen} />
     </Stack.Navigator>
   )
 }

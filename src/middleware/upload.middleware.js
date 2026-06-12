@@ -100,6 +100,23 @@ const uploadMediaWithThumbnail = multer({
   },
 });
 
+const uploadNewsMedia = multer({
+  storage: memoryStorage,
+  limits: {
+    fileSize: MAX_VIDEO_SIZE_MB * 1024 * 1024,
+    files: 8,
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname !== "media") {
+      return cb(new Error("Unexpected field name. Use media for news files."), false);
+    }
+    if ([...VIDEO_TYPES, ...IMAGE_TYPES].includes(file.mimetype)) {
+      return cb(null, true);
+    }
+    return cb(new Error("Invalid news file type. Upload videos or images only."), false);
+  },
+});
+
 // ── Multer error handler ──────────────────────────────────────────────────
 // Wraps multer errors into our standard ApiResponse format
 const handleMulterError = (err, req, res, next) => {
@@ -129,6 +146,7 @@ module.exports = {
   uploadMedia,
   uploadThumbnail,
   uploadMediaWithThumbnail,
+  uploadNewsMedia,
   handleMulterError,
   getMediaCategory,
   VIDEO_TYPES,

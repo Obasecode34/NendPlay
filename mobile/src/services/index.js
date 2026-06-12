@@ -114,6 +114,9 @@ export const novelService = {
 
 export const newsService = {
   getDaily: (params) => api.get('/news', { params }),
+  getPost: (id) => api.get(`/news/${id}`),
+  comment: (id, data) => api.post(`/news/${id}/comments`, data),
+  share: (id) => api.post(`/news/${id}/share`),
 }
 
 export const referralService = {

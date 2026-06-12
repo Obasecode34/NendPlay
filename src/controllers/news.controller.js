@@ -24,6 +24,82 @@ class NewsController {
       });
     }
   }
+
+  async createNewsPost(req, res) {
+    try {
+      const post = await newsService.createNewsPost({
+        body: req.body,
+        files: req.files || [],
+        adminId: req.admin.id,
+      });
+      return ApiResponse.created(res, {
+        message: "News posted successfully",
+        data: { post },
+      });
+    } catch (err) {
+      return ApiResponse.error(res, {
+        statusCode: err.status || 500,
+        message: err.message || "Failed to post news",
+      });
+    }
+  }
+
+  async listAdminNews(req, res) {
+    try {
+      const result = await newsService.listInternalNews({
+        ...req.query,
+        includeDrafts: true,
+      });
+      return ApiResponse.success(res, { data: result });
+    } catch (err) {
+      return ApiResponse.error(res, {
+        statusCode: err.status || 500,
+        message: err.message || "Failed to load admin news",
+      });
+    }
+  }
+
+  async getNewsPost(req, res) {
+    try {
+      const post = await newsService.getNewsPost(req.params.id);
+      return ApiResponse.success(res, { data: { post } });
+    } catch (err) {
+      return ApiResponse.error(res, {
+        statusCode: err.status || 500,
+        message: err.message || "Failed to load news post",
+      });
+    }
+  }
+
+  async addComment(req, res) {
+    try {
+      const post = await newsService.addComment(req.params.id, req.user.userId, req.body.text);
+      return ApiResponse.created(res, {
+        message: "Comment posted",
+        data: { post },
+      });
+    } catch (err) {
+      return ApiResponse.error(res, {
+        statusCode: err.status || 500,
+        message: err.message || "Failed to comment on news",
+      });
+    }
+  }
+
+  async recordShare(req, res) {
+    try {
+      const result = await newsService.recordShare(req.params.id);
+      return ApiResponse.success(res, {
+        message: "Share recorded",
+        data: result,
+      });
+    } catch (err) {
+      return ApiResponse.error(res, {
+        statusCode: err.status || 500,
+        message: err.message || "Failed to share news",
+      });
+    }
+  }
 }
 
 module.exports = new NewsController();

@@ -1,4 +1,6 @@
 const axios = require("axios");
+const NewsPost = require("../models/NewsPost");
+const cloudinaryService = require("./cloudinary.service");
 
 const CATEGORY_MAP = {
   headlines: "general",
@@ -40,6 +42,60 @@ const FALLBACK_NEWS = [
   url: "",
   publishedAt: new Date(Date.now() - index * 3600000).toISOString(),
 }));
+
+const NEWS_CATEGORIES = [
+  "for-you",
+  "headlines",
+  "local",
+  "nigeria",
+  "world",
+  "business",
+  "technology",
+  "entertainment",
+  "sports",
+  "science",
+  "health",
+];
+
+function normalizeList(value, max = 5) {
+  const raw = Array.isArray(value) ? value : String(value || "").split(",");
+  return [...new Set(raw.map((item) => String(item).trim()).filter(Boolean))].slice(0, max);
+}
+
+function isVideoFile(file = {}) {
+  return String(file.mimetype || "").startsWith("video/");
+}
+
+function toPublicNewsPost(post) {
+  const mediaFiles = [...(post.mediaFiles || [])].sort((a, b) => {
+    if (a.type === b.type) return (a.order || 0) - (b.order || 0);
+    return a.type === "video" ? -1 : 1;
+  });
+  const firstImage = mediaFiles.find((item) => item.type === "image");
+  const firstVideo = mediaFiles.find((item) => item.type === "video");
+
+  return {
+    id: post._id.toString(),
+    _id: post._id,
+    kind: "nendplay",
+    title: post.header,
+    header: post.header,
+    subHeader: post.subHeader,
+    summary: post.subHeader || post.body.slice(0, 180),
+    body: post.body,
+    categories: post.categories || [],
+    category: post.categories?.[0] || "Top Stories",
+    source: post.source || "NendPlay News",
+    imageUrl: firstImage?.url || firstVideo?.url || "",
+    mediaFiles,
+    url: "",
+    publishedAt: post.createdAt,
+    commentCount: post.commentCount || 0,
+    shareCount: post.shareCount || 0,
+    likeCount: post.likeCount || 0,
+    adsEnabled: post.adsEnabled !== false,
+  };
+}
 
 function normalizeArticle(article, index, defaults = {}) {
   return {
@@ -109,6 +165,46 @@ function getTabConfig({ tab = "for-you", category = "", country = "", city = "",
 }
 
 class NewsService {
+  async listInternalNews({
+    category = "",
+    search = "",
+    tab = "for-you",
+    page = 1,
+    limit = 20,
+    includeDrafts = false,
+  } = {}) {
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
+    const filter = includeDrafts ? {} : { status: "published" };
+    const categoryKey = String(category || tab || "").trim().toLowerCase();
+
+    if (categoryKey && !["for-you", "headlines"].includes(categoryKey)) {
+      filter.categories = { $in: [categoryKey, categoryKey.replace(/-/g, " ")] };
+    }
+
+    if (search && String(search).trim()) {
+      filter.$text = { $search: String(search).trim() };
+    }
+
+    const [posts, total] = await Promise.all([
+      NewsPost.find(filter)
+        .populate("createdBy", "username profileName profilePic role")
+        .sort({ createdAt: -1 })
+        .skip((parsedPage - 1) * parsedLimit)
+        .limit(parsedLimit)
+        .lean(),
+      NewsPost.countDocuments(filter),
+    ]);
+
+    return {
+      articles: posts.map(toPublicNewsPost),
+      total,
+      page: parsedPage,
+      limit: parsedLimit,
+      pages: Math.max(Math.ceil(total / parsedLimit), 1),
+    };
+  }
+
   async getDailyNews({
     category = "",
     search = "",
@@ -123,9 +219,32 @@ class NewsService {
     const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
     const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
     const tabConfig = getTabConfig({ tab, category, country, city, region });
+    const internal = await this.listInternalNews({
+      category,
+      search,
+      tab,
+      page: parsedPage,
+      limit: parsedLimit,
+    });
+
+    if (internal.articles.length >= parsedLimit || search) {
+      return {
+        articles: internal.articles,
+        source: "nendplay",
+        tab,
+        location: { country, city, region },
+        updatedAt: new Date().toISOString(),
+        pagination: {
+          total: internal.total,
+          page: parsedPage,
+          limit: parsedLimit,
+          pages: internal.pages,
+        },
+      };
+    }
 
     if (!newsApiKey) {
-      return this.getFallbackNews({
+      const fallback = this.getFallbackNews({
         category,
         search,
         tab,
@@ -135,6 +254,10 @@ class NewsService {
         page: parsedPage,
         limit: parsedLimit,
       });
+      return {
+        ...fallback,
+        articles: [...internal.articles, ...fallback.articles].slice(0, parsedLimit),
+      };
     }
 
     try {
@@ -162,8 +285,10 @@ class NewsService {
       ));
       const total = response.data.totalResults || articles.length;
 
+      const merged = [...internal.articles, ...articles].slice(0, parsedLimit);
+
       return {
-        articles,
+        articles: merged,
         source: "newsapi",
         tab,
         location: {
@@ -180,7 +305,7 @@ class NewsService {
         },
       };
     } catch {
-      return this.getFallbackNews({
+      const fallback = this.getFallbackNews({
         category,
         search,
         tab,
@@ -190,7 +315,105 @@ class NewsService {
         page: parsedPage,
         limit: parsedLimit,
       });
+      return {
+        ...fallback,
+        articles: [...internal.articles, ...fallback.articles].slice(0, parsedLimit),
+      };
     }
+  }
+
+  async createNewsPost({ body = {}, files = [], adminId }) {
+    const categories = normalizeList(body.categories || body.category, 5).map((item) => item.toLowerCase());
+    if (!categories.length) {
+      throw { status: 400, message: "Select at least one news category" };
+    }
+
+    const orderedFiles = [...(files || [])].sort((a, b) => {
+      if (isVideoFile(a) === isVideoFile(b)) return 0;
+      return isVideoFile(a) ? -1 : 1;
+    });
+
+    const mediaFiles = [];
+    for (const [index, file] of orderedFiles.entries()) {
+      const isVideo = isVideoFile(file);
+      const result = isVideo
+        ? await cloudinaryService.uploadMedia(file.buffer, {
+          folder: "nendplay/news/videos",
+          resourceType: "video",
+        })
+        : await cloudinaryService.uploadThumbnail(file.buffer, {
+          folder: "nendplay/news/images",
+        });
+
+      mediaFiles.push({
+        type: isVideo ? "video" : "image",
+        url: isVideo ? cloudinaryService.getStreamingUrl(result) : result.secure_url,
+        publicId: result.public_id || "",
+        mimeType: file.mimetype,
+        size: file.size || result.bytes || 0,
+        order: index,
+      });
+    }
+
+    const post = await NewsPost.create({
+      header: body.header || body.title,
+      subHeader: body.subHeader || body.summary || "",
+      body: body.body || body.text,
+      categories,
+      mediaFiles,
+      adsEnabled: body.adsEnabled === undefined ? true : body.adsEnabled === true || body.adsEnabled === "true",
+      status: body.status || "published",
+      source: body.source || "NendPlay News",
+      createdBy: adminId,
+      updatedBy: adminId,
+    });
+
+    return toPublicNewsPost(await NewsPost.findById(post._id).lean());
+  }
+
+  async getNewsPost(id) {
+    const post = await NewsPost.findById(id)
+      .populate("comments.user", "username profileName profilePic role")
+      .lean();
+    if (!post || post.status !== "published") {
+      throw { status: 404, message: "News post not found" };
+    }
+    return {
+      ...toPublicNewsPost(post),
+      comments: (post.comments || [])
+        .filter((comment) => !comment.isHidden)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .map((comment) => ({
+          _id: comment._id,
+          text: comment.text,
+          likeCount: comment.likeCount || 0,
+          createdAt: comment.createdAt,
+          user: comment.user,
+        })),
+    };
+  }
+
+  async addComment(newsId, userId, text) {
+    const cleanText = String(text || "").trim();
+    if (!cleanText) throw { status: 400, message: "Comment text is required" };
+
+    const post = await NewsPost.findOne({ _id: newsId, status: "published" });
+    if (!post) throw { status: 404, message: "News post not found" };
+
+    post.comments.push({ user: userId, text: cleanText });
+    post.commentCount = post.comments.filter((comment) => !comment.isHidden).length;
+    await post.save();
+    return this.getNewsPost(newsId);
+  }
+
+  async recordShare(newsId) {
+    const post = await NewsPost.findOneAndUpdate(
+      { _id: newsId, status: "published" },
+      { $inc: { shareCount: 1 } },
+      { new: true }
+    ).lean();
+    if (!post) throw { status: 404, message: "News post not found" };
+    return { shareCount: post.shareCount || 0 };
   }
 
   getFallbackNews({ category = "", search = "", tab = "for-you", country = "", city = "", region = "", page = 1, limit = 20 }) {

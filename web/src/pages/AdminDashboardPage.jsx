@@ -1058,9 +1058,155 @@ function MediaEditModal({ media, form, setForm, thumbnailFile, setThumbnailFile,
 
 function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onRefresh, pagination, page, onPage }) {
   const updatedAt = meta?.updatedAt ? new Date(meta.updatedAt).toLocaleString() : ''
+  const [postForm, setPostForm] = useState({
+    header: '',
+    subHeader: '',
+    body: '',
+    categories: ['headlines'],
+    adsEnabled: true,
+    status: 'published',
+  })
+  const [postFiles, setPostFiles] = useState([])
+  const [posting, setPosting] = useState(false)
+  const categoryOptions = NEWS_TAB_OPTIONS
+    .filter((option) => !['for-you'].includes(option.value))
+    .map((option) => ({ ...option, value: option.value.toLowerCase() }))
+
+  const togglePostCategory = (value) => {
+    setPostForm((current) => {
+      const selected = current.categories || []
+      if (selected.includes(value)) {
+        return { ...current, categories: selected.filter((item) => item !== value) }
+      }
+      if (selected.length >= 5) {
+        toast.error('A news post can have up to 5 categories')
+        return current
+      }
+      return { ...current, categories: [...selected, value] }
+    })
+  }
+
+  const submitPost = async () => {
+    if (!postForm.header.trim() || !postForm.body.trim()) {
+      toast.error('Header and body text are required')
+      return
+    }
+    if (!postForm.categories.length) {
+      toast.error('Choose at least one category')
+      return
+    }
+
+    const data = new FormData()
+    data.append('header', postForm.header)
+    data.append('subHeader', postForm.subHeader)
+    data.append('body', postForm.body)
+    data.append('categories', postForm.categories.join(','))
+    data.append('adsEnabled', String(postForm.adsEnabled))
+    data.append('status', postForm.status)
+    postFiles.forEach((file) => data.append('media', file))
+
+    setPosting(true)
+    try {
+      await adminService.createNewsPost(data)
+      toast.success('News posted')
+      setPostForm({ header: '', subHeader: '', body: '', categories: ['headlines'], adsEnabled: true, status: 'published' })
+      setPostFiles([])
+      onRefresh()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not post news')
+    } finally {
+      setPosting(false)
+    }
+  }
 
   return (
     <div className="space-y-5">
+      <div className="card p-5">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
+          <div>
+            <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>
+              Post NendPlay News
+            </h2>
+            <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
+              Publish admin-created news with videos first, pictures second, body text, comments, sharing, and in-article ad placement.
+            </p>
+          </div>
+          <Badge>{postForm.categories.length}/5 categories</Badge>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <input
+            className="input-base"
+            placeholder="Header"
+            value={postForm.header}
+            onChange={(event) => setPostForm({ ...postForm, header: event.target.value })}
+          />
+          <input
+            className="input-base"
+            placeholder="Sub-header"
+            value={postForm.subHeader}
+            onChange={(event) => setPostForm({ ...postForm, subHeader: event.target.value })}
+          />
+          <textarea
+            className="input-base lg:col-span-2 min-h-[160px]"
+            placeholder="Body text. Ads will be displayed between paragraphs where available."
+            value={postForm.body}
+            onChange={(event) => setPostForm({ ...postForm, body: event.target.value })}
+          />
+        </div>
+
+        <div className="mt-4">
+          <p className="text-sm font-black mb-2" style={{ color: 'var(--color-text)' }}>Categories</p>
+          <div className="flex flex-wrap gap-2">
+            {categoryOptions.map((option) => {
+              const selected = postForm.categories.includes(option.value)
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => togglePostCategory(option.value)}
+                  className="px-3 py-2 rounded-xl text-sm font-bold"
+                  style={{
+                    background: selected ? 'var(--color-primary)' : 'var(--color-surface-high)',
+                    color: selected ? '#fff' : 'var(--color-text-muted)',
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3 items-center">
+          <input
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            className="input-base"
+            onChange={(event) => setPostFiles(Array.from(event.target.files || []))}
+          />
+          <label className="flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--color-text)' }}>
+            <input
+              type="checkbox"
+              checked={postForm.adsEnabled}
+              onChange={(event) => setPostForm({ ...postForm, adsEnabled: event.target.checked })}
+            />
+            Ads between text
+          </label>
+          <button className="btn-primary px-5 py-3 text-sm" disabled={posting} onClick={submitPost}>
+            {posting ? 'Posting...' : 'Post News'}
+          </button>
+        </div>
+
+        {postFiles.length > 0 && (
+          <p className="text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
+            {postFiles.length} file(s) selected. Videos will be displayed before pictures.
+          </p>
+        )}
+      </div>
+
       <div className="card p-5">
         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
           <div>
@@ -1166,7 +1312,9 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
                       Open Story
                     </a>
                   ) : (
-                    <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Fallback preview</span>
+                    <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {article.kind === 'nendplay' ? 'NendPlay post' : 'Fallback preview'}
+                    </span>
                   )}
                 </div>
               </div>

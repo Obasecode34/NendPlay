@@ -235,6 +235,10 @@ export default function DailyNewsScreen({ navigation }) {
   }
 
   const openArticle = async (article) => {
+    if (article.kind === 'nendplay' || article.body || article.mediaFiles?.length) {
+      navigation.navigate('NewsDetail', { newsId: article._id || article.id, article })
+      return
+    }
     if (!article.url) return
     try {
       await Linking.openURL(article.url)

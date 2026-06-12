@@ -4,8 +4,10 @@ const adminController = require("../controllers/admin.controller");
 const { authMiddleware, requireAdmin } = require("../middleware/auth.middleware");
 const {
   uploadMediaWithThumbnail,
+  uploadNewsMedia,
   handleMulterError,
 } = require("../middleware/upload.middleware");
+const newsController = require("../controllers/news.controller");
 
 router.use(authMiddleware);
 
@@ -41,5 +43,14 @@ router.patch("/ads/:id", requireAdmin("ads:write"), adminController.updateAd);
 router.get("/subscriptions", requireAdmin("subscriptions:read"), adminController.listSubscriptions);
 router.get("/downloads", requireAdmin("downloads:read"), adminController.listDownloads);
 router.get("/rewards", requireAdmin("rewards:read"), adminController.listRewards);
+
+router.get("/news", requireAdmin("notifications:read"), newsController.listAdminNews);
+router.post(
+  "/news",
+  requireAdmin("notifications:write"),
+  uploadNewsMedia.array("media", 8),
+  handleMulterError,
+  newsController.createNewsPost
+);
 
 module.exports = router;
