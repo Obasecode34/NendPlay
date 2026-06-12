@@ -1,7 +1,8 @@
 // App.js
 import { registerRootComponent } from 'expo'
 import React, { useEffect } from 'react'
-import { NavigationContainer } from '@react-navigation/native'
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native'
+import * as Notifications from 'expo-notifications'
 import { StatusBar } from 'expo-status-bar'
 import { AppState, View, ActivityIndicator } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -12,6 +13,34 @@ import AppNavigator from './src/navigation/AppNavigator'
 import { registerForPushNotificationsAsync } from './src/services/pushNotifications'
 import useAppOpenAd from './src/components/ads/useAppOpenAd'
 import { initializeMobileAds } from './src/components/ads/mobileAds'
+
+const navigationRef = createNavigationContainerRef()
+
+function openNotificationTarget(data = {}) {
+  if (!navigationRef.isReady()) return
+  const contentType = data.contentType || ''
+  const contentId = data.contentId || data.newsId || data.mediaId || ''
+
+  if (contentType === 'news' && contentId) {
+    navigationRef.navigate('NewsDetail', { newsId: contentId })
+    return
+  }
+
+  if (contentType === 'media' && contentId) {
+    navigationRef.navigate('MediaPlayer', { mediaId: contentId })
+    return
+  }
+
+  if (data.screen === 'News') {
+    navigationRef.navigate('MainTabs', { screen: 'Home', params: { screen: 'DailyNews' } })
+  } else if (data.screen === 'Rewards') {
+    navigationRef.navigate('Rewards')
+  } else if (data.screen === 'Subscription') {
+    navigationRef.navigate('Subscribe')
+  } else if (data.screen === 'Downloads') {
+    navigationRef.navigate('MainTabs', { screen: 'Downloads' })
+  }
+}
 
 export default function App() {
   const { isAuthenticated, isLoading, initAuth } = useAuthStore()
@@ -49,6 +78,18 @@ export default function App() {
     return () => subscription.remove()
   }, [isLoading])
 
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      openNotificationTarget(response.notification.request.content.data || {})
+    })
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (response) openNotificationTarget(response.notification.request.content.data || {})
+      })
+      .catch(() => {})
+    return () => subscription.remove()
+  }, [])
+
   if (isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -59,7 +100,7 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <StatusBar style={theme.isDark ? 'light' : 'dark'} backgroundColor={c.bgDeep} />
         <AppNavigator />
       </NavigationContainer>

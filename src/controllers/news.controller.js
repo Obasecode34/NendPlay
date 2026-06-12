@@ -59,6 +59,40 @@ class NewsController {
     }
   }
 
+  async updateNewsPost(req, res) {
+    try {
+      const post = await newsService.updateNewsPost(req.params.id, {
+        body: req.body,
+        files: req.files || [],
+        adminId: req.admin.id,
+      });
+      return ApiResponse.success(res, {
+        message: "News updated",
+        data: { post },
+      });
+    } catch (err) {
+      return ApiResponse.error(res, {
+        statusCode: err.status || 500,
+        message: err.message || "Failed to update news",
+      });
+    }
+  }
+
+  async deleteNewsPost(req, res) {
+    try {
+      const result = await newsService.deleteNewsPost(req.params.id);
+      return ApiResponse.success(res, {
+        message: "News deleted",
+        data: result,
+      });
+    } catch (err) {
+      return ApiResponse.error(res, {
+        statusCode: err.status || 500,
+        message: err.message || "Failed to delete news",
+      });
+    }
+  }
+
   async getNewsPost(req, res) {
     try {
       const post = await newsService.getNewsPost(req.params.id);
@@ -82,6 +116,50 @@ class NewsController {
       return ApiResponse.error(res, {
         statusCode: err.status || 500,
         message: err.message || "Failed to comment on news",
+      });
+    }
+  }
+
+  async replyToComment(req, res) {
+    try {
+      const post = await newsService.replyToComment(
+        req.params.id,
+        req.params.commentId,
+        req.user.userId,
+        req.body.text
+      );
+      return ApiResponse.created(res, {
+        message: "Reply posted",
+        data: { post },
+      });
+    } catch (err) {
+      return ApiResponse.error(res, {
+        statusCode: err.status || 500,
+        message: err.message || "Failed to reply to comment",
+      });
+    }
+  }
+
+  async toggleLike(req, res) {
+    try {
+      const result = await newsService.toggleLike(req.params.id, req.user.userId);
+      return ApiResponse.success(res, { data: result });
+    } catch (err) {
+      return ApiResponse.error(res, {
+        statusCode: err.status || 500,
+        message: err.message || "Failed to like news",
+      });
+    }
+  }
+
+  async toggleCommentLike(req, res) {
+    try {
+      const post = await newsService.toggleCommentLike(req.params.id, req.params.commentId, req.user.userId);
+      return ApiResponse.success(res, { data: { post } });
+    } catch (err) {
+      return ApiResponse.error(res, {
+        statusCode: err.status || 500,
+        message: err.message || "Failed to like comment",
       });
     }
   }

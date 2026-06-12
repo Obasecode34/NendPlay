@@ -115,7 +115,10 @@ export const novelService = {
 export const newsService = {
   getDaily: (params) => api.get('/news', { params }),
   getPost: (id) => api.get(`/news/${id}`),
+  like: (id) => api.post(`/news/${id}/like`),
   comment: (id, data) => api.post(`/news/${id}/comments`, data),
+  reply: (id, commentId, data) => api.post(`/news/${id}/comments/${commentId}/replies`, data),
+  likeComment: (id, commentId) => api.post(`/news/${id}/comments/${commentId}/like`),
   share: (id) => api.post(`/news/${id}/share`),
 }
 

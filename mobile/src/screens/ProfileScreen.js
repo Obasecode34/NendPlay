@@ -138,6 +138,16 @@ export default function ProfileScreen({ navigation }) {
         setUnreadCount((count) => Math.max(count - 1, 0))
       }
       setNotificationModalVisible(false)
+      const linkedType = item.contentType || item.data?.contentType
+      const linkedId = item.contentId || item.data?.contentId || item.data?.newsId || item.data?.mediaId
+      if (linkedType === 'news' && linkedId) {
+        navigation.navigate('NewsDetail', { newsId: linkedId })
+        return
+      }
+      if (linkedType === 'media' && linkedId) {
+        navigation.navigate('MediaPlayer', { mediaId: linkedId })
+        return
+      }
       const screenMap = {
         Home: () => navigation.navigate('Home'),
         Shorts: () => navigation.navigate('Shorts'),

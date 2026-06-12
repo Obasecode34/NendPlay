@@ -48,9 +48,17 @@ router.get("/news", requireAdmin("notifications:read"), newsController.listAdmin
 router.post(
   "/news",
   requireAdmin("notifications:write"),
-  uploadNewsMedia.array("media", 8),
+  uploadNewsMedia.array("media", 10),
   handleMulterError,
   newsController.createNewsPost
 );
+router.patch(
+  "/news/:id",
+  requireAdmin("notifications:write"),
+  uploadNewsMedia.array("media", 10),
+  handleMulterError,
+  newsController.updateNewsPost
+);
+router.delete("/news/:id", requireAdmin("notifications:write"), newsController.deleteNewsPost);
 
 module.exports = router;

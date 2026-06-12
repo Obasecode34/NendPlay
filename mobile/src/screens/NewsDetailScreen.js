@@ -43,24 +43,59 @@ function NewsVideo({ item }) {
   )
 }
 
-function CommentItem({ item }) {
+function CommentItem({ item, onReply, onLike }) {
   const user = item.user || {}
   const name = user.profileName || user.username || 'NendPlay user'
+  const replies = item.replies || []
   return (
-    <View style={styles.commentRow}>
-      {user.profilePic ? (
-        <Image source={{ uri: user.profilePic }} style={styles.commentAvatar} />
-      ) : (
-        <View style={styles.commentFallback}>
-          <Text style={styles.commentFallbackText}>{name.charAt(0).toUpperCase()}</Text>
+    <View style={styles.commentBlock}>
+      <View style={styles.commentRow}>
+        {user.profilePic ? (
+          <Image source={{ uri: user.profilePic }} style={styles.commentAvatar} />
+        ) : (
+          <View style={styles.commentFallback}>
+            <Text style={styles.commentFallbackText}>{name.charAt(0).toUpperCase()}</Text>
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.commentName}>{name}</Text>
+          <Text style={styles.commentText}>{item.text}</Text>
+          <View style={styles.commentMetaRow}>
+            <Text style={styles.commentTime}>{timeAgo(item.createdAt)}</Text>
+            <TouchableOpacity onPress={() => onReply(item)}>
+              <Text style={styles.replyText}>Reply</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <TouchableOpacity onPress={() => onLike(item)}>
+          <Ionicons name="heart-outline" size={24} color="#222" />
+          {item.likeCount > 0 ? <Text style={styles.tinyCount}>{item.likeCount}</Text> : null}
+        </TouchableOpacity>
+      </View>
+      {replies.length > 0 && (
+        <View style={styles.replyList}>
+          {replies.map((reply, index) => {
+            const replyUser = reply.user || {}
+            const replyName = replyUser.profileName || replyUser.username || 'NendPlay user'
+            return (
+              <View key={reply._id || index} style={styles.replyRow}>
+                {replyUser.profilePic ? (
+                  <Image source={{ uri: replyUser.profilePic }} style={styles.replyAvatar} />
+                ) : (
+                  <View style={styles.replyFallback}>
+                    <Text style={styles.replyFallbackText}>{replyName.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.replyName}>{replyName}</Text>
+                  <Text style={styles.replyBody}>{reply.text}</Text>
+                  <Text style={styles.commentTime}>{timeAgo(reply.createdAt)}</Text>
+                </View>
+              </View>
+            )
+          })}
         </View>
       )}
-      <View style={{ flex: 1 }}>
-        <Text style={styles.commentName}>{name}</Text>
-        <Text style={styles.commentText}>{item.text}</Text>
-        <Text style={styles.commentTime}>{timeAgo(item.createdAt)}   Reply</Text>
-      </View>
-      <Ionicons name="heart-outline" size={24} color="#222" />
     </View>
   )
 }
@@ -74,6 +109,7 @@ export default function NewsDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(Boolean(newsId))
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [replyTarget, setReplyTarget] = useState(null)
 
   const videos = useMemo(() => (post?.mediaFiles || []).filter((item) => item.type === 'video'), [post])
   const images = useMemo(() => (post?.mediaFiles || []).filter((item) => item.type === 'image'), [post])
@@ -117,13 +153,43 @@ export default function NewsDetailScreen({ route, navigation }) {
     if (!comment.trim()) return
     setSubmitting(true)
     try {
-      const res = await newsService.comment(newsId, { text: comment.trim() })
+      const res = replyTarget
+        ? await newsService.reply(newsId, replyTarget._id, { text: comment.trim() })
+        : await newsService.comment(newsId, { text: comment.trim() })
       setPost(res.data.data.post)
       setComment('')
+      setReplyTarget(null)
     } catch {
-      Alert.alert('Comment failed', 'Please try again.')
+      Alert.alert(replyTarget ? 'Reply failed' : 'Comment failed', 'Please try again.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const likePost = async () => {
+    if (!isAuthenticated) {
+      Alert.alert('Login Required', 'Please login to like news.')
+      return
+    }
+    try {
+      const res = await newsService.like(newsId)
+      const data = res.data?.data || {}
+      setPost((current) => current ? { ...current, likeCount: data.likeCount ?? current.likeCount } : current)
+    } catch {
+      Alert.alert('Like failed', 'Please try again.')
+    }
+  }
+
+  const likeComment = async (item) => {
+    if (!isAuthenticated) {
+      Alert.alert('Login Required', 'Please login to like comments.')
+      return
+    }
+    try {
+      const res = await newsService.likeComment(newsId, item._id)
+      setPost(res.data.data.post)
+    } catch {
+      Alert.alert('Like failed', 'Please try again.')
     }
   }
 
@@ -185,7 +251,7 @@ export default function NewsDetailScreen({ route, navigation }) {
                   <Ionicons name="chatbubble-ellipses-outline" size={25} color={TEXT} />
                   <Text style={styles.actionText}>{post.commentCount || comments.length}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.action}>
+                <TouchableOpacity style={styles.action} onPress={likePost}>
                   <Ionicons name="heart-outline" size={27} color={TEXT} />
                   <Text style={styles.actionText}>{post.likeCount || 0}</Text>
                 </TouchableOpacity>
@@ -199,16 +265,32 @@ export default function NewsDetailScreen({ route, navigation }) {
             </View>
           </View>
         )}
-        renderItem={({ item }) => <CommentItem item={item} />}
+        renderItem={({ item }) => (
+          <CommentItem
+            item={item}
+            onReply={(target) => setReplyTarget(target)}
+            onLike={likeComment}
+          />
+        )}
         ListEmptyComponent={<Text style={styles.emptyComments}>No comments yet. Start the conversation.</Text>}
         contentContainerStyle={{ paddingBottom: 110 }}
       />
 
       <View style={[styles.commentBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        {replyTarget && (
+          <View style={styles.replyBanner}>
+            <Text style={styles.replyBannerText} numberOfLines={1}>
+              Replying to {replyTarget.user?.profileName || replyTarget.user?.username || 'comment'}
+            </Text>
+            <TouchableOpacity onPress={() => setReplyTarget(null)}>
+              <Ionicons name="close" size={18} color={MUTED} />
+            </TouchableOpacity>
+          </View>
+        )}
         <TextInput
           value={comment}
           onChangeText={setComment}
-          placeholder="Let's talk about it"
+          placeholder={replyTarget ? 'Write a reply' : "Let's talk about it"}
           placeholderTextColor={MUTED}
           style={styles.commentInput}
         />
@@ -265,6 +347,7 @@ const styles = StyleSheet.create({
   action: { alignItems: 'center', gap: 4 },
   actionText: { color: TEXT, fontSize: 13 },
   commentsTitle: { color: TEXT, fontSize: 24, fontWeight: '900', marginTop: 30 },
+  commentBlock: { paddingVertical: 4 },
   commentRow: { flexDirection: 'row', gap: 13, paddingHorizontal: 20, paddingVertical: 15 },
   commentAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: BORDER },
   commentFallback: {
@@ -278,7 +361,24 @@ const styles = StyleSheet.create({
   commentFallbackText: { color: '#08736F', fontWeight: '900', fontSize: 18 },
   commentName: { color: TEXT, fontSize: 18, fontWeight: '900' },
   commentText: { color: TEXT, fontSize: 18, lineHeight: 27, marginTop: 5 },
+  commentMetaRow: { flexDirection: 'row', gap: 16, alignItems: 'center', marginTop: 8 },
   commentTime: { color: '#A0A4AA', fontSize: 14, marginTop: 8, fontWeight: '700' },
+  replyText: { color: MUTED, fontSize: 14, fontWeight: '900' },
+  tinyCount: { color: MUTED, fontSize: 11, textAlign: 'center', marginTop: 2 },
+  replyList: { marginLeft: 78, marginRight: 20, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: BORDER },
+  replyRow: { flexDirection: 'row', gap: 10, paddingVertical: 10 },
+  replyAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: BORDER },
+  replyFallback: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#EEF0FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  replyFallbackText: { color: BLUE, fontWeight: '900', fontSize: 13 },
+  replyName: { color: TEXT, fontSize: 14, fontWeight: '900' },
+  replyBody: { color: TEXT, fontSize: 15, lineHeight: 22, marginTop: 3 },
   emptyComments: { color: MUTED, textAlign: 'center', paddingTop: 20 },
   commentBar: {
     position: 'absolute',
@@ -286,6 +386,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
     alignItems: 'center',
     paddingHorizontal: 18,
@@ -294,6 +395,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: BORDER,
   },
+  replyBanner: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 14,
+    backgroundColor: '#F7F7FF',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  replyBannerText: { color: MUTED, fontSize: 13, fontWeight: '800', flex: 1 },
   commentInput: {
     flex: 1,
     minHeight: 48,

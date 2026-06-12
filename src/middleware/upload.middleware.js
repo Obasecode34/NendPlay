@@ -104,7 +104,7 @@ const uploadNewsMedia = multer({
   storage: memoryStorage,
   limits: {
     fileSize: MAX_VIDEO_SIZE_MB * 1024 * 1024,
-    files: 8,
+    files: 10,
   },
   fileFilter: (req, file, cb) => {
     if (file.fieldname !== "media") {

@@ -18,7 +18,7 @@ import {
   RiVipCrownLine,
 } from 'react-icons/ri'
 import useAuthStore from '../stores/authStore'
-import { adminService, newsService } from '../services/index'
+import { adminService } from '../services/index'
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: RiDashboardLine },
@@ -187,6 +187,8 @@ export default function AdminDashboardPage() {
     title: '',
     body: '',
     screen: 'Home',
+    contentType: '',
+    contentId: '',
   })
   const [notificationMode, setNotificationMode] = useState('push')
   const [inAppForm, setInAppForm] = useState({
@@ -195,6 +197,8 @@ export default function AdminDashboardPage() {
     title: '',
     body: '',
     screen: 'Home',
+    contentType: '',
+    contentId: '',
   })
   const [pushImageFile, setPushImageFile] = useState(null)
   const [inAppImageFile, setInAppImageFile] = useState(null)
@@ -274,19 +278,21 @@ export default function AdminDashboardPage() {
   const loadNews = async (nextPage = page) => {
     setLoading(true)
     try {
-      const res = await newsService.getDailyNews({
+      const res = await adminService.getNewsPosts({
         page: nextPage,
         limit: 12,
         search: debouncedSearch || undefined,
         tab: newsFilters.tab,
-        country: newsFilters.country || undefined,
-        city: newsFilters.city || undefined,
-        region: newsFilters.region || undefined,
       })
       const payload = res.data?.data?.data || res.data?.data || {}
       setNewsRows(payload.articles || [])
       setNewsMeta(payload)
-      setPagination(payload.pagination || null)
+      setPagination(payload.pagination || {
+        page: payload.page || nextPage,
+        limit: payload.limit || 12,
+        total: payload.total || (payload.articles || []).length,
+        pages: payload.pages || 1,
+      })
       setPage(nextPage)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not load news')
@@ -315,6 +321,10 @@ export default function AdminDashboardPage() {
         data: {
           screen: pushForm.screen,
           source: 'admin',
+          contentType: pushForm.contentType || undefined,
+          contentId: pushForm.contentId.trim() || undefined,
+          newsId: pushForm.contentType === 'news' ? pushForm.contentId.trim() : undefined,
+          mediaId: pushForm.contentType === 'media' ? pushForm.contentId.trim() : undefined,
         },
       }
       let requestBody = payload
@@ -342,7 +352,7 @@ export default function AdminDashboardPage() {
       } else {
         toast.success(`Sent ${data.sent} notification${data.sent === 1 ? '' : 's'}${audienceNote}`)
       }
-      setPushForm({ audience: 'all', userId: '', title: '', body: '', screen: 'Home' })
+      setPushForm({ audience: 'all', userId: '', title: '', body: '', screen: 'Home', contentType: '', contentId: '' })
       setPushImageFile(null)
       loadPushStats()
     } catch (err) {
@@ -370,19 +380,29 @@ export default function AdminDashboardPage() {
         title: inAppForm.title.trim(),
         body: inAppForm.body.trim(),
         screen: inAppForm.screen,
+        contentType: inAppForm.contentType || undefined,
+        contentId: inAppForm.contentId.trim() || undefined,
+        data: {
+          screen: inAppForm.screen,
+          source: 'admin',
+          contentType: inAppForm.contentType || undefined,
+          contentId: inAppForm.contentId.trim() || undefined,
+          newsId: inAppForm.contentType === 'news' ? inAppForm.contentId.trim() : undefined,
+          mediaId: inAppForm.contentType === 'media' ? inAppForm.contentId.trim() : undefined,
+        },
       }
       let requestBody = payload
       if (inAppImageFile) {
         requestBody = new FormData()
         Object.entries(payload).forEach(([key, value]) => {
           if (value === undefined || value === null) return
-          requestBody.append(key, String(value))
+          requestBody.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value))
         })
         requestBody.append('image', inAppImageFile)
       }
       await adminService.sendInAppNotification(requestBody)
       toast.success('Notification added to users bell inbox')
-      setInAppForm({ audience: 'all', userId: '', title: '', body: '', screen: 'Home' })
+      setInAppForm({ audience: 'all', userId: '', title: '', body: '', screen: 'Home', contentType: '', contentId: '' })
       setInAppImageFile(null)
       loadPushStats()
     } catch (err) {
@@ -1058,6 +1078,14 @@ function MediaEditModal({ media, form, setForm, thumbnailFile, setThumbnailFile,
 
 function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onRefresh, pagination, page, onPage }) {
   const updatedAt = meta?.updatedAt ? new Date(meta.updatedAt).toLocaleString() : ''
+  const emptyPostForm = {
+    header: '',
+    subHeader: '',
+    body: '',
+    categories: ['headlines'],
+    adsEnabled: true,
+    status: 'published',
+  }
   const [postForm, setPostForm] = useState({
     header: '',
     subHeader: '',
@@ -1068,6 +1096,7 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
   })
   const [postFiles, setPostFiles] = useState([])
   const [posting, setPosting] = useState(false)
+  const [editingPost, setEditingPost] = useState(null)
   const categoryOptions = NEWS_TAB_OPTIONS
     .filter((option) => !['for-you'].includes(option.value))
     .map((option) => ({ ...option, value: option.value.toLowerCase() }))
@@ -1086,6 +1115,33 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
     })
   }
 
+  const selectedFileStats = useMemo(() => {
+    const videos = postFiles.filter((file) => file.type?.startsWith('video/')).length
+    const pictures = postFiles.filter((file) => file.type?.startsWith('image/')).length
+    return { videos, pictures }
+  }, [postFiles])
+
+  const resetPostForm = () => {
+    setPostForm(emptyPostForm)
+    setPostFiles([])
+    setEditingPost(null)
+  }
+
+  const startEditingPost = (article) => {
+    setEditingPost(article)
+    setPostForm({
+      header: article.header || article.title || '',
+      subHeader: article.subHeader || '',
+      body: article.body || article.summary || '',
+      categories: (article.categories?.length ? article.categories : [article.category || 'headlines'])
+        .map((item) => String(item).toLowerCase()),
+      adsEnabled: article.adsEnabled !== false,
+      status: article.status || 'published',
+    })
+    setPostFiles([])
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const submitPost = async () => {
     if (!postForm.header.trim() || !postForm.body.trim()) {
       toast.error('Header and body text are required')
@@ -1093,6 +1149,10 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
     }
     if (!postForm.categories.length) {
       toast.error('Choose at least one category')
+      return
+    }
+    if (selectedFileStats.videos > 5 || selectedFileStats.pictures > 5) {
+      toast.error('Choose up to 5 videos and up to 5 pictures')
       return
     }
 
@@ -1107,15 +1167,34 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
 
     setPosting(true)
     try {
-      await adminService.createNewsPost(data)
-      toast.success('News posted')
-      setPostForm({ header: '', subHeader: '', body: '', categories: ['headlines'], adsEnabled: true, status: 'published' })
-      setPostFiles([])
+      if (editingPost) {
+        await adminService.updateNewsPost(editingPost.id || editingPost._id, data)
+        toast.success('News updated')
+      } else {
+        await adminService.createNewsPost(data)
+        toast.success('News posted')
+      }
+      resetPostForm()
       onRefresh()
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not post news')
+      toast.error(err.response?.data?.message || (editingPost ? 'Could not update news' : 'Could not post news'))
     } finally {
       setPosting(false)
+    }
+  }
+
+  const deletePost = async (article) => {
+    const title = article.header || article.title || 'this news post'
+    if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return
+    try {
+      await adminService.deleteNewsPost(article.id || article._id)
+      toast.success('News deleted')
+      if (editingPost && String(editingPost.id || editingPost._id) === String(article.id || article._id)) {
+        resetPostForm()
+      }
+      onRefresh()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not delete news')
     }
   }
 
@@ -1125,10 +1204,10 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
           <div>
             <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>
-              Post NendPlay News
+              {editingPost ? 'Edit NendPlay News' : 'Post NendPlay News'}
             </h2>
             <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-              Publish admin-created news with videos first, pictures second, body text, comments, sharing, and in-article ad placement.
+              Publish and manage admin-created news with up to 5 videos, 5 pictures, body text, comments, sharing, and in-article ad placement.
             </p>
           </div>
           <Badge>{postForm.categories.length}/5 categories</Badge>
@@ -1185,8 +1264,27 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
             multiple
             accept="image/*,video/*"
             className="input-base"
-            onChange={(event) => setPostFiles(Array.from(event.target.files || []))}
+            onChange={(event) => {
+              const files = Array.from(event.target.files || [])
+              const videos = files.filter((file) => file.type?.startsWith('video/')).length
+              const pictures = files.filter((file) => file.type?.startsWith('image/')).length
+              if (videos > 5 || pictures > 5) {
+                toast.error('Choose up to 5 videos and up to 5 pictures')
+                event.target.value = ''
+                return
+              }
+              setPostFiles(files)
+            }}
           />
+          <select
+            className="input-base"
+            value={postForm.status}
+            onChange={(event) => setPostForm({ ...postForm, status: event.target.value })}
+          >
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+            <option value="archived">Archived</option>
+          </select>
           <label className="flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--color-text)' }}>
             <input
               type="checkbox"
@@ -1195,14 +1293,21 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
             />
             Ads between text
           </label>
-          <button className="btn-primary px-5 py-3 text-sm" disabled={posting} onClick={submitPost}>
-            {posting ? 'Posting...' : 'Post News'}
-          </button>
+          <div className="flex gap-2">
+            {editingPost && (
+              <button className="btn-ghost px-4 py-3 text-sm" disabled={posting} onClick={resetPostForm}>
+                Cancel Edit
+              </button>
+            )}
+            <button className="btn-primary px-5 py-3 text-sm" disabled={posting} onClick={submitPost}>
+              {posting ? 'Saving...' : editingPost ? 'Save News' : 'Post News'}
+            </button>
+          </div>
         </div>
 
         {postFiles.length > 0 && (
           <p className="text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
-            {postFiles.length} file(s) selected. Videos will be displayed before pictures.
+            {postFiles.length} file(s) selected: {selectedFileStats.videos}/5 videos, {selectedFileStats.pictures}/5 pictures. Videos will be displayed before pictures.
           </p>
         )}
       </div>
@@ -1211,14 +1316,14 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
           <div>
             <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>
-              Daily News Control
+              Posted News Control
             </h2>
             <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-              Preview the live news feed users see in Daily News. The feed uses NewsAPI when configured and NendPlay fallback stories when a provider is unavailable.
+              View, search, edit, and delete every NendPlay news post created by super-admins or admins.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge>{meta?.source || 'news'}</Badge>
+            <Badge>{meta?.source || 'nendplay'}</Badge>
             {updatedAt && <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Updated {updatedAt}</span>}
           </div>
         </div>
@@ -1247,24 +1352,6 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
             placeholder="Search news..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-          />
-          <input
-            className="input-base"
-            placeholder="Country"
-            value={filters.country}
-            onChange={(event) => setFilters({ ...filters, country: event.target.value })}
-          />
-          <input
-            className="input-base"
-            placeholder="City"
-            value={filters.city}
-            onChange={(event) => setFilters({ ...filters, city: event.target.value })}
-          />
-          <input
-            className="input-base"
-            placeholder="Region/state"
-            value={filters.region}
-            onChange={(event) => setFilters({ ...filters, region: event.target.value })}
           />
           <button type="button" className="btn-primary px-4 py-3 text-sm" onClick={onRefresh}>
             Refresh News
@@ -1304,18 +1391,19 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
                 </p>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap gap-2">
-                    <Badge>{article.category || filters.tab}</Badge>
-                    <Badge>{article.region || meta?.location?.country || 'Global'}</Badge>
+                    {(article.categories?.length ? article.categories : [article.category || filters.tab]).map((category) => (
+                      <Badge key={category}>{category}</Badge>
+                    ))}
+                    <Badge>{article.status || 'published'}</Badge>
                   </div>
-                  {article.url ? (
-                    <a className="btn-ghost px-4 py-2 text-sm" href={article.url} target="_blank" rel="noreferrer">
-                      Open Story
-                    </a>
-                  ) : (
-                    <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                      {article.kind === 'nendplay' ? 'NendPlay post' : 'Fallback preview'}
-                    </span>
-                  )}
+                  <div className="flex gap-2">
+                    <button className="btn-ghost px-4 py-2 text-sm" type="button" onClick={() => startEditingPost(article)}>
+                      Edit
+                    </button>
+                    <button className="btn-ghost px-4 py-2 text-sm" type="button" onClick={() => deletePost(article)}>
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             </article>
@@ -1442,6 +1530,40 @@ function NotificationPanel({
               <option value="Downloads">Downloads</option>
               <option value="Profile">Profile</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Linked Content</label>
+            <select
+              className="input-base"
+              value={activeForm.contentType || ''}
+              onChange={(event) => {
+                const contentType = event.target.value
+                setActiveForm({
+                  ...activeForm,
+                  contentType,
+                  contentId: '',
+                  screen: contentType === 'news' ? 'News' : contentType === 'media' ? 'Home' : activeForm.screen,
+                })
+              }}
+            >
+              <option value="">No linked content</option>
+              <option value="news">News post</option>
+              <option value="media">Media file</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>
+              {activeForm.contentType === 'news' ? 'News ID' : activeForm.contentType === 'media' ? 'Media ID' : 'Content ID'}
+            </label>
+            <input
+              className="input-base"
+              value={activeForm.contentId || ''}
+              disabled={!activeForm.contentType}
+              onChange={(event) => setActiveForm({ ...activeForm, contentId: event.target.value })}
+              placeholder={activeForm.contentType ? 'Paste the content ID to open from notification' : 'Choose linked content first'}
+            />
           </div>
 
           {activeForm.audience === 'user' && (

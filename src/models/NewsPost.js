@@ -64,6 +64,39 @@ const newsCommentSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    replies: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        text: {
+          type: String,
+          required: true,
+          trim: true,
+          maxlength: 1000,
+        },
+        likeCount: {
+          type: Number,
+          default: 0,
+        },
+        likedBy: [
+          {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+        ],
+        isHidden: {
+          type: Boolean,
+          default: false,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );

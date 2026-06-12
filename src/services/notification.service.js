@@ -322,7 +322,20 @@ class NotificationService {
     };
   }
 
-  async createInAppNotification({ audience, userId, userIds, title, body, screen = "Home", imageUrl, imageCloudinaryId, expiresAt }, admin) {
+  async createInAppNotification({
+    audience,
+    userId,
+    userIds,
+    title,
+    body,
+    screen = "Home",
+    contentType = "",
+    contentId = "",
+    data = {},
+    imageUrl,
+    imageCloudinaryId,
+    expiresAt,
+  }, admin) {
     const cleanTitle = String(title || "").trim();
     const cleanBody = String(body || "").trim();
     const cleanImageUrl = String(imageUrl || "").trim();
@@ -340,6 +353,11 @@ class NotificationService {
       userIds: normalized.userIds,
       sentBy: admin?.id || null,
       screen: String(screen || "Home").trim() || "Home",
+      contentType: ["news", "media"].includes(String(contentType || "").toLowerCase())
+        ? String(contentType).toLowerCase()
+        : "",
+      contentId: String(contentId || "").trim(),
+      data: data && typeof data === "object" ? data : {},
       imageUrl: cleanImageUrl,
       imageCloudinaryId: imageCloudinaryId || "",
       expiresAt: expiresAt ? new Date(expiresAt) : null,

@@ -109,7 +109,10 @@ export const rewardService = {
 export const newsService = {
   getDailyNews: (params) => api.get('/news', { params }),
   getPost: (id) => api.get(`/news/${id}`),
+  like: (id) => api.post(`/news/${id}/like`),
   comment: (id, data) => api.post(`/news/${id}/comments`, data),
+  reply: (id, commentId, data) => api.post(`/news/${id}/comments/${commentId}/replies`, data),
+  likeComment: (id, commentId) => api.post(`/news/${id}/comments/${commentId}/like`),
   share: (id) => api.post(`/news/${id}/share`),
 }
 
@@ -141,6 +144,10 @@ export const adminService = {
   createNewsPost: (data) => api.post('/admin/news', data, data instanceof FormData
     ? { headers: { 'Content-Type': 'multipart/form-data' } }
     : undefined),
+  updateNewsPost: (id, data) => api.patch(`/admin/news/${id}`, data, data instanceof FormData
+    ? { headers: { 'Content-Type': 'multipart/form-data' } }
+    : undefined),
+  deleteNewsPost: (id) => api.delete(`/admin/news/${id}`),
   getPushStats: () => api.get('/notifications/admin/stats'),
   sendPushNotification: (data) => api.post('/notifications/admin/send', data, data instanceof FormData
     ? { headers: { 'Content-Type': 'multipart/form-data' } }

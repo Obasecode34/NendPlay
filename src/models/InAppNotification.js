@@ -36,6 +36,21 @@ const inAppNotificationSchema = new mongoose.Schema(
       default: "Home",
       trim: true,
     },
+    contentType: {
+      type: String,
+      enum: ["", "news", "media"],
+      default: "",
+      trim: true,
+    },
+    contentId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    data: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
     imageUrl: {
       type: String,
       default: "",

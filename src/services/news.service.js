@@ -66,6 +66,20 @@ function isVideoFile(file = {}) {
   return String(file.mimetype || "").startsWith("video/");
 }
 
+function assertNewsMediaLimits(files = [], existingMedia = []) {
+  const existingVideos = existingMedia.filter((item) => item.type === "video").length;
+  const existingImages = existingMedia.filter((item) => item.type === "image").length;
+  const incomingVideos = files.filter(isVideoFile).length;
+  const incomingImages = files.length - incomingVideos;
+
+  if (existingVideos + incomingVideos > 5) {
+    throw { status: 400, message: "A news post can include up to 5 videos" };
+  }
+  if (existingImages + incomingImages > 5) {
+    throw { status: 400, message: "A news post can include up to 5 pictures" };
+  }
+}
+
 function toPublicNewsPost(post) {
   const mediaFiles = [...(post.mediaFiles || [])].sort((a, b) => {
     if (a.type === b.type) return (a.order || 0) - (b.order || 0);
@@ -86,6 +100,8 @@ function toPublicNewsPost(post) {
     categories: post.categories || [],
     category: post.categories?.[0] || "Top Stories",
     source: post.source || "NendPlay News",
+    status: post.status || "published",
+    createdBy: post.createdBy,
     imageUrl: firstImage?.url || firstVideo?.url || "",
     mediaFiles,
     url: "",
@@ -94,6 +110,24 @@ function toPublicNewsPost(post) {
     shareCount: post.shareCount || 0,
     likeCount: post.likeCount || 0,
     adsEnabled: post.adsEnabled !== false,
+  };
+}
+
+function mapComment(comment) {
+  const visibleReplies = (comment.replies || []).filter((reply) => !reply.isHidden);
+  return {
+    _id: comment._id,
+    text: comment.text,
+    likeCount: comment.likeCount || 0,
+    createdAt: comment.createdAt,
+    user: comment.user,
+    replies: visibleReplies.map((reply) => ({
+      _id: reply._id,
+      text: reply.text,
+      likeCount: reply.likeCount || 0,
+      createdAt: reply.createdAt,
+      user: reply.user,
+    })),
   };
 }
 
@@ -165,6 +199,39 @@ function getTabConfig({ tab = "for-you", category = "", country = "", city = "",
 }
 
 class NewsService {
+  async uploadNewsFiles(files = [], existingMedia = []) {
+    assertNewsMediaLimits(files, existingMedia);
+
+    const orderedFiles = [...(files || [])].sort((a, b) => {
+      if (isVideoFile(a) === isVideoFile(b)) return 0;
+      return isVideoFile(a) ? -1 : 1;
+    });
+
+    const mediaFiles = [];
+    for (const [index, file] of orderedFiles.entries()) {
+      const isVideo = isVideoFile(file);
+      const result = isVideo
+        ? await cloudinaryService.uploadMedia(file.buffer, {
+          folder: "nendplay/news/videos",
+          resourceType: "video",
+        })
+        : await cloudinaryService.uploadThumbnail(file.buffer, {
+          folder: "nendplay/news/images",
+        });
+
+      mediaFiles.push({
+        type: isVideo ? "video" : "image",
+        url: isVideo ? cloudinaryService.getStreamingUrl(result) : result.secure_url,
+        publicId: result.public_id || "",
+        mimeType: file.mimetype,
+        size: file.size || result.bytes || 0,
+        order: existingMedia.length + index,
+      });
+    }
+
+    return mediaFiles;
+  }
+
   async listInternalNews({
     category = "",
     search = "",
@@ -328,32 +395,7 @@ class NewsService {
       throw { status: 400, message: "Select at least one news category" };
     }
 
-    const orderedFiles = [...(files || [])].sort((a, b) => {
-      if (isVideoFile(a) === isVideoFile(b)) return 0;
-      return isVideoFile(a) ? -1 : 1;
-    });
-
-    const mediaFiles = [];
-    for (const [index, file] of orderedFiles.entries()) {
-      const isVideo = isVideoFile(file);
-      const result = isVideo
-        ? await cloudinaryService.uploadMedia(file.buffer, {
-          folder: "nendplay/news/videos",
-          resourceType: "video",
-        })
-        : await cloudinaryService.uploadThumbnail(file.buffer, {
-          folder: "nendplay/news/images",
-        });
-
-      mediaFiles.push({
-        type: isVideo ? "video" : "image",
-        url: isVideo ? cloudinaryService.getStreamingUrl(result) : result.secure_url,
-        publicId: result.public_id || "",
-        mimeType: file.mimetype,
-        size: file.size || result.bytes || 0,
-        order: index,
-      });
-    }
+    const mediaFiles = await this.uploadNewsFiles(files, []);
 
     const post = await NewsPost.create({
       header: body.header || body.title,
@@ -371,9 +413,48 @@ class NewsService {
     return toPublicNewsPost(await NewsPost.findById(post._id).lean());
   }
 
+  async updateNewsPost(id, { body = {}, files = [], adminId }) {
+    const post = await NewsPost.findById(id);
+    if (!post) throw { status: 404, message: "News post not found" };
+
+    if (body.header !== undefined) post.header = body.header;
+    if (body.subHeader !== undefined) post.subHeader = body.subHeader;
+    if (body.body !== undefined) post.body = body.body;
+    if (body.categories !== undefined || body.category !== undefined) {
+      const categories = normalizeList(body.categories || body.category, 5).map((item) => item.toLowerCase());
+      if (!categories.length) throw { status: 400, message: "Select at least one news category" };
+      post.categories = categories;
+    }
+    if (body.adsEnabled !== undefined) {
+      post.adsEnabled = body.adsEnabled === true || body.adsEnabled === "true";
+    }
+    if (body.status !== undefined) post.status = body.status;
+    if (body.source !== undefined) post.source = body.source || "NendPlay News";
+
+    const incomingMedia = await this.uploadNewsFiles(files, post.mediaFiles || []);
+    if (incomingMedia.length) {
+      post.mediaFiles.push(...incomingMedia);
+    }
+    post.updatedBy = adminId;
+    await post.save();
+    return toPublicNewsPost(await NewsPost.findById(post._id).lean());
+  }
+
+  async deleteNewsPost(id) {
+    const post = await NewsPost.findById(id);
+    if (!post) throw { status: 404, message: "News post not found" };
+
+    await Promise.all((post.mediaFiles || [])
+      .filter((item) => item.publicId)
+      .map((item) => cloudinaryService.deleteFile(item.publicId, item.type === "image" ? "image" : "video")));
+    await post.deleteOne();
+    return { deleted: true };
+  }
+
   async getNewsPost(id) {
     const post = await NewsPost.findById(id)
       .populate("comments.user", "username profileName profilePic role")
+      .populate("comments.replies.user", "username profileName profilePic role")
       .lean();
     if (!post || post.status !== "published") {
       throw { status: 404, message: "News post not found" };
@@ -383,13 +464,7 @@ class NewsService {
       comments: (post.comments || [])
         .filter((comment) => !comment.isHidden)
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .map((comment) => ({
-          _id: comment._id,
-          text: comment.text,
-          likeCount: comment.likeCount || 0,
-          createdAt: comment.createdAt,
-          user: comment.user,
-        })),
+        .map(mapComment),
     };
   }
 
@@ -402,6 +477,50 @@ class NewsService {
 
     post.comments.push({ user: userId, text: cleanText });
     post.commentCount = post.comments.filter((comment) => !comment.isHidden).length;
+    await post.save();
+    return this.getNewsPost(newsId);
+  }
+
+  async replyToComment(newsId, commentId, userId, text) {
+    const cleanText = String(text || "").trim();
+    if (!cleanText) throw { status: 400, message: "Reply text is required" };
+
+    const post = await NewsPost.findOne({ _id: newsId, status: "published" });
+    if (!post) throw { status: 404, message: "News post not found" };
+    const comment = post.comments.id(commentId);
+    if (!comment || comment.isHidden) throw { status: 404, message: "Comment not found" };
+
+    comment.replies.push({ user: userId, text: cleanText });
+    await post.save();
+    return this.getNewsPost(newsId);
+  }
+
+  async toggleLike(newsId, userId) {
+    const post = await NewsPost.findOne({ _id: newsId, status: "published" });
+    if (!post) throw { status: 404, message: "News post not found" };
+    const alreadyLiked = post.likedBy.some((id) => String(id) === String(userId));
+    if (alreadyLiked) {
+      post.likedBy = post.likedBy.filter((id) => String(id) !== String(userId));
+    } else {
+      post.likedBy.push(userId);
+    }
+    post.likeCount = post.likedBy.length;
+    await post.save();
+    return { liked: !alreadyLiked, likeCount: post.likeCount };
+  }
+
+  async toggleCommentLike(newsId, commentId, userId) {
+    const post = await NewsPost.findOne({ _id: newsId, status: "published" });
+    if (!post) throw { status: 404, message: "News post not found" };
+    const comment = post.comments.id(commentId);
+    if (!comment || comment.isHidden) throw { status: 404, message: "Comment not found" };
+    const alreadyLiked = comment.likedBy.some((id) => String(id) === String(userId));
+    if (alreadyLiked) {
+      comment.likedBy = comment.likedBy.filter((id) => String(id) !== String(userId));
+    } else {
+      comment.likedBy.push(userId);
+    }
+    comment.likeCount = comment.likedBy.length;
     await post.save();
     return this.getNewsPost(newsId);
   }
