@@ -23,6 +23,12 @@ const TABS = [
   { key: 'health', label: 'Health' },
 ]
 
+const SECTION_TABS = [
+  { key: 'news', label: 'News' },
+  { key: 'career', label: 'Career' },
+  { key: 'unspoken', label: 'Unspoken' },
+]
+
 const PAGE_LIMIT = 24
 const BLUE = '#1A73E8'
 const TEXT = '#101418'
@@ -150,6 +156,7 @@ export default function DailyNewsScreen({ navigation }) {
   const insets = useSafeAreaInsets()
   const { user } = useAuthStore()
   const [articles, setArticles] = useState([])
+  const [activeSection, setActiveSection] = useState('news')
   const [activeTab, setActiveTab] = useState('for-you')
   const [searchOpen, setSearchOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -171,13 +178,14 @@ export default function DailyNewsScreen({ navigation }) {
   }, [])
 
   const params = useMemo(() => ({
+    section: activeSection,
     tab: activeTab,
     search: search.trim(),
     country: locationInfo.countryCode || locationInfo.country || 'NG',
     city: locationInfo.city,
     region: locationInfo.region,
     limit: PAGE_LIMIT,
-  }), [activeTab, search, locationInfo])
+  }), [activeSection, activeTab, search, locationInfo])
 
   useEffect(() => {
     fetchNews(1, false)
@@ -260,7 +268,7 @@ export default function DailyNewsScreen({ navigation }) {
         </TouchableOpacity>
         <View style={styles.brandWrap}>
           <Text style={styles.brandBlue}>NendPlay</Text>
-          <Text style={styles.brandDark}> News</Text>
+          <Text style={styles.brandDark}> {SECTION_TABS.find((item) => item.key === activeSection)?.label || 'News'}</Text>
         </View>
         <TouchableOpacity activeOpacity={0.8} onPress={() => setSearchOpen((value) => !value)} style={styles.headerIcon}>
           <Ionicons name="search" size={27} color={TEXT} />
@@ -289,6 +297,28 @@ export default function DailyNewsScreen({ navigation }) {
       <FlatList
         horizontal
         showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.sectionList}
+        data={SECTION_TABS}
+        keyExtractor={(item) => item.key}
+        renderItem={({ item }) => {
+          const active = item.key === activeSection
+          return (
+            <TouchableOpacity
+              activeOpacity={0.78}
+              onPress={() => {
+                setActiveSection(item.key)
+                setActiveTab('for-you')
+              }}
+              style={[styles.sectionPill, active && styles.sectionPillActive]}>
+              <Text style={[styles.sectionPillText, active && styles.sectionPillTextActive]}>{item.label}</Text>
+            </TouchableOpacity>
+          )
+        }}
+      />
+
+      <FlatList
+        horizontal
+        showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tabList}
         data={TABS}
         keyExtractor={(item) => item.key}
@@ -308,7 +338,7 @@ export default function DailyNewsScreen({ navigation }) {
 
       <View style={styles.dividerBand} />
 
-      {activeTab === 'for-you' && <SectionTitle>For you</SectionTitle>}
+      {activeTab === 'for-you' && <SectionTitle>{activeSection === 'news' ? 'For you' : SECTION_TABS.find((item) => item.key === activeSection)?.label}</SectionTitle>}
       {activeTab !== 'for-you' && (
         <View style={styles.categoryHeader}>
           <Text style={styles.categoryTitle}>{activeTabLabel}</Text>
@@ -316,7 +346,7 @@ export default function DailyNewsScreen({ navigation }) {
             {activeTab === 'local'
               ? `Live updates near ${localLabel}`
               : source === 'fallback'
-                ? 'Briefing mode until a news API key is added'
+                ? (activeSection === 'news' ? 'Briefing mode until a news API key is added' : 'Fresh posts from NendPlay')
                 : 'Live headlines from trusted publishers'}
           </Text>
         </View>
@@ -402,6 +432,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   searchInput: { flex: 1, color: TEXT, fontSize: 14 },
+  sectionList: {
+    backgroundColor: SOFT_BG,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  sectionPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: DIVIDER,
+  },
+  sectionPillActive: { backgroundColor: BLUE, borderColor: BLUE },
+  sectionPillText: { color: TEXT, fontSize: 15, fontWeight: '800' },
+  sectionPillTextActive: { color: '#FFFFFF' },
   tabList: {
     backgroundColor: SOFT_BG,
     paddingHorizontal: 12,

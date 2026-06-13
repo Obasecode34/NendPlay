@@ -17,6 +17,12 @@ const NEWS_TABS = [
   { value: 'health', label: 'Health' },
 ]
 
+const HUB_TABS = [
+  { value: 'news', label: 'News' },
+  { value: 'career', label: 'Career' },
+  { value: 'unspoken', label: 'Unspoken' },
+]
+
 function timeAgo(value) {
   if (!value) return 'Today'
   const diff = Date.now() - new Date(value).getTime()
@@ -77,19 +83,21 @@ export default function DailyNewsPage() {
   const [search, setSearch] = useState(searchParams.get('search') || '')
   const loadingMoreRef = useRef(false)
   const sentinelRef = useRef(null)
+  const activeSection = searchParams.get('section') || 'news'
   const activeTab = searchParams.get('tab') || 'for-you'
 
   const params = useMemo(() => ({
+    section: activeSection,
     tab: activeTab,
     search: searchParams.get('search') || undefined,
     country: 'Nigeria',
     page: Number(searchParams.get('page') || 1),
     limit: 18,
-  }), [activeTab, searchParams])
+  }), [activeSection, activeTab, searchParams])
 
   useEffect(() => {
     loadNews(1, false)
-  }, [activeTab, searchParams.get('search')])
+  }, [activeSection, activeTab, searchParams.get('search')])
 
   const loadNews = async (page = 1, append = false) => {
     if (append && loadingMoreRef.current) return
@@ -133,7 +141,7 @@ export default function DailyNewsPage() {
 
   const submitSearch = (event) => {
     event.preventDefault()
-    setSearchParams({ tab: activeTab, ...(search.trim() ? { search: search.trim() } : {}) })
+    setSearchParams({ section: activeSection, tab: activeTab, ...(search.trim() ? { search: search.trim() } : {}) })
   }
 
   const featured = articles[0]
@@ -147,9 +155,13 @@ export default function DailyNewsPage() {
             style={{ background: 'var(--color-primary)', color: '#fff' }}>
             <RiGlobalLine className="text-xl" />
           </div>
-          <h1 className="font-display text-3xl font-black" style={{ color: 'var(--color-text)' }}>News Globe</h1>
+          <h1 className="font-display text-3xl font-black" style={{ color: 'var(--color-text)' }}>
+            {HUB_TABS.find((tab) => tab.value === activeSection)?.label || 'News'} Globe
+          </h1>
           <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            For you mixes every category, with NendPlay editorials shown first.
+            {activeSection === 'news'
+              ? 'For you mixes every category, with NendPlay editorials shown first.'
+              : 'Fresh NendPlay posts from the admin desk.'}
           </p>
         </div>
         <form onSubmit={submitSearch} className="relative w-full max-w-md">
@@ -163,12 +175,30 @@ export default function DailyNewsPage() {
         </form>
       </div>
 
+      <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar pb-2">
+        {HUB_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => setSearchParams({ section: tab.value, tab: 'for-you', ...(search.trim() ? { search: search.trim() } : {}) })}
+            className="whitespace-nowrap rounded-xl px-4 py-2 text-sm font-black"
+            style={{
+              background: activeSection === tab.value ? 'var(--color-primary)' : 'var(--color-surface)',
+              color: activeSection === tab.value ? '#fff' : 'var(--color-text-muted)',
+              border: '1px solid var(--color-border)',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div className="mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-2">
         {NEWS_TABS.map((tab) => (
           <button
             key={tab.value}
             type="button"
-            onClick={() => setSearchParams({ tab: tab.value, ...(search.trim() ? { search: search.trim() } : {}) })}
+            onClick={() => setSearchParams({ section: activeSection, tab: tab.value, ...(search.trim() ? { search: search.trim() } : {}) })}
             className="whitespace-nowrap rounded-xl px-3 py-2 text-xs font-black"
             style={{
               background: activeTab === tab.value ? 'var(--color-primary)' : 'var(--color-surface)',

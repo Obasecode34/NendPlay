@@ -121,6 +121,12 @@ const newsPostSchema = new mongoose.Schema(
       trim: true,
       maxlength: 20000,
     },
+    section: {
+      type: String,
+      enum: ["news", "career", "unspoken"],
+      default: "news",
+      index: true,
+    },
     categories: {
       type: [String],
       required: true,
@@ -184,6 +190,7 @@ const newsPostSchema = new mongoose.Schema(
 );
 
 newsPostSchema.index({ status: 1, createdAt: -1 });
+newsPostSchema.index({ section: 1, status: 1, createdAt: -1 });
 newsPostSchema.index({ categories: 1, createdAt: -1 });
 newsPostSchema.index({ header: "text", subHeader: "text", body: "text" });
 

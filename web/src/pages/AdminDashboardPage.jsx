@@ -78,6 +78,12 @@ const NEWS_TAB_OPTIONS = [
   { value: 'health', label: 'Health' },
 ]
 
+const NEWS_SECTION_OPTIONS = [
+  { value: 'news', label: 'News' },
+  { value: 'career', label: 'Career' },
+  { value: 'unspoken', label: 'Unspoken' },
+]
+
 function listToInput(value) {
   return Array.isArray(value) ? value.join(', ') : value || ''
 }
@@ -208,6 +214,7 @@ export default function AdminDashboardPage() {
   const [newsRows, setNewsRows] = useState([])
   const [newsMeta, setNewsMeta] = useState(null)
   const [newsFilters, setNewsFilters] = useState({
+    section: 'news',
     tab: 'for-you',
     country: 'Nigeria',
     city: '',
@@ -229,7 +236,7 @@ export default function AdminDashboardPage() {
     else if (activeTab === 'notifications') loadPushStats()
     else if (activeTab === 'news') loadNews(1)
     else loadTable(1)
-  }, [activeTab, isAdmin, status, debouncedSearch, newsFilters.tab])
+  }, [activeTab, isAdmin, status, debouncedSearch, newsFilters.tab, newsFilters.section])
 
   const loadDashboard = async () => {
     setLoading(true)
@@ -283,6 +290,7 @@ export default function AdminDashboardPage() {
         limit: 12,
         search: debouncedSearch || undefined,
         tab: newsFilters.tab,
+        section: newsFilters.section,
       })
       const payload = res.data?.data?.data || res.data?.data || {}
       setNewsRows(payload.articles || [])
@@ -1079,6 +1087,7 @@ function MediaEditModal({ media, form, setForm, thumbnailFile, setThumbnailFile,
 function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onRefresh, pagination, page, onPage }) {
   const updatedAt = meta?.updatedAt ? new Date(meta.updatedAt).toLocaleString() : ''
   const emptyPostForm = {
+    section: 'news',
     header: '',
     subHeader: '',
     body: '',
@@ -1087,6 +1096,7 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
     status: 'published',
   }
   const [postForm, setPostForm] = useState({
+    section: 'news',
     header: '',
     subHeader: '',
     body: '',
@@ -1130,6 +1140,7 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
   const startEditingPost = (article) => {
     setEditingPost(article)
     setPostForm({
+      section: article.section || 'news',
       header: article.header || article.title || '',
       subHeader: article.subHeader || '',
       body: article.body || article.summary || '',
@@ -1158,6 +1169,7 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
 
     const data = new FormData()
     data.append('header', postForm.header)
+    data.append('section', postForm.section || 'news')
     data.append('subHeader', postForm.subHeader)
     data.append('body', postForm.body)
     data.append('categories', postForm.categories.join(','))
@@ -1204,13 +1216,40 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
           <div>
             <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>
-              {editingPost ? 'Edit NendPlay News' : 'Post NendPlay News'}
+              {editingPost ? 'Edit NendPlay Post' : 'Post to NendPlay Hub'}
             </h2>
             <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
               Publish and manage admin-created news with up to 5 videos, 5 pictures, body text, comments, sharing, and in-article ad placement.
             </p>
           </div>
-          <Badge>{postForm.categories.length}/5 categories</Badge>
+          <div className="flex flex-wrap gap-2">
+            <Badge>{NEWS_SECTION_OPTIONS.find((item) => item.value === postForm.section)?.label || 'News'}</Badge>
+            <Badge>{postForm.categories.length}/5 categories</Badge>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <p className="text-sm font-black mb-2" style={{ color: 'var(--color-text)' }}>Post to</p>
+          <div className="flex flex-wrap gap-2">
+            {NEWS_SECTION_OPTIONS.map((option) => {
+              const selected = postForm.section === option.value
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setPostForm({ ...postForm, section: option.value })}
+                  className="px-4 py-2 rounded-xl text-sm font-bold"
+                  style={{
+                    background: selected ? 'var(--color-primary)' : 'var(--color-surface-high)',
+                    color: selected ? '#fff' : 'var(--color-text-muted)',
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1329,6 +1368,24 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
         </div>
 
         <div className="mt-5 flex gap-2 overflow-x-auto pb-2">
+          {NEWS_SECTION_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className="px-4 py-2 rounded-xl text-sm font-black whitespace-nowrap"
+              onClick={() => setFilters({ ...filters, section: option.value, tab: 'for-you' })}
+              style={{
+                background: filters.section === option.value ? 'var(--color-primary)' : 'var(--color-surface-high)',
+                color: filters.section === option.value ? '#fff' : 'var(--color-text-muted)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
           {NEWS_TAB_OPTIONS.map((option) => (
             <button
               key={option.value}
@@ -1394,6 +1451,7 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
                     {(article.categories?.length ? article.categories : [article.category || filters.tab]).map((category) => (
                       <Badge key={category}>{category}</Badge>
                     ))}
+                    <Badge>{NEWS_SECTION_OPTIONS.find((item) => item.value === (article.section || 'news'))?.label || 'News'}</Badge>
                     <Badge>{article.status || 'published'}</Badge>
                   </div>
                   <div className="flex gap-2">

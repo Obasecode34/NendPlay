@@ -57,6 +57,13 @@ const NEWS_CATEGORIES = [
   "health",
 ];
 
+const NEWS_SECTIONS = ["news", "career", "unspoken"];
+
+function normalizeSection(value = "news") {
+  const normalized = String(value || "news").trim().toLowerCase();
+  return NEWS_SECTIONS.includes(normalized) ? normalized : "news";
+}
+
 function normalizeList(value, max = 5) {
   const raw = Array.isArray(value) ? value : String(value || "").split(",");
   return [...new Set(raw.map((item) => String(item).trim()).filter(Boolean))].slice(0, max);
@@ -97,6 +104,7 @@ function toPublicNewsPost(post) {
     subHeader: post.subHeader,
     summary: post.subHeader || post.body.slice(0, 180),
     body: post.body,
+    section: normalizeSection(post.section),
     categories: post.categories || [],
     category: post.categories?.[0] || "Top Stories",
     source: post.source || "NendPlay News",
@@ -236,6 +244,7 @@ class NewsService {
     category = "",
     search = "",
     tab = "for-you",
+    section = "news",
     page = 1,
     limit = 20,
     includeDrafts = false,
@@ -244,6 +253,13 @@ class NewsService {
     const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
     const filter = includeDrafts ? {} : { status: "published" };
     const categoryKey = String(category || tab || "").trim().toLowerCase();
+    const sectionKey = normalizeSection(section);
+
+    if (sectionKey === "news") {
+      filter.$or = [{ section: "news" }, { section: { $exists: false } }];
+    } else {
+      filter.section = sectionKey;
+    }
 
     if (categoryKey && !["for-you", "headlines"].includes(categoryKey)) {
       filter.categories = { $in: [categoryKey, categoryKey.replace(/-/g, " ")] };
@@ -276,6 +292,7 @@ class NewsService {
     category = "",
     search = "",
     tab = "for-you",
+    section = "news",
     country = "",
     city = "",
     region = "",
@@ -285,20 +302,40 @@ class NewsService {
     const newsApiKey = process.env.NEWS_API_KEY || "";
     const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
     const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
+    const sectionKey = normalizeSection(section);
     const tabConfig = getTabConfig({ tab, category, country, city, region });
     const internal = await this.listInternalNews({
       category,
       search,
       tab,
+      section: sectionKey,
       page: parsedPage,
       limit: parsedLimit,
     });
+
+    if (sectionKey !== "news") {
+      return {
+        articles: internal.articles,
+        source: "nendplay",
+        tab,
+        section: sectionKey,
+        location: { country, city, region },
+        updatedAt: new Date().toISOString(),
+        pagination: {
+          total: internal.total,
+          page: parsedPage,
+          limit: parsedLimit,
+          pages: internal.pages,
+        },
+      };
+    }
 
     if (internal.articles.length >= parsedLimit || search) {
       return {
         articles: internal.articles,
         source: "nendplay",
         tab,
+        section: sectionKey,
         location: { country, city, region },
         updatedAt: new Date().toISOString(),
         pagination: {
@@ -315,6 +352,7 @@ class NewsService {
         category,
         search,
         tab,
+        section: sectionKey,
         country,
         city,
         region,
@@ -364,6 +402,7 @@ class NewsService {
         articles: merged,
         source: internal.articles.length ? "nendplay+newsapi" : "newsapi",
         tab,
+        section: sectionKey,
         location: {
           country: country || (tabConfig.country === "ng" ? "Nigeria" : ""),
           city,
@@ -413,6 +452,7 @@ class NewsService {
       header: body.header || body.title,
       subHeader: body.subHeader || body.summary || "",
       body: body.body || body.text,
+      section: normalizeSection(body.section),
       categories,
       mediaFiles,
       adsEnabled: body.adsEnabled === undefined ? true : body.adsEnabled === true || body.adsEnabled === "true",
@@ -432,6 +472,7 @@ class NewsService {
     if (body.header !== undefined) post.header = body.header;
     if (body.subHeader !== undefined) post.subHeader = body.subHeader;
     if (body.body !== undefined) post.body = body.body;
+    if (body.section !== undefined) post.section = normalizeSection(body.section);
     if (body.categories !== undefined || body.category !== undefined) {
       const categories = normalizeList(body.categories || body.category, 5).map((item) => item.toLowerCase());
       if (!categories.length) throw { status: 400, message: "Select at least one news category" };
