@@ -110,6 +110,28 @@ function normalizeInputList(value) {
     .slice(0, 5)
 }
 
+function normalizeGenrePinKey(value = '') {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function normalizeGenrePins(value) {
+  if (!value) return {}
+  const entries = value instanceof Map ? Array.from(value.entries()) : Object.entries(value)
+  return entries.reduce((next, [genre, position]) => {
+    const key = normalizeGenrePinKey(genre)
+    const numericPosition = Number(position)
+    if (key && Number.isInteger(numericPosition) && numericPosition >= 1 && numericPosition <= 4) {
+      next[key] = numericPosition
+    }
+    return next
+  }, {})
+}
+
 function Badge({ children }) {
   const key = String(children || '').toLowerCase()
   return (
@@ -550,6 +572,7 @@ export default function AdminDashboardPage() {
       isActive: row.isActive !== false,
       isFeatured: Boolean(row.isFeatured),
       featuredRank: row.featuredRank || 0,
+      genrePins: normalizeGenrePins(row.genrePins),
       thumbnailUrl: row.thumbnailUrl || '',
       collectionType: row.collectionType || 'single',
       parentTitle: row.parentTitle || '',
@@ -588,6 +611,7 @@ export default function AdminDashboardPage() {
       category: categories[0] || mediaEditForm.category || 'general',
       homeSections: navigationLabels,
       featuredRank: Number(mediaEditForm.featuredRank) || 0,
+      genrePins: normalizeGenrePins(mediaEditForm.genrePins),
       collectionType: mediaEditForm.collectionType || 'single',
       parentTitle: mediaEditForm.collectionType === 'single' ? '' : mediaEditForm.parentTitle.trim(),
       seasonNumber: mediaEditForm.collectionType === 'series_episode' ? mediaEditForm.seasonNumber : '',
@@ -602,6 +626,7 @@ export default function AdminDashboardPage() {
         requestBody = new FormData()
         Object.entries(payload).forEach(([key, value]) => {
           if (Array.isArray(value)) requestBody.append(key, JSON.stringify(value))
+          else if (value && typeof value === 'object') requestBody.append(key, JSON.stringify(value))
           else requestBody.append(key, value === undefined || value === null ? '' : String(value))
         })
         requestBody.append('thumbnail', mediaThumbnailFile)
@@ -923,6 +948,18 @@ function MediaEditModal({ media, form, setForm, thumbnailFile, setThumbnailFile,
     const next = exists ? list.filter((item) => item.toLowerCase() !== value.toLowerCase()) : [...list, value].slice(0, 5)
     setForm({ ...form, [field]: next.join(', ') })
   }
+  const selectedGenreLabels = normalizeInputList(form.genres)
+  const pinGenreOptions = [
+    ...selectedGenreLabels,
+    ...MOVIE_GENRE_OPTIONS.filter((item) => !selectedGenreLabels.some((selected) => normalizeGenrePinKey(selected) === normalizeGenrePinKey(item))),
+  ]
+  const updateGenrePin = (genre, position) => {
+    const key = normalizeGenrePinKey(genre)
+    const nextPins = { ...(form.genrePins || {}) }
+    if (!position) delete nextPins[key]
+    else nextPins[key] = Number(position)
+    setForm({ ...form, genrePins: nextPins })
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.72)' }}>
@@ -1025,6 +1062,36 @@ function MediaEditModal({ media, form, setForm, thumbnailFile, setThumbnailFile,
                   {item}
                 </button>
               ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Pin In Genre Rows</label>
+            <div className="rounded-xl p-3 space-y-2" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                Choose position 1-4 to keep this media fixed in that genre. Other media in the genre will keep shuffling.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {pinGenreOptions.map((genre) => {
+                  const key = normalizeGenrePinKey(genre)
+                  return (
+                    <label key={key} className="flex items-center justify-between gap-2 text-xs font-bold" style={{ color: 'var(--color-text)' }}>
+                      <span className="truncate">{genre}</span>
+                      <select
+                        className="input-base py-1 text-xs"
+                        style={{ width: 105 }}
+                        value={form.genrePins?.[key] || ''}
+                        onChange={(event) => updateGenrePin(genre, event.target.value)}
+                      >
+                        <option value="">Shuffle</option>
+                        <option value="1">#1</option>
+                        <option value="2">#2</option>
+                        <option value="3">#3</option>
+                        <option value="4">#4</option>
+                      </select>
+                    </label>
+                  )
+                })}
+              </div>
             </div>
           </div>
           <div>

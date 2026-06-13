@@ -178,6 +178,19 @@ const mediaSchema = new mongoose.Schema(
       default: 0,
     },
 
+    // Admin-controlled Home genre placement.
+    // Example: { action: 1, drama: 3 } keeps this media in the first Action slot
+    // and third Drama slot while non-pinned media keep shuffling.
+    genrePins: {
+      type: Map,
+      of: {
+        type: Number,
+        min: 1,
+        max: 4,
+      },
+      default: {},
+    },
+
     availabilityCountries: {
       type: [String],
       default: [],
@@ -514,6 +527,7 @@ mediaSchema.index({ type: 1, isActive: 1 });
 mediaSchema.index({ isLocked: 1, isActive: 1 });
 mediaSchema.index({ isShort: 1, isActive: 1 });
 mediaSchema.index({ homeSections: 1, isActive: 1 });
+mediaSchema.index({ genrePins: 1, isActive: 1 });
 mediaSchema.index({ parentTitleSlug: 1, seasonNumber: 1, episodeNumber: 1, partNumber: 1, isActive: 1 });
 mediaSchema.index({ publishStatus: 1, isActive: 1 });
 mediaSchema.index({ country: 1, language: 1, isActive: 1 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { RiPlayFill, RiGlobalLine } from 'react-icons/ri'
 import { useInView } from 'react-intersection-observer'
@@ -53,6 +53,58 @@ function shuffleItems(items) {
     shuffled[randomIndex] = current
   }
   return shuffled
+}
+
+function seededRandom(seed) {
+  let value = seed % 2147483647
+  if (value <= 0) value += 2147483646
+  return () => {
+    value = (value * 16807) % 2147483647
+    return (value - 1) / 2147483646
+  }
+}
+
+function hashText(value = '') {
+  return String(value).split('').reduce((hash, char) => (
+    ((hash << 5) - hash + char.charCodeAt(0)) | 0
+  ), 0)
+}
+
+function seededShuffleItems(items, seed) {
+  const shuffled = [...items]
+  const random = seededRandom(Math.abs(seed) + 1)
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(random() * (index + 1))
+    const current = shuffled[index]
+    shuffled[index] = shuffled[randomIndex]
+    shuffled[randomIndex] = current
+  }
+  return shuffled
+}
+
+function getGenrePinPosition(item, genre) {
+  const pins = item.genrePins || {}
+  const key = normalizeGenre(genre)
+  const value = pins instanceof Map ? pins.get(key) : pins[key]
+  const position = Number(value)
+  return Number.isInteger(position) && position >= 1 && position <= 4 ? position : null
+}
+
+function orderGenreItems(items, genre, seed) {
+  const pinned = []
+  const unpinned = []
+
+  items.forEach((item) => {
+    const pinPosition = getGenrePinPosition(item, genre)
+    if (pinPosition) pinned.push({ item, pinPosition })
+    else unpinned.push(item)
+  })
+
+  const fixedItems = pinned
+    .sort((a, b) => a.pinPosition - b.pinPosition || (a.item.featuredRank || 0) - (b.item.featuredRank || 0))
+    .map(({ item }) => item)
+
+  return [...fixedItems, ...seededShuffleItems(unpinned, seed + hashText(genre))]
 }
 
 function getSearchText(item) {
@@ -170,6 +222,7 @@ export default function HomePage() {
   const [loadingMoreSearch, setLoadingMoreSearch] = useState(false)
   const [featuredItems, setFeaturedItems] = useState([])
   const [featuredIndex, setFeaturedIndex] = useState(0)
+  const [shuffleSeed, setShuffleSeed] = useState(Date.now())
   const [activeHomeTab, setActiveHomeTab] = useState('Trending')
   const [activeCategory, setActiveCategory] = useState(HOME_CATEGORIES[0])
   const movieSectionRef = useRef(null)
@@ -193,6 +246,14 @@ export default function HomePage() {
     }, 5000)
     return () => clearInterval(timer)
   }, [featuredItems.length, searchQuery])
+
+  useEffect(() => {
+    if (searchQuery) return undefined
+    const timer = setInterval(() => {
+      setShuffleSeed(Date.now())
+    }, 120000)
+    return () => clearInterval(timer)
+  }, [searchQuery])
 
   const fetchContent = async (pageToLoad = 1, append = false) => {
     if (!append) setLoading(true)
@@ -220,6 +281,7 @@ export default function HomePage() {
         const nextMedia = allRes.data.data.media || []
         const pagination = allRes.data.data.pagination || {}
         const mergedMedia = append ? [...allMedia, ...nextMedia] : nextMedia
+        if (!append) setShuffleSeed(Date.now())
         setAllMedia(mergedMedia)
         setMediaPage(pageToLoad)
         setHasMoreMedia(pageToLoad < (pagination.pages || 1))
@@ -266,13 +328,12 @@ export default function HomePage() {
     || hasLabel(item, activeCategory.label, ['category', 'categories'])
     || matchesAny(item, activeCategory.terms)
   ))
-  const visibleSections = groupMedia(visibleMedia)
   const shorts = visibleMedia.filter(isShortMedia)
   const genreMovies = visibleMedia.filter((item) => !isShortMedia(item) && MOVIE_GENRES.some((genre) => hasMovieGenre(item, genre)))
-  const genreSections = MOVIE_GENRES.map((genre) => ({
+  const genreSections = useMemo(() => MOVIE_GENRES.map((genre) => ({
     genre,
-    items: genreMovies.filter((item) => hasMovieGenre(item, genre)),
-  })).filter((section) => section.items.length > 0)
+    items: orderGenreItems(genreMovies.filter((item) => hasMovieGenre(item, genre)), genre, shuffleSeed),
+  })).filter((section) => section.items.length > 0), [genreMovies, shuffleSeed])
 
   return (
     <div className="relative animate-fade-in pb-20">
@@ -446,7 +507,7 @@ export default function HomePage() {
                   <div key={section.genre} ref={(element) => {
                     if (index === 0) firstSectionRef.current = element
                   }}>
-                    <MediaRow title={section.genre} items={byPopularity(section.items).slice(0, 24)} size="md" />
+                    <MediaRow title={section.genre} items={section.items.slice(0, 24)} size="md" />
                   </div>
                 ))}
               </div>

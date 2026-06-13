@@ -80,6 +80,39 @@ function slugifyTitle(value = "") {
     .replace(/^-+|-+$/g, "");
 }
 
+function normalizePinKey(value = "") {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function parseGenrePins(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  let input = value;
+  if (typeof value === "string") {
+    try {
+      input = JSON.parse(value);
+    } catch {
+      input = {};
+    }
+  }
+
+  if (input instanceof Map) input = Object.fromEntries(input.entries());
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+
+  return Object.entries(input).reduce((next, [genre, position]) => {
+    const key = normalizePinKey(genre);
+    const numericPosition = Number(position);
+    if (key && Number.isInteger(numericPosition) && numericPosition >= 1 && numericPosition <= 4) {
+      next[key] = numericPosition;
+    }
+    return next;
+  }, {});
+}
+
 function getBunnyVideoId(video = {}) {
   return video.guid || video.id || video.videoLibraryId || video.videoId || "";
 }
@@ -420,6 +453,7 @@ class AdminService {
     const updates = pickAllowed(body, [
       "title",
       "description",
+      "type",
       "category",
       "categories",
       "navigationLabels",
@@ -433,6 +467,7 @@ class AdminService {
       "homeSections",
       "isFeatured",
       "featuredRank",
+      "genrePins",
       "availabilityCountries",
       "isLocked",
       "isShort",
@@ -482,6 +517,7 @@ class AdminService {
       updates.genre = parsedGenre[0] || updates.genre || "";
     }
     if (updates.homeSections !== undefined) updates.homeSections = parseList(updates.homeSections, 5);
+    if (updates.genrePins !== undefined) updates.genrePins = parseGenrePins(updates.genrePins) || {};
     if (updates.availabilityCountries !== undefined) updates.availabilityCountries = parseList(updates.availabilityCountries);
     if (updates.collectionType !== undefined && !["single", "movie_part", "series_episode"].includes(updates.collectionType)) {
       updates.collectionType = "single";
@@ -540,8 +576,39 @@ class AdminService {
 
     let media = await Media.findByIdAndUpdate(mediaId, updates, { new: true });
     if (!media) throw { status: 404, message: "Media not found" };
+    if (updates.genrePins && Object.keys(updates.genrePins).length) {
+      await this.clearConflictingGenrePins(media._id, updates.genrePins);
+    }
     media = await this.refreshMediaPlaybackState(media);
     return media;
+  }
+
+  async clearConflictingGenrePins(mediaId, genrePins = {}) {
+    const unset = {};
+    Object.entries(genrePins).forEach(([genre, position]) => {
+      const key = normalizePinKey(genre);
+      if (key && Number(position) >= 1 && Number(position) <= 4) {
+        unset[`genrePins.${key}`] = "";
+      }
+    });
+
+    if (!Object.keys(unset).length) return;
+
+    const filters = Object.entries(genrePins)
+      .map(([genre, position]) => {
+        const key = normalizePinKey(genre);
+        return key && Number(position) >= 1 && Number(position) <= 4
+          ? { [`genrePins.${key}`]: Number(position) }
+          : null;
+      })
+      .filter(Boolean);
+
+    if (!filters.length) return;
+
+    await Media.updateMany(
+      { _id: { $ne: mediaId }, $or: filters },
+      { $unset: unset }
+    );
   }
 
   async refreshMediaPlaybackState(media) {
