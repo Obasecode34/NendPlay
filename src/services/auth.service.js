@@ -19,8 +19,14 @@ class AuthService {
   // ── Register ───────────────────────────────────────────────────────────
   async register({ email, username, password, profileName, referralCode }) {
     // 1. Check for duplicates
-    const normalizedEmail = email.toLowerCase().trim();
-    const normalizedUsername = username.trim();
+    const normalizedEmail = String(email || "").toLowerCase().trim();
+    const normalizedUsername = String(username || "").trim();
+    const normalizedProfileName = String(profileName || "").trim();
+
+    if (!normalizedEmail) throw { status: 400, message: "Email address is required" };
+    if (!normalizedUsername) throw { status: 400, message: "Username is required" };
+    if (!normalizedProfileName) throw { status: 400, message: "Display name is required" };
+    if (!password) throw { status: 400, message: "Password is required for account creation" };
 
     const emailExists = await User.findOne({ email: normalizedEmail });
     if (emailExists) throw { status: 409, message: "An account with this email already exists" };
@@ -61,7 +67,7 @@ class AuthService {
       email: normalizedEmail,
       username: normalizedUsername,
       password,
-      profileName: profileName.trim(),
+      profileName: normalizedProfileName,
     };
 
     const user = await User.create(userData);
@@ -90,6 +96,10 @@ class AuthService {
     }
 
     return user;
+  }
+
+  async deleteIncompleteRegistration(userId) {
+    return User.deleteOne({ _id: userId });
   }
 
   // ── Login ──────────────────────────────────────────────────────────────

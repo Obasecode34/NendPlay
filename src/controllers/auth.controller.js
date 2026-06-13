@@ -13,8 +13,17 @@ const tokenService = require("../services/token.service");
 const ApiResponse = require("../utils/apiResponse");
 
 class AuthController {
+  getDuplicateRegistrationMessage(err) {
+    const key = Object.keys(err.keyPattern || err.keyValue || {})[0];
+    if (key === "email") return "An account with this email already exists";
+    if (key === "username") return "This username is already taken";
+    if (key === "googleId") return "This Gmail account is already connected to another user";
+    return "An account with these details already exists";
+  }
+
   // POST /api/auth/register
   async register(req, res) {
+    let createdUser = null;
     try {
       const {
         email,
@@ -31,6 +40,7 @@ class AuthController {
         profileName,
         referralCode,
       });
+      createdUser = user;
 
       // Generate tokens immediately after registration (auto-login)
       const accessToken = tokenService.generateAccessToken(user._id);
@@ -52,10 +62,24 @@ class AuthController {
       if (err.status) {
         return ApiResponse.error(res, { statusCode: err.status, message: err.message });
       }
+      if (err.code === 11000) {
+        return ApiResponse.error(res, {
+          statusCode: 409,
+          message: this.getDuplicateRegistrationMessage(err),
+        });
+      }
       // Mongoose validation errors
       if (err.name === "ValidationError") {
         const messages = Object.values(err.errors).map((e) => e.message);
         return ApiResponse.badRequest(res, "Validation failed", messages);
+      }
+      if (err.message && /required|invalid|password|username|email/i.test(err.message)) {
+        return ApiResponse.badRequest(res, err.message);
+      }
+      if (createdUser?._id) {
+        await authService.deleteIncompleteRegistration(createdUser._id).catch((cleanupError) => {
+          console.error("Incomplete registration cleanup failed:", cleanupError);
+        });
       }
       console.error("Register error:", err);
       return ApiResponse.error(res, { message: "Registration failed. Please try again." });

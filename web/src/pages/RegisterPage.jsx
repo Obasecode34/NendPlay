@@ -23,6 +23,12 @@ export default function RegisterPage() {
     referralCode,
   })
 
+  const getErrorMessage = (err) => {
+    const data = err.response?.data
+    if (Array.isArray(data?.errors) && data.errors.length) return data.errors[0]
+    return data?.message || 'Registration failed'
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (form.password !== form.confirmPassword) {
@@ -47,7 +53,7 @@ export default function RegisterPage() {
       toast.success('Account created! Welcome to NendPlay 🎉')
       navigate('/home')
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Registration failed')
+      toast.error(getErrorMessage(err))
     } finally {
       setLoading(false)
     }

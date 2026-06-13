@@ -23,6 +23,12 @@ export default function RegisterScreen({ navigation }) {
     password: '', confirmPassword: '', referralCode: '',
   })
 
+  const getErrorMessage = (err) => {
+    const data = err.response?.data
+    if (Array.isArray(data?.errors) && data.errors.length) return data.errors[0]
+    return data?.message || 'Please try again'
+  }
+
   const handleRegister = async () => {
     if (form.password !== form.confirmPassword) {
       Alert.alert('Registration Failed', 'Passwords do not match')
@@ -45,7 +51,7 @@ export default function RegisterScreen({ navigation }) {
       await setAuth(user, accessToken, refreshToken)
       navigation.navigate('MainTabs')
     } catch (err) {
-      Alert.alert('Registration Failed', err.response?.data?.message || 'Please try again')
+      Alert.alert('Registration Failed', getErrorMessage(err))
     } finally {
       setLoading(false)
     }

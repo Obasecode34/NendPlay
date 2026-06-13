@@ -10,6 +10,7 @@
     "media:backfill-review": "node scripts/backfill-media-review-status.js",
     "media:backfill-thumbnails": "node scripts/backfill-media-thumbnails.js",
     "media:fix-text-index": "node scripts/fix-media-text-index.js",
+    "auth:fix-google-null-index": "node scripts/fix-google-null-index.js",
     "test": "jest"
   },
   "dependencies": {
