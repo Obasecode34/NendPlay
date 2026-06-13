@@ -100,6 +100,25 @@ function CommentItem({ item, onReply, onLike }) {
   )
 }
 
+function NewsAudio({ item }) {
+  const player = useVideoPlayer({ uri: item.url }, (player) => {
+    player.loop = false
+  })
+  return (
+    <View style={styles.audioCard}>
+      <View style={styles.audioHeader}>
+        <Ionicons name="musical-notes-outline" size={18} color={BLUE} />
+        <Text style={styles.audioTitle}>Audio report</Text>
+      </View>
+      <VideoView
+        player={player}
+        style={styles.audio}
+        nativeControls
+      />
+    </View>
+  )
+}
+
 export default function NewsDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets()
   const { isAuthenticated } = useAuthStore()
@@ -112,6 +131,7 @@ export default function NewsDetailScreen({ route, navigation }) {
   const [replyTarget, setReplyTarget] = useState(null)
 
   const videos = useMemo(() => (post?.mediaFiles || []).filter((item) => item.type === 'video'), [post])
+  const audios = useMemo(() => (post?.mediaFiles || []).filter((item) => item.type === 'audio'), [post])
   const images = useMemo(() => (post?.mediaFiles || []).filter((item) => item.type === 'image'), [post])
   const paragraphs = useMemo(() => String(post?.body || '').split(/\n{2,}/).filter(Boolean), [post])
 
@@ -229,6 +249,7 @@ export default function NewsDetailScreen({ route, navigation }) {
               </View>
 
               {videos.map((item, index) => <NewsVideo key={`video-${index}`} item={item} />)}
+              {audios.map((item, index) => <NewsAudio key={`audio-${index}`} item={item} />)}
               {images.map((item, index) => (
                 <Image key={`image-${index}`} source={{ uri: item.url }} style={styles.image} resizeMode="cover" />
               ))}
@@ -323,6 +344,17 @@ const styles = StyleSheet.create({
   source: { color: MUTED, fontSize: 15, fontWeight: '700' },
   meta: { color: MUTED, fontSize: 15 },
   video: { width: '100%', height: 230, backgroundColor: '#000', marginBottom: 18 },
+  audioCard: {
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: '#F7F7FF',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 18,
+  },
+  audioHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  audioTitle: { color: MUTED, fontSize: 14, fontWeight: '800' },
+  audio: { width: '100%', height: 56, backgroundColor: '#101022', borderRadius: 12 },
   image: { width: '100%', height: 260, backgroundColor: BORDER, marginBottom: 18 },
   paragraph: { color: TEXT, fontSize: 24, lineHeight: 36, marginBottom: 22 },
   adBox: {

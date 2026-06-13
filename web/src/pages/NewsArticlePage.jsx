@@ -78,6 +78,7 @@ export default function NewsArticlePage() {
   const [replyTarget, setReplyTarget] = useState(null)
 
   const videos = useMemo(() => (post?.mediaFiles || []).filter((item) => item.type === 'video'), [post])
+  const audios = useMemo(() => (post?.mediaFiles || []).filter((item) => item.type === 'audio'), [post])
   const images = useMemo(() => (post?.mediaFiles || []).filter((item) => item.type === 'image'), [post])
   const paragraphs = useMemo(() => String(post?.body || '').split(/\n{2,}/).filter(Boolean), [post])
 
@@ -174,6 +175,12 @@ export default function NewsArticlePage() {
         {videos.map((item, index) => (
           <div key={`${item.url}-${index}`} className="overflow-hidden rounded-2xl bg-black">
             <ReactPlayer url={item.url} width="100%" height="420px" controls playsinline />
+          </div>
+        ))}
+        {audios.map((item, index) => (
+          <div key={`${item.url}-${index}`} className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <p className="mb-3 text-sm font-bold" style={{ color: 'var(--color-text-muted)' }}>Audio report</p>
+            <audio src={item.url} controls className="w-full" />
           </div>
         ))}
         {images.map((item, index) => (

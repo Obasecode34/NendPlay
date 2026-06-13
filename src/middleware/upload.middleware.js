@@ -104,16 +104,16 @@ const uploadNewsMedia = multer({
   storage: memoryStorage,
   limits: {
     fileSize: MAX_VIDEO_SIZE_MB * 1024 * 1024,
-    files: 10,
+    files: 15,
   },
   fileFilter: (req, file, cb) => {
     if (file.fieldname !== "media") {
       return cb(new Error("Unexpected field name. Use media for news files."), false);
     }
-    if ([...VIDEO_TYPES, ...IMAGE_TYPES].includes(file.mimetype)) {
+    if ([...VIDEO_TYPES, ...AUDIO_TYPES, ...IMAGE_TYPES].includes(file.mimetype)) {
       return cb(null, true);
     }
-    return cb(new Error("Invalid news file type. Upload videos or images only."), false);
+    return cb(new Error("Invalid news file type. Upload videos, audio, or images only."), false);
   },
 });
 

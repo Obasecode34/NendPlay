@@ -79,14 +79,25 @@ function isVideoFile(file = {}) {
   return String(file.mimetype || "").startsWith("video/");
 }
 
+function isAudioFile(file = {}) {
+  return String(file.mimetype || "").startsWith("audio/");
+}
+
+const NEWS_MEDIA_ORDER = { video: 0, audio: 1, image: 2 };
+
 function assertNewsMediaLimits(files = [], existingMedia = []) {
   const existingVideos = existingMedia.filter((item) => item.type === "video").length;
+  const existingAudio = existingMedia.filter((item) => item.type === "audio").length;
   const existingImages = existingMedia.filter((item) => item.type === "image").length;
   const incomingVideos = files.filter(isVideoFile).length;
-  const incomingImages = files.length - incomingVideos;
+  const incomingAudio = files.filter(isAudioFile).length;
+  const incomingImages = files.length - incomingVideos - incomingAudio;
 
   if (existingVideos + incomingVideos > 5) {
     throw { status: 400, message: "A news post can include up to 5 videos" };
+  }
+  if (existingAudio + incomingAudio > 5) {
+    throw { status: 400, message: "A news post can include up to 5 audio files" };
   }
   if (existingImages + incomingImages > 5) {
     throw { status: 400, message: "A news post can include up to 5 pictures" };
@@ -96,7 +107,7 @@ function assertNewsMediaLimits(files = [], existingMedia = []) {
 function toPublicNewsPost(post) {
   const mediaFiles = [...(post.mediaFiles || [])].sort((a, b) => {
     if (a.type === b.type) return (a.order || 0) - (b.order || 0);
-    return a.type === "video" ? -1 : 1;
+    return (NEWS_MEDIA_ORDER[a.type] ?? 99) - (NEWS_MEDIA_ORDER[b.type] ?? 99);
   });
   const firstImage = mediaFiles.find((item) => item.type === "image");
   const firstVideo = mediaFiles.find((item) => item.type === "video");
@@ -218,16 +229,18 @@ class NewsService {
     assertNewsMediaLimits(files, existingMedia);
 
     const orderedFiles = [...(files || [])].sort((a, b) => {
-      if (isVideoFile(a) === isVideoFile(b)) return 0;
-      return isVideoFile(a) ? -1 : 1;
+      const aType = isVideoFile(a) ? "video" : isAudioFile(a) ? "audio" : "image";
+      const bType = isVideoFile(b) ? "video" : isAudioFile(b) ? "audio" : "image";
+      return (NEWS_MEDIA_ORDER[aType] ?? 99) - (NEWS_MEDIA_ORDER[bType] ?? 99);
     });
 
     const mediaFiles = [];
     for (const [index, file] of orderedFiles.entries()) {
       const isVideo = isVideoFile(file);
-      const result = isVideo
+      const isAudio = isAudioFile(file);
+      const result = isVideo || isAudio
         ? await cloudinaryService.uploadMedia(file.buffer, {
-          folder: "nendplay/news/videos",
+          folder: isAudio ? "nendplay/news/audio" : "nendplay/news/videos",
           resourceType: "video",
         })
         : await cloudinaryService.uploadThumbnail(file.buffer, {
@@ -235,7 +248,7 @@ class NewsService {
         });
 
       mediaFiles.push({
-        type: isVideo ? "video" : "image",
+        type: isVideo ? "video" : isAudio ? "audio" : "image",
         url: isVideo ? cloudinaryService.getStreamingUrl(result) : result.secure_url,
         publicId: result.public_id || "",
         mimeType: file.mimetype,

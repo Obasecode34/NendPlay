@@ -4,7 +4,7 @@ const newsMediaSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["video", "image"],
+      enum: ["video", "audio", "image"],
       required: true,
     },
     url: {

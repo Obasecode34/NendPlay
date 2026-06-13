@@ -1145,8 +1145,9 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
 
   const selectedFileStats = useMemo(() => {
     const videos = postFiles.filter((file) => file.type?.startsWith('video/')).length
+    const audio = postFiles.filter((file) => file.type?.startsWith('audio/')).length
     const pictures = postFiles.filter((file) => file.type?.startsWith('image/')).length
-    return { videos, pictures }
+    return { videos, audio, pictures }
   }, [postFiles])
 
   const resetPostForm = () => {
@@ -1181,8 +1182,8 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
       toast.error('Choose at least one category')
       return
     }
-    if (selectedFileStats.videos > 5 || selectedFileStats.pictures > 5) {
-      toast.error('Choose up to 5 videos and up to 5 pictures')
+    if (selectedFileStats.videos > 5 || selectedFileStats.audio > 5 || selectedFileStats.pictures > 5) {
+      toast.error('Choose up to 5 videos, 5 audio files, and 5 pictures')
       return
     }
 
@@ -1354,14 +1355,15 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
           <input
             type="file"
             multiple
-            accept="image/*,video/*"
+            accept="image/*,video/*,audio/*"
             className="input-base"
             onChange={(event) => {
               const files = Array.from(event.target.files || [])
               const videos = files.filter((file) => file.type?.startsWith('video/')).length
+              const audio = files.filter((file) => file.type?.startsWith('audio/')).length
               const pictures = files.filter((file) => file.type?.startsWith('image/')).length
-              if (videos > 5 || pictures > 5) {
-                toast.error('Choose up to 5 videos and up to 5 pictures')
+              if (videos > 5 || audio > 5 || pictures > 5) {
+                toast.error('Choose up to 5 videos, 5 audio files, and 5 pictures')
                 event.target.value = ''
                 return
               }
@@ -1399,7 +1401,7 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
 
         {postFiles.length > 0 && (
           <p className="text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
-            {postFiles.length} file(s) selected: {selectedFileStats.videos}/5 videos, {selectedFileStats.pictures}/5 pictures. Videos will be displayed before pictures.
+            {postFiles.length} file(s) selected: {selectedFileStats.videos}/5 videos, {selectedFileStats.audio}/5 audio, {selectedFileStats.pictures}/5 pictures. Media displays as header, sub-header, video, audio, pictures, then body text.
           </p>
         )}
       </div>
