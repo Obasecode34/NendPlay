@@ -58,10 +58,16 @@ const NEWS_CATEGORIES = [
 ];
 
 const NEWS_SECTIONS = ["news", "career", "unspoken"];
+const JOB_MODES = ["on-site", "remote", "hybrid"];
 
 function normalizeSection(value = "news") {
   const normalized = String(value || "news").trim().toLowerCase();
   return NEWS_SECTIONS.includes(normalized) ? normalized : "news";
+}
+
+function normalizeJobMode(value = "") {
+  const normalized = String(value || "").trim().toLowerCase().replace(/\s+/g, "-");
+  return JOB_MODES.includes(normalized) ? normalized : "";
 }
 
 function normalizeList(value, max = 5) {
@@ -105,6 +111,7 @@ function toPublicNewsPost(post) {
     summary: post.subHeader || post.body.slice(0, 180),
     body: post.body,
     section: normalizeSection(post.section),
+    jobMode: normalizeJobMode(post.jobMode),
     categories: post.categories || [],
     category: post.categories?.[0] || "Top Stories",
     source: post.source || "NendPlay News",
@@ -245,6 +252,7 @@ class NewsService {
     search = "",
     tab = "for-you",
     section = "news",
+    jobMode = "",
     page = 1,
     limit = 20,
     includeDrafts = false,
@@ -254,11 +262,16 @@ class NewsService {
     const filter = includeDrafts ? {} : { status: "published" };
     const categoryKey = String(category || tab || "").trim().toLowerCase();
     const sectionKey = normalizeSection(section);
+    const jobModeKey = normalizeJobMode(jobMode);
 
     if (sectionKey === "news") {
       filter.$or = [{ section: "news" }, { section: { $exists: false } }];
     } else {
       filter.section = sectionKey;
+    }
+
+    if (sectionKey === "career" && jobModeKey) {
+      filter.jobMode = jobModeKey;
     }
 
     if (categoryKey && !["for-you", "headlines"].includes(categoryKey)) {
@@ -293,6 +306,7 @@ class NewsService {
     search = "",
     tab = "for-you",
     section = "news",
+    jobMode = "",
     country = "",
     city = "",
     region = "",
@@ -303,12 +317,14 @@ class NewsService {
     const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
     const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
     const sectionKey = normalizeSection(section);
+    const jobModeKey = normalizeJobMode(jobMode);
     const tabConfig = getTabConfig({ tab, category, country, city, region });
     const internal = await this.listInternalNews({
       category,
       search,
       tab,
       section: sectionKey,
+      jobMode: jobModeKey,
       page: parsedPage,
       limit: parsedLimit,
     });
@@ -319,6 +335,7 @@ class NewsService {
         source: "nendplay",
         tab,
         section: sectionKey,
+        jobMode: jobModeKey,
         location: { country, city, region },
         updatedAt: new Date().toISOString(),
         pagination: {
@@ -336,6 +353,7 @@ class NewsService {
         source: "nendplay",
         tab,
         section: sectionKey,
+        jobMode: jobModeKey,
         location: { country, city, region },
         updatedAt: new Date().toISOString(),
         pagination: {
@@ -403,6 +421,7 @@ class NewsService {
         source: internal.articles.length ? "nendplay+newsapi" : "newsapi",
         tab,
         section: sectionKey,
+        jobMode: jobModeKey,
         location: {
           country: country || (tabConfig.country === "ng" ? "Nigeria" : ""),
           city,
@@ -421,6 +440,7 @@ class NewsService {
         category,
         search,
         tab,
+        section: sectionKey,
         country,
         city,
         region,
@@ -453,6 +473,7 @@ class NewsService {
       subHeader: body.subHeader || body.summary || "",
       body: body.body || body.text,
       section: normalizeSection(body.section),
+      jobMode: normalizeSection(body.section) === "career" ? normalizeJobMode(body.jobMode) : "",
       categories,
       mediaFiles,
       adsEnabled: body.adsEnabled === undefined ? true : body.adsEnabled === true || body.adsEnabled === "true",
@@ -473,6 +494,11 @@ class NewsService {
     if (body.subHeader !== undefined) post.subHeader = body.subHeader;
     if (body.body !== undefined) post.body = body.body;
     if (body.section !== undefined) post.section = normalizeSection(body.section);
+    if (body.jobMode !== undefined || body.section !== undefined) {
+      post.jobMode = normalizeSection(body.section !== undefined ? body.section : post.section) === "career"
+        ? normalizeJobMode(body.jobMode || post.jobMode)
+        : "";
+    }
     if (body.categories !== undefined || body.category !== undefined) {
       const categories = normalizeList(body.categories || body.category, 5).map((item) => item.toLowerCase());
       if (!categories.length) throw { status: 400, message: "Select at least one news category" };

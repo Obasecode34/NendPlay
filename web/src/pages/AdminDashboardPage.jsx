@@ -84,6 +84,20 @@ const NEWS_SECTION_OPTIONS = [
   { value: 'unspoken', label: 'Unspoken' },
 ]
 
+const CAREER_JOB_MODE_OPTIONS = [
+  { value: 'on-site', label: 'On-Site Jobs' },
+  { value: 'remote', label: 'Remote Jobs' },
+  { value: 'hybrid', label: 'Hybrid Jobs' },
+]
+
+const CAREER_CATEGORY_OPTIONS = [
+  'Agriculture', 'Arts & Entertainment', 'Business', 'Construction', 'Education',
+  'Engineering', 'Finance', 'Government', 'Healthcare', 'Information Technology',
+  'Law', 'Manufacturing', 'Media & Communications', 'Military', 'Science',
+  'Social Services', 'Sports', 'Transportation', 'Hospitality & Tourism',
+  'Skilled Trades', 'Environmental Services', 'Virtual Assistance',
+].map((label) => ({ value: label.toLowerCase(), label }))
+
 function listToInput(value) {
   return Array.isArray(value) ? value.join(', ') : value || ''
 }
@@ -216,6 +230,7 @@ export default function AdminDashboardPage() {
   const [newsFilters, setNewsFilters] = useState({
     section: 'news',
     tab: 'for-you',
+    jobMode: '',
     country: 'Nigeria',
     city: '',
     region: '',
@@ -236,7 +251,7 @@ export default function AdminDashboardPage() {
     else if (activeTab === 'notifications') loadPushStats()
     else if (activeTab === 'news') loadNews(1)
     else loadTable(1)
-  }, [activeTab, isAdmin, status, debouncedSearch, newsFilters.tab, newsFilters.section])
+  }, [activeTab, isAdmin, status, debouncedSearch, newsFilters.tab, newsFilters.section, newsFilters.jobMode])
 
   const loadDashboard = async () => {
     setLoading(true)
@@ -291,6 +306,7 @@ export default function AdminDashboardPage() {
         search: debouncedSearch || undefined,
         tab: newsFilters.tab,
         section: newsFilters.section,
+        jobMode: newsFilters.jobMode || undefined,
       })
       const payload = res.data?.data?.data || res.data?.data || {}
       setNewsRows(payload.articles || [])
@@ -1088,6 +1104,7 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
   const updatedAt = meta?.updatedAt ? new Date(meta.updatedAt).toLocaleString() : ''
   const emptyPostForm = {
     section: 'news',
+    jobMode: 'on-site',
     header: '',
     subHeader: '',
     body: '',
@@ -1097,6 +1114,7 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
   }
   const [postForm, setPostForm] = useState({
     section: 'news',
+    jobMode: 'on-site',
     header: '',
     subHeader: '',
     body: '',
@@ -1107,9 +1125,9 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
   const [postFiles, setPostFiles] = useState([])
   const [posting, setPosting] = useState(false)
   const [editingPost, setEditingPost] = useState(null)
-  const categoryOptions = NEWS_TAB_OPTIONS
+  const categoryOptions = (postForm.section === 'career' ? CAREER_CATEGORY_OPTIONS : NEWS_TAB_OPTIONS
     .filter((option) => !['for-you'].includes(option.value))
-    .map((option) => ({ ...option, value: option.value.toLowerCase() }))
+    .map((option) => ({ ...option, value: option.value.toLowerCase() })))
 
   const togglePostCategory = (value) => {
     setPostForm((current) => {
@@ -1141,6 +1159,7 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
     setEditingPost(article)
     setPostForm({
       section: article.section || 'news',
+      jobMode: article.jobMode || 'on-site',
       header: article.header || article.title || '',
       subHeader: article.subHeader || '',
       body: article.body || article.summary || '',
@@ -1170,6 +1189,7 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
     const data = new FormData()
     data.append('header', postForm.header)
     data.append('section', postForm.section || 'news')
+    data.append('jobMode', postForm.section === 'career' ? postForm.jobMode : '')
     data.append('subHeader', postForm.subHeader)
     data.append('body', postForm.body)
     data.append('categories', postForm.categories.join(','))
@@ -1237,7 +1257,12 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setPostForm({ ...postForm, section: option.value })}
+                  onClick={() => setPostForm({
+                    ...postForm,
+                    section: option.value,
+                    jobMode: option.value === 'career' ? (postForm.jobMode || 'on-site') : '',
+                    categories: option.value === 'career' ? ['information technology'] : ['headlines'],
+                  })}
                   className="px-4 py-2 rounded-xl text-sm font-bold"
                   style={{
                     background: selected ? 'var(--color-primary)' : 'var(--color-surface-high)',
@@ -1251,6 +1276,32 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
             })}
           </div>
         </div>
+
+        {postForm.section === 'career' && (
+          <div className="mt-4">
+            <p className="text-sm font-black mb-2" style={{ color: 'var(--color-text)' }}>Career job type</p>
+            <div className="flex flex-wrap gap-2">
+              {CAREER_JOB_MODE_OPTIONS.map((option) => {
+                const selected = postForm.jobMode === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setPostForm({ ...postForm, jobMode: option.value })}
+                    className="px-4 py-2 rounded-xl text-sm font-bold"
+                    style={{
+                      background: selected ? 'var(--color-primary)' : 'var(--color-surface-high)',
+                      color: selected ? '#fff' : 'var(--color-text-muted)',
+                      border: '1px solid var(--color-border)',
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
           <input
@@ -1274,7 +1325,9 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
         </div>
 
         <div className="mt-4">
-          <p className="text-sm font-black mb-2" style={{ color: 'var(--color-text)' }}>Categories</p>
+          <p className="text-sm font-black mb-2" style={{ color: 'var(--color-text)' }}>
+            {postForm.section === 'career' ? 'Career categories' : 'Categories'}
+          </p>
           <div className="flex flex-wrap gap-2">
             {categoryOptions.map((option) => {
               const selected = postForm.categories.includes(option.value)
@@ -1373,7 +1426,12 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
               key={option.value}
               type="button"
               className="px-4 py-2 rounded-xl text-sm font-black whitespace-nowrap"
-              onClick={() => setFilters({ ...filters, section: option.value, tab: 'for-you' })}
+              onClick={() => setFilters({
+                ...filters,
+                section: option.value,
+                tab: 'for-you',
+                jobMode: option.value === 'career' ? (filters.jobMode || 'on-site') : '',
+              })}
               style={{
                 background: filters.section === option.value ? 'var(--color-primary)' : 'var(--color-surface-high)',
                 color: filters.section === option.value ? '#fff' : 'var(--color-text-muted)',
@@ -1385,8 +1443,43 @@ function NewsPanel({ articles, meta, filters, setFilters, search, setSearch, onR
           ))}
         </div>
 
+        {filters.section === 'career' && (
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
+            <button
+              type="button"
+              className="px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap"
+              onClick={() => setFilters({ ...filters, jobMode: '' })}
+              style={{
+                background: !filters.jobMode ? 'var(--color-primary)' : 'var(--color-surface-high)',
+                color: !filters.jobMode ? '#fff' : 'var(--color-text-muted)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              All Jobs
+            </button>
+            {CAREER_JOB_MODE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className="px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap"
+                onClick={() => setFilters({ ...filters, jobMode: option.value })}
+                style={{
+                  background: filters.jobMode === option.value ? 'var(--color-primary)' : 'var(--color-surface-high)',
+                  color: filters.jobMode === option.value ? '#fff' : 'var(--color-text-muted)',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
-          {NEWS_TAB_OPTIONS.map((option) => (
+          {(filters.section === 'career'
+            ? [{ value: 'for-you', label: 'All Categories' }, ...CAREER_CATEGORY_OPTIONS]
+            : NEWS_TAB_OPTIONS
+          ).map((option) => (
             <button
               key={option.value}
               type="button"

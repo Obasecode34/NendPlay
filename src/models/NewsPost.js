@@ -127,6 +127,12 @@ const newsPostSchema = new mongoose.Schema(
       default: "news",
       index: true,
     },
+    jobMode: {
+      type: String,
+      enum: ["on-site", "remote", "hybrid", ""],
+      default: "",
+      index: true,
+    },
     categories: {
       type: [String],
       required: true,
@@ -191,6 +197,7 @@ const newsPostSchema = new mongoose.Schema(
 
 newsPostSchema.index({ status: 1, createdAt: -1 });
 newsPostSchema.index({ section: 1, status: 1, createdAt: -1 });
+newsPostSchema.index({ section: 1, jobMode: 1, createdAt: -1 });
 newsPostSchema.index({ categories: 1, createdAt: -1 });
 newsPostSchema.index({ header: "text", subHeader: "text", body: "text" });
 

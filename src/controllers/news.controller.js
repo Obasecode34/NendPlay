@@ -4,7 +4,7 @@ const ApiResponse = require("../utils/apiResponse");
 class NewsController {
   async getDailyNews(req, res) {
     try {
-      const { category, search, page, limit, tab, section, country, city, region } = req.query;
+      const { category, search, page, limit, tab, section, jobMode, country, city, region } = req.query;
       const result = await newsService.getDailyNews({
         category,
         search,
@@ -12,6 +12,7 @@ class NewsController {
         limit,
         tab,
         section,
+        jobMode,
         country,
         city,
         region,

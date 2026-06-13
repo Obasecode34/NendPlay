@@ -29,6 +29,21 @@ const SECTION_TABS = [
   { key: 'unspoken', label: 'Unspoken' },
 ]
 
+const CAREER_JOB_MODES = [
+  { key: 'on-site', label: 'On-Site Jobs' },
+  { key: 'remote', label: 'Remote Jobs' },
+  { key: 'hybrid', label: 'Hybrid Jobs' },
+]
+
+const CAREER_TABS = [
+  { key: 'for-you', label: 'All Categories' },
+  'Agriculture', 'Arts & Entertainment', 'Business', 'Construction', 'Education',
+  'Engineering', 'Finance', 'Government', 'Healthcare', 'Information Technology',
+  'Law', 'Manufacturing', 'Media & Communications', 'Military', 'Science',
+  'Social Services', 'Sports', 'Transportation', 'Hospitality & Tourism',
+  'Skilled Trades', 'Environmental Services', 'Virtual Assistance',
+].map((item) => (typeof item === 'string' ? { key: item.toLowerCase(), label: item } : item))
+
 const PAGE_LIMIT = 24
 const BLUE = '#1A73E8'
 const TEXT = '#101418'
@@ -158,6 +173,7 @@ export default function DailyNewsScreen({ navigation }) {
   const [articles, setArticles] = useState([])
   const [activeSection, setActiveSection] = useState('news')
   const [activeTab, setActiveTab] = useState('for-you')
+  const [activeJobMode, setActiveJobMode] = useState('on-site')
   const [searchOpen, setSearchOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -180,12 +196,13 @@ export default function DailyNewsScreen({ navigation }) {
   const params = useMemo(() => ({
     section: activeSection,
     tab: activeTab,
+    jobMode: activeSection === 'career' ? activeJobMode : undefined,
     search: search.trim(),
     country: locationInfo.countryCode || locationInfo.country || 'NG',
     city: locationInfo.city,
     region: locationInfo.region,
     limit: PAGE_LIMIT,
-  }), [activeSection, activeTab, search, locationInfo])
+  }), [activeSection, activeTab, activeJobMode, search, locationInfo])
 
   useEffect(() => {
     fetchNews(1, false)
@@ -257,7 +274,8 @@ export default function DailyNewsScreen({ navigation }) {
   const secondStory = articles[1]
   const relatedStories = articles.slice(2, 4)
   const remainingStories = articles.slice(4)
-  const activeTabLabel = TABS.find((tab) => tab.key === activeTab)?.label || 'For you'
+  const categoryTabs = activeSection === 'career' ? CAREER_TABS : TABS
+  const activeTabLabel = categoryTabs.find((tab) => tab.key === activeTab)?.label || 'For you'
   const localLabel = locationInfo.city || locationInfo.region || locationInfo.country || 'Local'
 
   const header = (
@@ -308,6 +326,7 @@ export default function DailyNewsScreen({ navigation }) {
               onPress={() => {
                 setActiveSection(item.key)
                 setActiveTab('for-you')
+                if (item.key === 'career') setActiveJobMode('on-site')
               }}
               style={[styles.sectionPill, active && styles.sectionPillActive]}>
               <Text style={[styles.sectionPillText, active && styles.sectionPillTextActive]}>{item.label}</Text>
@@ -316,11 +335,32 @@ export default function DailyNewsScreen({ navigation }) {
         }}
       />
 
+      {activeSection === 'career' ? (
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.jobModeList}
+          data={CAREER_JOB_MODES}
+          keyExtractor={(item) => item.key}
+          renderItem={({ item }) => {
+            const active = item.key === activeJobMode
+            return (
+              <TouchableOpacity
+                activeOpacity={0.78}
+                onPress={() => setActiveJobMode(item.key)}
+                style={[styles.jobModePill, active && styles.jobModePillActive]}>
+                <Text style={[styles.jobModeText, active && styles.jobModeTextActive]}>{item.label}</Text>
+              </TouchableOpacity>
+            )
+          }}
+        />
+      ) : null}
+
       <FlatList
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tabList}
-        data={TABS}
+        data={categoryTabs}
         keyExtractor={(item) => item.key}
         renderItem={({ item }) => {
           const active = item.key === activeTab
@@ -346,7 +386,11 @@ export default function DailyNewsScreen({ navigation }) {
             {activeTab === 'local'
               ? `Live updates near ${localLabel}`
               : source === 'fallback'
-                ? (activeSection === 'news' ? 'Briefing mode until a news API key is added' : 'Fresh posts from NendPlay')
+                ? (activeSection === 'news'
+                  ? 'Briefing mode until a news API key is added'
+                  : activeSection === 'career'
+                    ? 'Career opportunities from NendPlay'
+                    : 'Fresh posts from NendPlay')
                 : 'Live headlines from trusted publishers'}
           </Text>
         </View>
@@ -449,6 +493,23 @@ const styles = StyleSheet.create({
   sectionPillActive: { backgroundColor: BLUE, borderColor: BLUE },
   sectionPillText: { color: TEXT, fontSize: 15, fontWeight: '800' },
   sectionPillTextActive: { color: '#FFFFFF' },
+  jobModeList: {
+    backgroundColor: SOFT_BG,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  jobModePill: {
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: DIVIDER,
+  },
+  jobModePillActive: { backgroundColor: '#0B3046', borderColor: '#0B3046' },
+  jobModeText: { color: TEXT, fontSize: 13, fontWeight: '800' },
+  jobModeTextActive: { color: '#FFFFFF' },
   tabList: {
     backgroundColor: SOFT_BG,
     paddingHorizontal: 12,

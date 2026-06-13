@@ -23,6 +23,21 @@ const HUB_TABS = [
   { value: 'unspoken', label: 'Unspoken' },
 ]
 
+const CAREER_JOB_MODE_TABS = [
+  { value: 'on-site', label: 'On-Site Jobs' },
+  { value: 'remote', label: 'Remote Jobs' },
+  { value: 'hybrid', label: 'Hybrid Jobs' },
+]
+
+const CAREER_TABS = [
+  { value: 'for-you', label: 'All Categories' },
+  'Agriculture', 'Arts & Entertainment', 'Business', 'Construction', 'Education',
+  'Engineering', 'Finance', 'Government', 'Healthcare', 'Information Technology',
+  'Law', 'Manufacturing', 'Media & Communications', 'Military', 'Science',
+  'Social Services', 'Sports', 'Transportation', 'Hospitality & Tourism',
+  'Skilled Trades', 'Environmental Services', 'Virtual Assistance',
+].map((item) => (typeof item === 'string' ? { value: item.toLowerCase(), label: item } : item))
+
 function timeAgo(value) {
   if (!value) return 'Today'
   const diff = Date.now() - new Date(value).getTime()
@@ -85,19 +100,21 @@ export default function DailyNewsPage() {
   const sentinelRef = useRef(null)
   const activeSection = searchParams.get('section') || 'news'
   const activeTab = searchParams.get('tab') || 'for-you'
+  const activeJobMode = searchParams.get('jobMode') || 'on-site'
 
   const params = useMemo(() => ({
     section: activeSection,
     tab: activeTab,
+    jobMode: activeSection === 'career' ? activeJobMode : undefined,
     search: searchParams.get('search') || undefined,
     country: 'Nigeria',
     page: Number(searchParams.get('page') || 1),
     limit: 18,
-  }), [activeSection, activeTab, searchParams])
+  }), [activeSection, activeTab, activeJobMode, searchParams])
 
   useEffect(() => {
     loadNews(1, false)
-  }, [activeSection, activeTab, searchParams.get('search')])
+  }, [activeSection, activeTab, activeJobMode, searchParams.get('search')])
 
   const loadNews = async (page = 1, append = false) => {
     if (append && loadingMoreRef.current) return
@@ -141,11 +158,17 @@ export default function DailyNewsPage() {
 
   const submitSearch = (event) => {
     event.preventDefault()
-    setSearchParams({ section: activeSection, tab: activeTab, ...(search.trim() ? { search: search.trim() } : {}) })
+    setSearchParams({
+      section: activeSection,
+      tab: activeTab,
+      ...(activeSection === 'career' ? { jobMode: activeJobMode } : {}),
+      ...(search.trim() ? { search: search.trim() } : {}),
+    })
   }
 
   const featured = articles[0]
   const rest = articles.slice(1)
+  const categoryTabs = activeSection === 'career' ? CAREER_TABS : NEWS_TABS
 
   return (
     <div className="animate-fade-in pb-20">
@@ -161,7 +184,9 @@ export default function DailyNewsPage() {
           <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
             {activeSection === 'news'
               ? 'For you mixes every category, with NendPlay editorials shown first.'
-              : 'Fresh NendPlay posts from the admin desk.'}
+              : activeSection === 'career'
+                ? 'Browse NendPlay career opportunities by job type and category.'
+                : 'Fresh NendPlay posts from the admin desk.'}
           </p>
         </div>
         <form onSubmit={submitSearch} className="relative w-full max-w-md">
@@ -180,7 +205,12 @@ export default function DailyNewsPage() {
           <button
             key={tab.value}
             type="button"
-            onClick={() => setSearchParams({ section: tab.value, tab: 'for-you', ...(search.trim() ? { search: search.trim() } : {}) })}
+            onClick={() => setSearchParams({
+              section: tab.value,
+              tab: 'for-you',
+              ...(tab.value === 'career' ? { jobMode: 'on-site' } : {}),
+              ...(search.trim() ? { search: search.trim() } : {}),
+            })}
             className="whitespace-nowrap rounded-xl px-4 py-2 text-sm font-black"
             style={{
               background: activeSection === tab.value ? 'var(--color-primary)' : 'var(--color-surface)',
@@ -193,12 +223,42 @@ export default function DailyNewsPage() {
         ))}
       </div>
 
+      {activeSection === 'career' && (
+        <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar pb-2">
+          {CAREER_JOB_MODE_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setSearchParams({
+                section: 'career',
+                jobMode: tab.value,
+                tab: activeTab,
+                ...(search.trim() ? { search: search.trim() } : {}),
+              })}
+              className="whitespace-nowrap rounded-xl px-3 py-2 text-xs font-black"
+              style={{
+                background: activeJobMode === tab.value ? 'var(--color-primary)' : 'var(--color-surface)',
+                color: activeJobMode === tab.value ? '#fff' : 'var(--color-text-muted)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-2">
-        {NEWS_TABS.map((tab) => (
+        {categoryTabs.map((tab) => (
           <button
             key={tab.value}
             type="button"
-            onClick={() => setSearchParams({ section: activeSection, tab: tab.value, ...(search.trim() ? { search: search.trim() } : {}) })}
+            onClick={() => setSearchParams({
+              section: activeSection,
+              tab: tab.value,
+              ...(activeSection === 'career' ? { jobMode: activeJobMode } : {}),
+              ...(search.trim() ? { search: search.trim() } : {}),
+            })}
             className="whitespace-nowrap rounded-xl px-3 py-2 text-xs font-black"
             style={{
               background: activeTab === tab.value ? 'var(--color-primary)' : 'var(--color-surface)',
