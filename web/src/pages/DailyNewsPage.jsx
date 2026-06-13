@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { RiGlobalLine, RiSearchLine, RiNewspaperLine, RiTimeLine } from 'react-icons/ri'
 import { newsService } from '../services'
@@ -38,27 +38,27 @@ function NewsCard({ article, featured = false, onOpen }) {
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') onOpen(article)
       }}
-      className={`cursor-pointer rounded-2xl transition-transform hover:-translate-y-1 ${featured ? 'p-0' : 'p-4'}`}
+      className={`cursor-pointer overflow-hidden rounded-xl transition-transform hover:-translate-y-1 ${featured ? 'p-0' : 'p-3'}`}
       style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
     >
       {article.imageUrl && (
-        <div className={`overflow-hidden ${featured ? 'rounded-t-2xl aspect-[16/8]' : 'rounded-xl aspect-video mb-4'}`}>
+        <div className={`overflow-hidden ${featured ? 'aspect-[16/7]' : 'mb-3 aspect-video rounded-lg'}`}>
           <img src={article.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
         </div>
       )}
-      <div className={featured ? 'p-5' : ''}>
-        <div className="mb-3 flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+      <div className={featured ? 'p-4' : ''}>
+        <div className="mb-2 flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
           <RiNewspaperLine style={{ color: 'var(--color-primary)' }} />
           <span className="font-bold">{article.source || 'NendPlay News'}</span>
           <span>•</span>
           <RiTimeLine />
           <span>{timeAgo(article.publishedAt)}</span>
         </div>
-        <h2 className={`${featured ? 'text-3xl' : 'text-xl'} font-black leading-tight`} style={{ color: 'var(--color-text)' }}>
+        <h2 className={`${featured ? 'text-2xl md:text-3xl' : 'text-base'} font-black leading-tight`} style={{ color: 'var(--color-text)' }}>
           {article.header || article.title}
         </h2>
         {(article.subHeader || article.summary) && (
-          <p className="mt-3 line-clamp-3 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+          <p className="mt-2 line-clamp-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
             {article.subHeader || article.summary}
           </p>
         )}
@@ -75,6 +75,8 @@ export default function DailyNewsPage() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState(searchParams.get('search') || '')
+  const loadingMoreRef = useRef(false)
+  const sentinelRef = useRef(null)
   const activeTab = searchParams.get('tab') || 'for-you'
 
   const params = useMemo(() => ({
@@ -82,7 +84,7 @@ export default function DailyNewsPage() {
     search: searchParams.get('search') || undefined,
     country: 'Nigeria',
     page: Number(searchParams.get('page') || 1),
-    limit: 12,
+    limit: 18,
   }), [activeTab, searchParams])
 
   useEffect(() => {
@@ -90,6 +92,8 @@ export default function DailyNewsPage() {
   }, [activeTab, searchParams.get('search')])
 
   const loadNews = async (page = 1, append = false) => {
+    if (append && loadingMoreRef.current) return
+    loadingMoreRef.current = append
     if (append) setLoadingMore(true)
     else setLoading(true)
     try {
@@ -100,8 +104,24 @@ export default function DailyNewsPage() {
     } finally {
       setLoading(false)
       setLoadingMore(false)
+      loadingMoreRef.current = false
     }
   }
+
+  const loadNextPage = useCallback(() => {
+    if (!pagination || loading || loadingMore || pagination.page >= pagination.pages) return
+    loadNews((pagination.page || 1) + 1, true)
+  }, [pagination, loading, loadingMore, params])
+
+  useEffect(() => {
+    const node = sentinelRef.current
+    if (!node || !pagination || pagination.page >= pagination.pages) return undefined
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) loadNextPage()
+    }, { rootMargin: '450px 0px' })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [loadNextPage, pagination])
 
   const openArticle = (article) => {
     if (article.kind === 'nendplay' || article._id) {
@@ -121,19 +141,21 @@ export default function DailyNewsPage() {
 
   return (
     <div className="animate-fade-in pb-20">
-      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="mb-2 inline-flex h-12 w-12 items-center justify-center rounded-2xl"
+          <div className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl"
             style={{ background: 'var(--color-primary)', color: '#fff' }}>
-            <RiGlobalLine className="text-2xl" />
+            <RiGlobalLine className="text-xl" />
           </div>
-          <h1 className="font-display text-4xl font-black" style={{ color: 'var(--color-text)' }}>News Globe</h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>Live stories, local updates, and NendPlay editorials.</p>
+          <h1 className="font-display text-3xl font-black" style={{ color: 'var(--color-text)' }}>News Globe</h1>
+          <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            For you mixes every category, with NendPlay editorials shown first.
+          </p>
         </div>
         <form onSubmit={submitSearch} className="relative w-full max-w-md">
           <RiSearchLine className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-muted)' }} />
           <input
-            className="input-base py-3 pl-11"
+            className="input-base py-2.5 pl-11 text-sm"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search news..."
@@ -141,13 +163,13 @@ export default function DailyNewsPage() {
         </form>
       </div>
 
-      <div className="mb-6 flex gap-3 overflow-x-auto no-scrollbar pb-2">
+      <div className="mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-2">
         {NEWS_TABS.map((tab) => (
           <button
             key={tab.value}
             type="button"
             onClick={() => setSearchParams({ tab: tab.value, ...(search.trim() ? { search: search.trim() } : {}) })}
-            className="whitespace-nowrap rounded-2xl px-4 py-2 text-sm font-black"
+            className="whitespace-nowrap rounded-xl px-3 py-2 text-xs font-black"
             style={{
               background: activeTab === tab.value ? 'var(--color-primary)' : 'var(--color-surface)',
               color: activeTab === tab.value ? '#fff' : 'var(--color-text-muted)',
@@ -173,19 +195,15 @@ export default function DailyNewsPage() {
         </div>
       ) : (
         <>
-          {featured && <div className="mb-5"><NewsCard article={featured} featured onOpen={openArticle} /></div>}
-          <div className="grid gap-4 lg:grid-cols-2">
+          {featured && <div className="mb-4"><NewsCard article={featured} featured onOpen={openArticle} /></div>}
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {rest.map((article, index) => (
               <NewsCard key={article._id || article.id || index} article={article} onOpen={openArticle} />
             ))}
           </div>
-          {pagination && pagination.page < pagination.pages && (
-            <div className="mt-8 flex justify-center">
-              <button className="btn-primary px-5 py-3 text-sm" disabled={loadingMore} onClick={() => loadNews((pagination.page || 1) + 1, true)}>
-                {loadingMore ? 'Loading...' : 'Load more news'}
-              </button>
-            </div>
-          )}
+          <div ref={sentinelRef} className="mt-8 flex min-h-12 justify-center">
+            {loadingMore && <span className="text-sm font-bold" style={{ color: 'var(--color-text-muted)' }}>Loading more news...</span>}
+          </div>
         </>
       )}
     </div>

@@ -324,6 +324,12 @@ class NewsService {
       return {
         ...fallback,
         articles: [...internal.articles, ...fallback.articles].slice(0, parsedLimit),
+        source: internal.articles.length ? "nendplay+fallback" : fallback.source,
+        pagination: {
+          ...fallback.pagination,
+          total: internal.total + fallback.pagination.total,
+          pages: Math.max(Math.ceil((internal.total + fallback.pagination.total) / parsedLimit), 1),
+        },
       };
     }
 
@@ -350,13 +356,13 @@ class NewsService {
           region: tabConfig.region,
         })
       ));
-      const total = response.data.totalResults || articles.length;
+      const total = (response.data.totalResults || articles.length) + internal.total;
 
       const merged = [...internal.articles, ...articles].slice(0, parsedLimit);
 
       return {
         articles: merged,
-        source: "newsapi",
+        source: internal.articles.length ? "nendplay+newsapi" : "newsapi",
         tab,
         location: {
           country: country || (tabConfig.country === "ng" ? "Nigeria" : ""),
@@ -385,6 +391,12 @@ class NewsService {
       return {
         ...fallback,
         articles: [...internal.articles, ...fallback.articles].slice(0, parsedLimit),
+        source: internal.articles.length ? "nendplay+fallback" : fallback.source,
+        pagination: {
+          ...fallback.pagination,
+          total: internal.total + fallback.pagination.total,
+          pages: Math.max(Math.ceil((internal.total + fallback.pagination.total) / parsedLimit), 1),
+        },
       };
     }
   }
