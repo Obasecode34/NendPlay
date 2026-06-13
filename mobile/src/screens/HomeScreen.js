@@ -241,119 +241,20 @@ function RankingRow({ title, items, onPress, theme, onLayout }) {
   )
 }
 
-function CategoryTileRow({ categories, activeCategory, theme, onCategoryPress, onDevicePress, onDailyNewsPress }) {
+function CategoryTileRow({ categories, activeCategory, theme, onCategoryPress }) {
   const c = theme.colors
-  const deviceFeatures = [
-    { label: 'Videos', icon: 'play-circle-outline', color: '#22C55E' },
-    { label: 'Music', icon: 'musical-notes-outline', color: '#38BDF8' },
-    { label: 'Office', icon: 'documents-outline', color: '#F59E0B' },
-  ]
   return (
     <View style={{ marginBottom: 24 }}>
-      <TouchableOpacity
-        activeOpacity={0.88}
-        onPress={onDevicePress}
-        style={{
-          marginHorizontal: 16,
-          marginBottom: 14,
-          borderRadius: 18,
-          overflow: 'hidden',
-          backgroundColor: c.surface,
-          borderWidth: 1,
-          borderColor: c.border,
-        }}>
-        <View style={{ position: 'absolute', top: -44, right: -24, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(34,197,94,0.18)' }} />
-        <View style={{ position: 'absolute', bottom: -54, left: -34, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(56,189,248,0.15)' }} />
-        <View style={{ padding: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <View style={{
-              width: 58,
-              height: 58,
-              borderRadius: 18,
-              backgroundColor: c.primary,
-              alignItems: 'center',
-              justifyContent: 'center',
-              shadowColor: c.primary,
-              shadowOpacity: 0.35,
-              shadowRadius: 16,
-              elevation: 4,
-            }}>
-              <Ionicons name="phone-portrait" size={28} color="#FFFFFF" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>
-                NendPlay Device
-              </Text>
-              <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 4, lineHeight: 17 }} numberOfLines={2}>
-                Play local videos, music, and office files from your phone.
-              </Text>
-            </View>
-            <View style={{
-              width: 34,
-              height: 34,
-              borderRadius: 17,
-              backgroundColor: c.surfaceHigh,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <Ionicons name="chevron-forward" size={19} color={c.text} />
-            </View>
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-            {deviceFeatures.map((item) => (
-              <View
-                key={item.label}
-                style={{
-                  flex: 1,
-                  minHeight: 56,
-                  borderRadius: 14,
-                  backgroundColor: c.bg,
-                  borderWidth: 1,
-                  borderColor: c.border,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 4,
-                }}>
-                <Ionicons name={item.icon} size={19} color={item.color} />
-                <Text style={{ color: c.text, fontSize: 11, fontWeight: '900' }}>
-                  {item.label}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      </TouchableOpacity>
-
       <View style={{
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
         paddingHorizontal: 16,
         marginBottom: 12,
       }}>
         <Text style={{ color: c.text, fontSize: 18, fontWeight: '900' }}>
           Categories
         </Text>
-        <TouchableOpacity
-          activeOpacity={0.82}
-          onPress={onDailyNewsPress}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-            paddingHorizontal: 10,
-            paddingVertical: 7,
-            borderRadius: 16,
-            backgroundColor: c.surface,
-            borderWidth: 1,
-            borderColor: c.border,
-          }}>
-          <Ionicons name="newspaper-outline" size={15} color={c.primary} />
-          <Text style={{ color: c.primary, fontSize: 12, fontWeight: '900' }}>
-            Daily News
-          </Text>
-        </TouchableOpacity>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
         {categories.map((category) => (
@@ -601,6 +502,35 @@ export default function HomeScreen({ navigation }) {
     },
     heroDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.45)' },
     heroDotActive: { width: 18, backgroundColor: '#FFFFFF' },
+    floatingNewsButton: {
+      position: 'absolute',
+      right: 18,
+      bottom: 86,
+      width: 58,
+      height: 58,
+      borderRadius: 29,
+      backgroundColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: 'rgba(255,255,255,0.28)',
+      shadowColor: c.primary,
+      shadowOpacity: 0.45,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 8,
+    },
+    floatingNewsBadge: {
+      position: 'absolute',
+      top: -2,
+      right: -2,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: '#EF4444',
+      borderWidth: 2,
+      borderColor: c.bg,
+    },
   })
 
   return (
@@ -750,8 +680,6 @@ export default function HomeScreen({ navigation }) {
             activeCategory={activeCategory.label}
             theme={theme}
             onCategoryPress={setActiveCategory}
-            onDevicePress={() => navigation.navigate('DeviceMedia')}
-            onDailyNewsPress={() => navigation.navigate('DailyNews')}
           />
 
           {activeHomeTab === 'Shorts' ? (
@@ -839,6 +767,15 @@ export default function HomeScreen({ navigation }) {
           <View style={{ height: 20 }} />
         </ScrollView>
       )}
+      <TouchableOpacity
+        activeOpacity={0.86}
+        style={s.floatingNewsButton}
+        onPress={() => navigation.navigate('DailyNews')}
+        accessibilityRole="button"
+        accessibilityLabel="Open news">
+        <Ionicons name="planet" size={27} color="#FFFFFF" />
+        <View style={s.floatingNewsBadge} />
+      </TouchableOpacity>
     </View>
   )
 }

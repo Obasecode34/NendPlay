@@ -22,6 +22,8 @@ import ReferralPage from './pages/ReferralPage'
 import RewardsPage from './pages/RewardsPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import NotFoundPage from './pages/NotFoundPage'
+import DailyNewsPage from './pages/DailyNewsPage'
+import NewsArticlePage from './pages/NewsArticlePage'
 
 // Public route (redirect to home if already logged in)
 const PublicRoute = ({ children }) => {
@@ -57,6 +59,8 @@ export default function App() {
         <Route path="novelhub" element={<NovelHubPage />} />
         <Route path="shorts" element={<ShortsPage />} />
         <Route path="downloads" element={<DownloadsPage />} />
+        <Route path="news" element={<DailyNewsPage />} />
+        <Route path="news/:id" element={<NewsArticlePage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="watch/:id" element={<MediaPlayerPage />} />
         <Route path="subscribe" element={<SubscriptionPage />} />

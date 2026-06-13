@@ -5,7 +5,7 @@ import {
   RiUserFill, RiMenuFill, RiCloseFill, RiSearchLine,
   RiNotification3Line, RiBroadcastFill, RiSettings3Line,
   RiLogoutBoxRLine, RiMegaphoneFill, RiGiftFill, RiLoginBoxLine, RiUserAddLine,
-  RiShieldUserFill
+  RiShieldUserFill, RiNewspaperFill
 } from 'react-icons/ri'
 import useAuthStore from '../../stores/authStore'
 import useThemeStore from '../../stores/themeStore'
@@ -18,6 +18,7 @@ const navItems = [
   { to: '/novelhub', icon: RiBookOpenFill, label: 'NovelHub' },
   { to: '/shorts', icon: RiVideoFill, label: 'Shorts' },
   { to: '/downloads', icon: RiDownloadFill, label: 'Downloads' },
+  { to: '/news', icon: RiNewspaperFill, label: 'News' },
   { to: '/profile', icon: RiUserFill, label: 'Profile' },
 ]
 
@@ -100,6 +101,16 @@ export default function MainLayout() {
       Subscription: '/subscribe',
       Downloads: '/downloads',
       Profile: '/profile',
+    }
+    const linkedType = item.contentType || item.data?.contentType
+    const linkedId = item.contentId || item.data?.contentId || item.data?.newsId || item.data?.mediaId
+    if (linkedType === 'news' && linkedId) {
+      navigate(`/news/${linkedId}`)
+      return
+    }
+    if (linkedType === 'media' && linkedId) {
+      navigate(`/watch/${linkedId}`)
+      return
     }
     navigate(routes[item.screen] || '/home')
   }

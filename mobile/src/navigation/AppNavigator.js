@@ -102,6 +102,7 @@ function MainTabs() {
             NovelHub: focused ? 'book' : 'book-outline',
             Shorts: focused ? 'play-circle' : 'play-circle-outline',
             Downloads: focused ? 'download' : 'download-outline',
+            Device: focused ? 'phone-portrait' : 'phone-portrait-outline',
             Profile: focused ? 'person' : 'person-outline',
           }
           return (
@@ -117,6 +118,11 @@ function MainTabs() {
       <Tab.Screen name="NovelHub" component={NovelHubScreen} />
       <Tab.Screen name="Shorts" component={ShortsScreen} />
       <Tab.Screen name="Downloads" component={DownloadsScreen} />
+      <Tab.Screen
+        name="Device"
+        component={DeviceMediaScreen}
+        options={{ tabBarLabel: 'Device' }}
+      />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   )

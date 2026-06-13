@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { RiPlayFill, RiBroadcastFill } from 'react-icons/ri'
+import { RiPlayFill, RiGlobalLine } from 'react-icons/ri'
 import { useInView } from 'react-intersection-observer'
 import toast from 'react-hot-toast'
 import { mediaService, novelService } from '../services/index'
@@ -275,7 +275,7 @@ export default function HomePage() {
   })).filter((section) => section.items.length > 0)
 
   return (
-    <div className="animate-fade-in">
+    <div className="relative animate-fade-in pb-20">
       {!searchQuery && (
         <div className="mb-5 flex gap-7 overflow-x-auto no-scrollbar text-lg font-semibold">
           {HOME_TABS.map((tab) => (
@@ -522,6 +522,21 @@ export default function HomePage() {
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
         )}
       </div>
+
+      {!searchQuery && (
+        <button
+          type="button"
+          onClick={() => navigate('/news')}
+          className="fixed bottom-8 right-8 z-30 flex h-16 w-16 items-center justify-center rounded-full text-white shadow-2xl transition-transform hover:scale-105"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
+            boxShadow: '0 18px 40px var(--glow-color)',
+          }}
+          aria-label="Open news">
+          <RiGlobalLine className="text-3xl" />
+          <span className="absolute right-1 top-1 h-4 w-4 rounded-full border-2 border-white bg-red-500" />
+        </button>
+      )}
     </div>
   )
 }
