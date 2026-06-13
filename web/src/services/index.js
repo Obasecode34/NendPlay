@@ -137,6 +137,7 @@ export const adminService = {
   deleteDocument: (id) => api.delete(`/admin/documents/${id}`),
   getAds: (params) => api.get('/admin/ads', { params }),
   updateAd: (id, data) => api.patch(`/admin/ads/${id}`, data),
+  deleteAd: (id) => api.delete(`/admin/ads/${id}`),
   getSubscriptions: (params) => api.get('/admin/subscriptions', { params }),
   getDownloads: (params) => api.get('/admin/downloads', { params }),
   getRewards: (params) => api.get('/admin/rewards', { params }),
@@ -149,6 +150,8 @@ export const adminService = {
     : undefined),
   deleteNewsPost: (id) => api.delete(`/admin/news/${id}`),
   getPushStats: () => api.get('/notifications/admin/stats'),
+  getInAppNotifications: (params) => api.get('/notifications/admin/in-app', { params }),
+  deleteInAppNotification: (id) => api.delete(`/notifications/admin/in-app/${id}`),
   sendPushNotification: (data) => api.post('/notifications/admin/send', data, data instanceof FormData
     ? { headers: { 'Content-Type': 'multipart/form-data' } }
     : undefined),
@@ -159,6 +162,7 @@ export const adminService = {
 
 export const notificationService = {
   getMine: (params) => api.get('/notifications/me', { params }),
+  getPublicPopups: (params) => api.get('/notifications/public/popups', { params }),
   markRead: (id) => api.patch(`/notifications/me/${id}/read`),
   markAllRead: () => api.patch('/notifications/me/read-all'),
 }

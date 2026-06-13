@@ -20,6 +20,12 @@ const inAppNotificationSchema = new mongoose.Schema(
       default: "all",
       index: true,
     },
+    deliveryMode: {
+      type: String,
+      enum: ["bell", "popup", "both"],
+      default: "bell",
+      index: true,
+    },
     userIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -87,5 +93,6 @@ const inAppNotificationSchema = new mongoose.Schema(
 inAppNotificationSchema.index({ createdAt: -1 });
 inAppNotificationSchema.index({ userIds: 1 });
 inAppNotificationSchema.index({ "readBy.userId": 1 });
+inAppNotificationSchema.index({ deliveryMode: 1, isActive: 1, createdAt: -1 });
 
 module.exports = mongoose.model("InAppNotification", inAppNotificationSchema);

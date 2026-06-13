@@ -7,11 +7,14 @@ const { uploadThumbnail, handleMulterError } = require("../middleware/upload.mid
 
 router.post("/register", optionalAuthMiddleware, notificationController.registerPushToken);
 router.post("/unregister", optionalAuthMiddleware, notificationController.unregisterPushToken);
+router.get("/public/popups", notificationController.getPublicPopups);
 router.get("/tokens", authMiddleware, notificationController.getPushTokens);
 router.get("/me", authMiddleware, notificationController.getMyNotifications);
 router.patch("/me/read-all", authMiddleware, notificationController.markAllNotificationsRead);
 router.patch("/me/:id/read", authMiddleware, notificationController.markNotificationRead);
 router.get("/admin/stats", authMiddleware, requireAdmin("notifications:read"), notificationController.getPushStats);
+router.get("/admin/in-app", authMiddleware, requireAdmin("notifications:read"), notificationController.listInAppNotifications);
+router.delete("/admin/in-app/:id", authMiddleware, requireAdmin("notifications:write"), notificationController.deleteInAppNotification);
 router.post(
   "/admin/send",
   authMiddleware,

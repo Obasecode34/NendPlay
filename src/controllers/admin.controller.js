@@ -96,6 +96,11 @@ class AdminController {
     return ApiResponse.success(res, { message: "Ad updated", data: { ad } });
   });
 
+  deleteAd = wrap(async (req, res) => {
+    const result = await adminService.deleteAd(req.params.id);
+    return ApiResponse.success(res, { message: "Ad deleted", data: result });
+  });
+
   listSubscriptions = wrap(async (req, res) => {
     return ApiResponse.success(res, { data: await adminService.listSubscriptions(req.query) });
   });

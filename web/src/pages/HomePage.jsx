@@ -29,6 +29,7 @@ const HOME_CATEGORIES = [
   { label: 'Chinese Cinema', terms: ['chinese cinema', 'china', 'chinese', 'mandarin'] },
   { label: 'Hong Kong Cinema', terms: ['hong kong cinema', 'hong kong', 'cantonese'] },
   { label: 'Japanese Cinema', terms: ['japanese cinema', 'japan', 'japanese'] },
+  { label: 'Philippine Cinema', terms: ['philippine cinema', 'philippines', 'philippine', 'filipino', 'tagalog'] },
   { label: 'European Cinema', terms: ['european cinema', 'europe', 'british', 'french', 'german', 'italian', 'spanish'] },
 ]
 const MOVIE_GENRES = [
@@ -338,7 +339,7 @@ export default function HomePage() {
   return (
     <div className="relative animate-fade-in pb-20">
       {!searchQuery && (
-        <div className="mb-5 flex gap-7 overflow-x-auto no-scrollbar text-lg font-semibold">
+        <div className="mb-4 flex gap-5 overflow-x-auto no-scrollbar text-base font-semibold sm:mb-5 sm:gap-7 sm:text-lg">
           {HOME_TABS.map((tab) => (
             <button
               key={tab}
@@ -355,14 +356,14 @@ export default function HomePage() {
 
       {/* Hero Banner */}
       {!searchQuery && featuredItems.length > 0 && (
-        <div className="relative rounded-2xl overflow-hidden mb-8"
+        <div className="relative h-[240px] overflow-hidden rounded-2xl mb-6 sm:h-[320px] sm:mb-8 lg:h-[380px]"
           role="button"
           tabIndex={0}
           onClick={openMovieCategory}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') openMovieCategory()
           }}
-          style={{ height: '380px', cursor: 'pointer' }}>
+          style={{ cursor: 'pointer' }}>
           <div
             className="flex h-full transition-transform duration-700 ease-out"
             style={{ transform: `translateX(-${featuredIndex * 100}%)` }}
@@ -382,27 +383,27 @@ export default function HomePage() {
 
           {/* Overlay */}
           <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.85) 40%, transparent 100%)' }} />
+            style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.88) 20%, rgba(0,0,0,0.42) 68%, transparent 100%)' }} />
 
           {/* Glow */}
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: 'linear-gradient(to top, var(--color-bg) 0%, transparent 50%)' }} />
 
-          <div className="absolute inset-0 flex flex-col justify-end p-8">
+          <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-8">
             <div className="max-w-lg">
               <span className="inline-block px-3 py-1 rounded-full text-xs font-bold text-white mb-3"
                 style={{ background: 'var(--color-primary)' }}>
                 Featured
               </span>
-              <h1 className="font-display font-black text-4xl text-white mb-2 leading-tight">
+              <h1 className="font-display font-black text-2xl text-white mb-2 leading-tight sm:text-4xl">
                 {featuredItems[featuredIndex]?.title}
               </h1>
               {featuredItems[featuredIndex]?.description && (
-                <p className="text-sm text-white/70 mb-4 line-clamp-2 max-w-sm">
+                <p className="text-xs text-white/70 mb-4 line-clamp-2 max-w-sm sm:text-sm">
                   {featuredItems[featuredIndex].description}
                 </p>
               )}
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-2 sm:gap-3">
                 <button
                   onClick={(event) => {
                     event.stopPropagation()
@@ -424,7 +425,7 @@ export default function HomePage() {
           </div>
 
           {featuredItems.length > 1 && (
-            <div className="absolute bottom-6 right-8 flex items-center gap-2">
+            <div className="absolute bottom-4 right-4 flex items-center gap-2 sm:bottom-6 sm:right-8">
               {featuredItems.map((media, index) => (
                 <button
                   key={media._id}
@@ -464,12 +465,12 @@ export default function HomePage() {
           <h2 className="font-display font-bold text-lg mb-4" style={{ color: 'var(--color-text)' }}>
             Categories
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 sm:gap-3">
             {HOME_CATEGORIES.map((category) => (
               <button
                 key={category.label}
                 onClick={() => setActiveCategory(category)}
-                className="flex items-center gap-3 p-4 rounded-xl text-left transition-all hover:scale-105"
+                className="flex items-center gap-2 rounded-xl p-3 text-left transition-all hover:scale-105 sm:gap-3 sm:p-4"
                 style={{
                   background: activeCategory.label === category.label ? 'var(--color-primary)' : 'var(--color-surface)',
                   border: '1px solid var(--color-border)',
@@ -482,7 +483,7 @@ export default function HomePage() {
                   <RiPlayFill />
                 </div>
                 <span
-                  className="text-sm font-medium"
+                  className="min-w-0 text-sm font-medium leading-tight"
                   style={{ color: activeCategory.label === category.label ? '#FFFFFF' : 'var(--color-text)' }}>
                   {category.label}
                 </span>

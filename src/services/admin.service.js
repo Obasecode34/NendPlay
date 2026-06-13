@@ -800,8 +800,6 @@ class AdminService {
   }
 
   async deleteMedia(mediaId, admin) {
-    this.assertSuperAdmin(admin);
-
     const media = await Media.findById(mediaId);
     if (!media) throw { status: 404, message: "Media not found" };
 
@@ -940,6 +938,19 @@ class AdminService {
     const ad = await Ad.findByIdAndUpdate(adId, updates, { new: true });
     if (!ad) throw { status: 404, message: "Ad not found" };
     return ad;
+  }
+
+  async deleteAd(adId) {
+    const ad = await Ad.findById(adId);
+    if (!ad) throw { status: 404, message: "Ad not found" };
+
+    if (ad.cloudinaryPublicId) {
+      const resourceType = ad.adType === "video" ? "video" : "image";
+      await cloudinaryService.deleteFile(ad.cloudinaryPublicId, resourceType);
+    }
+
+    await Ad.findByIdAndDelete(adId);
+    return { deletedAdId: adId };
   }
 
   async listSubscriptions(query) {

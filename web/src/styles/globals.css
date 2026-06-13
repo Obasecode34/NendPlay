@@ -117,6 +117,20 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  min-width: 0;
+}
+
 /* ── Scrollbar ─────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--color-bg); }
@@ -292,3 +306,29 @@ body {
   -ms-overflow-style: none;
 }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+@media (max-width: 767px) {
+  html {
+    scroll-padding-bottom: 88px;
+  }
+
+  .btn-primary,
+  .btn-ghost {
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+  }
+
+  .input-base {
+    padding: 11px 13px;
+    font-size: 13px;
+  }
+
+  .card:hover {
+    transform: none;
+  }
+
+  table {
+    font-size: 13px;
+  }
+}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import ReactPlayer from 'react-player/lazy'
 import toast from 'react-hot-toast'
 import {
   RiAdvertisementLine,
@@ -48,7 +49,7 @@ const badgeColors = {
 
 const MEDIA_CATEGORY_OPTIONS = [
   'All', 'Hollywood', 'Nollywood', 'Bollywood', 'Western', 'K-Drama',
-  'Chinese Cinema', 'Hong Kong Cinema', 'Japanese Cinema', 'European Cinema',
+  'Chinese Cinema', 'Hong Kong Cinema', 'Japanese Cinema', 'Philippine Cinema', 'European Cinema',
 ]
 const MEDIA_NAVIGATION_OPTIONS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon', 'Sports', 'WWE']
 const MOVIE_GENRE_OPTIONS = [
@@ -164,9 +165,9 @@ function TableShell({ title, children, search, setSearch, filters }) {
     <div className="card overflow-hidden">
       <div className="p-4 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
         <h2 className="font-display font-black text-xl" style={{ color: 'var(--color-text)' }}>{title}</h2>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           <input
-            className="input-base py-2 min-w-64"
+            className="input-base py-2 sm:min-w-64"
             placeholder="Search..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -181,7 +182,7 @@ function TableShell({ title, children, search, setSearch, filters }) {
 
 function DataTable({ columns, rows, renderActions }) {
   return (
-    <table className="w-full text-left text-sm">
+    <table className="min-w-[760px] w-full text-left text-sm">
       <thead>
         <tr style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>
           {columns.map((column) => <th key={column.key} className="px-4 py-3 font-black">{column.label}</th>)}
@@ -221,6 +222,8 @@ export default function AdminDashboardPage() {
   const [mediaEditTarget, setMediaEditTarget] = useState(null)
   const [mediaEditForm, setMediaEditForm] = useState(null)
   const [mediaThumbnailFile, setMediaThumbnailFile] = useState(null)
+  const [previewMedia, setPreviewMedia] = useState(null)
+  const [previewAd, setPreviewAd] = useState(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [pushStats, setPushStats] = useState(null)
   const [pushForm, setPushForm] = useState({
@@ -246,6 +249,8 @@ export default function AdminDashboardPage() {
   const [inAppImageFile, setInAppImageFile] = useState(null)
   const [pushSending, setPushSending] = useState(false)
   const [inAppSending, setInAppSending] = useState(false)
+  const [notificationRows, setNotificationRows] = useState([])
+  const [notificationLoading, setNotificationLoading] = useState(false)
   const [bunnySyncing, setBunnySyncing] = useState(false)
   const [newsRows, setNewsRows] = useState([])
   const [newsMeta, setNewsMeta] = useState(null)
@@ -310,12 +315,38 @@ export default function AdminDashboardPage() {
   const loadPushStats = async () => {
     setLoading(true)
     try {
-      const res = await adminService.getPushStats()
+      const [res] = await Promise.all([
+        adminService.getPushStats(),
+        loadAdminNotifications(false),
+      ])
       setPushStats(res.data.data.stats)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not load notification stats')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadAdminNotifications = async (showLoader = true) => {
+    if (showLoader) setNotificationLoading(true)
+    try {
+      const res = await adminService.getInAppNotifications({ page: 1, limit: 25 })
+      setNotificationRows(res.data?.data?.notifications || [])
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not load sent notifications')
+    } finally {
+      setNotificationLoading(false)
+    }
+  }
+
+  const deleteAdminNotification = async (id) => {
+    if (!window.confirm('Delete this notification from users? This cannot be undone.')) return
+    try {
+      await adminService.deleteInAppNotification(id)
+      toast.success('Notification deleted')
+      loadPushStats()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not delete notification')
     }
   }
 
@@ -413,7 +444,7 @@ export default function AdminDashboardPage() {
       toast.error('Enter a title and message')
       return
     }
-    if (inAppForm.audience === 'user' && !inAppForm.userId.trim()) {
+    if (notificationMode !== 'popup' && inAppForm.audience === 'user' && !inAppForm.userId.trim()) {
       toast.error('Enter a user ID for a single-user notification')
       return
     }
@@ -421,16 +452,18 @@ export default function AdminDashboardPage() {
     setInAppSending(true)
     try {
       const payload = {
-        audience: inAppForm.audience === 'user' ? undefined : inAppForm.audience,
-        userId: inAppForm.audience === 'user' ? inAppForm.userId.trim() : undefined,
+        audience: notificationMode === 'popup' ? 'all' : (inAppForm.audience === 'user' ? undefined : inAppForm.audience),
+        userId: notificationMode === 'popup' ? undefined : (inAppForm.audience === 'user' ? inAppForm.userId.trim() : undefined),
         title: inAppForm.title.trim(),
         body: inAppForm.body.trim(),
         screen: inAppForm.screen,
         contentType: inAppForm.contentType || undefined,
         contentId: inAppForm.contentId.trim() || undefined,
+        deliveryMode: notificationMode === 'popup' ? 'popup' : 'bell',
         data: {
           screen: inAppForm.screen,
           source: 'admin',
+          deliveryMode: notificationMode === 'popup' ? 'popup' : 'bell',
           contentType: inAppForm.contentType || undefined,
           contentId: inAppForm.contentId.trim() || undefined,
           newsId: inAppForm.contentType === 'news' ? inAppForm.contentId.trim() : undefined,
@@ -447,7 +480,7 @@ export default function AdminDashboardPage() {
         requestBody.append('image', inAppImageFile)
       }
       await adminService.sendInAppNotification(requestBody)
-      toast.success('Notification added to users bell inbox')
+      toast.success(notificationMode === 'popup' ? 'Pop-up message sent' : 'Notification added to users bell inbox')
       setInAppForm({ audience: 'all', userId: '', title: '', body: '', screen: 'Home', contentType: '', contentId: '' })
       setInAppImageFile(null)
       loadPushStats()
@@ -729,18 +762,19 @@ export default function AdminDashboardPage() {
     if (activeTab === 'media') {
       return (
         <div className="flex flex-wrap gap-2">
+          <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1" onClick={() => setPreviewMedia(row)}>
+            <RiEyeLine /> Watch
+          </button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => openMediaEditModal(row)}>Edit</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media approved', () => adminService.approveMedia(row._id))}>Approve</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media rejected', () => adminService.rejectMedia(row._id, { reviewNote: 'Rejected by admin review' }))}>Reject</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Media archived', () => adminService.updateMedia(row._id, { publishStatus: 'archived', isActive: false }))}>Archive</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Feature updated', () => adminService.updateMedia(row._id, { isFeatured: !row.isFeatured }))}>{row.isFeatured ? 'Unfeature' : 'Feature'}</button>
-          {isSuperAdmin && (
-            <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1"
-              style={{ color: '#EF4444' }}
-              onClick={() => confirmDelete(`Permanently delete media "${row.title}"? This cannot be undone.`, () => adminService.deleteMedia(row._id))}>
-              <RiDeleteBinLine /> Delete
-            </button>
-          )}
+          <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1"
+            style={{ color: '#EF4444' }}
+            onClick={() => confirmDelete(`Permanently delete media "${row.title}"? This cannot be undone.`, () => adminService.deleteMedia(row._id))}>
+            <RiDeleteBinLine /> Delete
+          </button>
         </div>
       )
     }
@@ -761,9 +795,17 @@ export default function AdminDashboardPage() {
     if (activeTab === 'ads') {
       return (
         <div className="flex flex-wrap gap-2">
+          <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1" onClick={() => setPreviewAd(row)}>
+            <RiEyeLine /> View
+          </button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Ad approved', () => adminService.updateAd(row._id, { status: 'active', durationDays: row.durationDays || 1 }))}>Approve</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Ad paused', () => adminService.updateAd(row._id, { status: 'paused' }))}>Pause</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Ad rejected', () => adminService.updateAd(row._id, { status: 'rejected', rejectionReason: 'Rejected by admin review' }))}>Reject</button>
+          <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1"
+            style={{ color: '#EF4444' }}
+            onClick={() => confirmDelete(`Permanently delete ad "${row.title}"? This cannot be undone.`, () => adminService.deleteAd(row._id))}>
+            <RiDeleteBinLine /> Delete
+          </button>
         </div>
       )
     }
@@ -780,15 +822,15 @@ export default function AdminDashboardPage() {
           <RiShieldUserLine className="text-2xl" />
         </div>
         <div>
-          <h1 className="font-display font-black text-3xl gradient-text">Admin Dashboard</h1>
+          <h1 className="font-display font-black text-2xl gradient-text sm:text-3xl">Admin Dashboard</h1>
           <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Full NendPlay operations control center</p>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
+      <div className="mb-6 flex gap-2 overflow-x-auto pb-2 no-scrollbar">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => { setActiveTab(id); setSearch(''); setStatus(''); setPage(1) }}
-            className="px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2"
+            className="flex flex-shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold"
             style={{
               background: activeTab === id ? 'var(--color-primary)' : 'var(--color-surface)',
               color: activeTab === id ? '#fff' : 'var(--color-text-muted)',
@@ -846,6 +888,10 @@ export default function AdminDashboardPage() {
             setInAppImageFile={setInAppImageFile}
             inAppSending={inAppSending}
             onSendInApp={sendInAppNotification}
+            notificationRows={notificationRows}
+            notificationLoading={notificationLoading}
+            onDeleteNotification={deleteAdminNotification}
+            onRefreshNotifications={() => loadAdminNotifications(true)}
           />
         ) : activeTab === 'news' ? (
           <NewsPanel
@@ -937,6 +983,83 @@ export default function AdminDashboardPage() {
           onSave={saveMediaEdit}
         />
       )}
+
+      {previewMedia && (
+        <MediaPreviewModal media={previewMedia} onClose={() => setPreviewMedia(null)} />
+      )}
+
+      {previewAd && (
+        <AdPreviewModal ad={previewAd} onClose={() => setPreviewAd(null)} />
+      )}
+    </div>
+  )
+}
+
+function MediaPreviewModal({ media, onClose }) {
+  const mediaUrl = media.hlsUrl || media.playbackUrl || media.mediaUrl
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.76)' }}>
+      <div className="card w-full max-w-4xl overflow-hidden">
+        <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <div>
+            <h2 className="font-display font-black text-xl" style={{ color: 'var(--color-text)' }}>{media.title}</h2>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              {media.type} · {media.publishStatus} · {media.reviewStatus || 'pending'}
+            </p>
+          </div>
+          <button className="btn-ghost px-4 py-2 text-sm" onClick={onClose}>Close</button>
+        </div>
+        <div className="p-4">
+          {mediaUrl ? (
+            <div className="aspect-video overflow-hidden rounded-2xl bg-black">
+              <ReactPlayer url={mediaUrl} controls playing={false} width="100%" height="100%" />
+            </div>
+          ) : (
+            <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
+              No playable URL is available for this media yet.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AdPreviewModal({ ad, onClose }) {
+  const isVideo = ad.adType === 'video' || /\.(mp4|webm|m3u8)(\?|$)/i.test(ad.mediaUrl || '')
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.76)' }}>
+      <div className="card w-full max-w-3xl overflow-hidden">
+        <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <div>
+            <h2 className="font-display font-black text-xl" style={{ color: 'var(--color-text)' }}>{ad.title}</h2>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              {ad.adType} · {ad.placement} · {ad.status}
+            </p>
+          </div>
+          <button className="btn-ghost px-4 py-2 text-sm" onClick={onClose}>Close</button>
+        </div>
+        <div className="p-4 space-y-4">
+          {ad.mediaUrl ? (
+            isVideo ? (
+              <div className="aspect-video overflow-hidden rounded-2xl bg-black">
+                <ReactPlayer url={ad.mediaUrl} controls playing={false} width="100%" height="100%" />
+              </div>
+            ) : (
+              <img src={ad.mediaUrl} alt={ad.title} className="max-h-[420px] w-full rounded-2xl object-contain" />
+            )
+          ) : (
+            <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
+              This ad has no media file attached.
+            </div>
+          )}
+          <div>
+            <p className="font-black" style={{ color: 'var(--color-text)' }}>{ad.advertiserName}</p>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{ad.description || 'No description'}</p>
+            {ad.targetUrl && <a href={ad.targetUrl} target="_blank" rel="noreferrer" className="text-sm font-bold" style={{ color: 'var(--color-primary)' }}>Open target URL</a>}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1662,13 +1785,19 @@ function NotificationPanel({
   setInAppImageFile,
   inAppSending,
   onSendInApp,
+  notificationRows = [],
+  notificationLoading = false,
+  onDeleteNotification,
+  onRefreshNotifications,
 }) {
-  const activeForm = mode === 'push' ? form : inAppForm
-  const setActiveForm = mode === 'push' ? setForm : setInAppForm
-  const activeImageFile = mode === 'push' ? imageFile : inAppImageFile
-  const setActiveImageFile = mode === 'push' ? setImageFile : setInAppImageFile
-  const activeSending = mode === 'push' ? sending : inAppSending
-  const activeSend = mode === 'push' ? onSend : onSendInApp
+  const isPush = mode === 'push'
+  const isPopup = mode === 'popup'
+  const activeForm = isPush ? form : inAppForm
+  const setActiveForm = isPush ? setForm : setInAppForm
+  const activeImageFile = isPush ? imageFile : inAppImageFile
+  const setActiveImageFile = isPush ? setImageFile : setInAppImageFile
+  const activeSending = isPush ? sending : inAppSending
+  const activeSend = isPush ? onSend : onSendInApp
   const imagePreview = useMemo(() => (activeImageFile ? URL.createObjectURL(activeImageFile) : ''), [activeImageFile])
 
   useEffect(() => {
@@ -1684,7 +1813,8 @@ function NotificationPanel({
         <StatCard label="Active Tokens" value={stats?.activeTokens || 0} icon={RiNotification3Line} />
         <StatCard label="Reachable Users" value={stats?.usersWithTokens || 0} icon={RiUserLine} />
         <StatCard label="Admin Tokens" value={stats?.adminActiveTokens || 0} icon={RiShieldUserLine} />
-        <StatCard label="Bell Notices" value={stats?.inApp?.active || 0} icon={RiNotification3Line} />
+        <StatCard label="Bell Notices" value={stats?.inApp?.bell || stats?.inApp?.active || 0} icon={RiNotification3Line} />
+        <StatCard label="Pop-ups" value={stats?.inApp?.popup || 0} icon={RiNotification3Line} />
       </div>
 
       <div className="card p-5">
@@ -1692,6 +1822,7 @@ function NotificationPanel({
           {[
             { id: 'push', label: 'Push Notifications' },
             { id: 'in-app', label: 'Notifications' },
+            { id: 'popup', label: 'Pop-up Messages' },
           ].map((item) => (
             <button
               key={item.id}
@@ -1709,11 +1840,13 @@ function NotificationPanel({
 
         <div className="mb-5">
           <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>
-            {mode === 'push' ? 'Send Push Notification' : 'Send Bell Notification'}
+            {isPush ? 'Send Push Notification' : isPopup ? 'Send Pop-up Message' : 'Send Bell Notification'}
           </h2>
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            {mode === 'push'
+            {isPush
               ? 'Send updates to everyone who allowed mobile notifications, including guests, users, admins, and super-admins.'
+              : isPopup
+                ? 'Show a pop-up message to everyone who opens NendPlay, including guests, users, admins, and super-admins.'
               : 'Send an in-app notification that appears when users tap the bell icon in NendPlay.'}
           </p>
         </div>
@@ -1723,14 +1856,15 @@ function NotificationPanel({
             <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Audience</label>
             <select
               className="input-base"
-              value={activeForm.audience}
+              value={isPopup ? 'all' : activeForm.audience}
+              disabled={isPopup}
               onChange={(event) => setActiveForm({ ...activeForm, audience: event.target.value })}
             >
-              <option value="all">{mode === 'push' ? 'Guests + users + admins' : 'All registered users + admins'}</option>
-              {mode === 'in-app' && <option value="admins">Admins only</option>}
-              <option value="subscribers">Subscribed users</option>
-              <option value="free_users">Free users</option>
-              <option value="user">One user ID</option>
+              <option value="all">{isPush || isPopup ? 'Guests + users + admins' : 'All registered users + admins'}</option>
+              {!isPush && !isPopup && <option value="admins">Admins only</option>}
+              {!isPopup && <option value="subscribers">Subscribed users</option>}
+              {!isPopup && <option value="free_users">Free users</option>}
+              {!isPopup && <option value="user">One user ID</option>}
             </select>
           </div>
 
@@ -1786,7 +1920,7 @@ function NotificationPanel({
             />
           </div>
 
-          {activeForm.audience === 'user' && (
+          {!isPopup && activeForm.audience === 'user' && (
             <div className="lg:col-span-2">
               <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>User ID</label>
               <input
@@ -1802,7 +1936,7 @@ function NotificationPanel({
             <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Title</label>
             <input
               className="input-base"
-              maxLength={mode === 'push' ? 80 : 120}
+              maxLength={isPush ? 80 : 120}
               value={activeForm.title}
               onChange={(event) => setActiveForm({ ...activeForm, title: event.target.value })}
               placeholder="New release on NendPlay"
@@ -1813,7 +1947,7 @@ function NotificationPanel({
             <label className="block text-sm font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Message</label>
             <textarea
               className="input-base min-h-32 resize-y"
-              maxLength={mode === 'push' ? 180 : 800}
+              maxLength={isPush ? 180 : 800}
               value={activeForm.body}
               onChange={(event) => setActiveForm({ ...activeForm, body: event.target.value })}
               placeholder="Tell users what is new..."
@@ -1856,9 +1990,64 @@ function NotificationPanel({
             disabled={activeSending}
             onClick={activeSend}
           >
-            <RiNotification3Line /> {activeSending ? 'Sending...' : mode === 'push' ? 'Send Push' : 'Send Notification'}
+            <RiNotification3Line /> {activeSending ? 'Sending...' : isPush ? 'Send Push' : isPopup ? 'Send Pop-up' : 'Send Notification'}
           </button>
         </div>
+      </div>
+
+      <div className="card p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>
+              Sent Notifications
+            </h2>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              Delete bell notifications or pop-up messages from users at any time.
+            </p>
+          </div>
+          <button type="button" className="btn-ghost px-4 py-2 text-sm" onClick={onRefreshNotifications}>
+            Refresh
+          </button>
+        </div>
+
+        {notificationLoading ? (
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Loading sent notifications...</p>
+        ) : notificationRows.length === 0 ? (
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No sent notifications yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {notificationRows.map((item) => (
+              <div
+                key={item._id}
+                className="rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-4"
+                style={{ background: 'var(--color-surface-high)', border: '1px solid var(--color-border)' }}
+              >
+                {item.imageUrl && (
+                  <img src={item.imageUrl} alt="" className="w-full md:w-28 aspect-video rounded-xl object-cover flex-shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <Badge>{item.deliveryMode || 'bell'}</Badge>
+                    <Badge>{item.audience || 'all'}</Badge>
+                    <Badge>{item.screen || 'Home'}</Badge>
+                  </div>
+                  <p className="font-black truncate" style={{ color: 'var(--color-text)' }}>{item.title}</p>
+                  <p className="text-sm line-clamp-2 mt-1" style={{ color: 'var(--color-text-muted)' }}>{item.body}</p>
+                  <p className="text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
+                    {item.createdAt ? new Date(item.createdAt).toLocaleString() : 'No date'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-ghost px-4 py-2 text-sm flex items-center justify-center gap-2"
+                  onClick={() => onDeleteNotification?.(item._id)}
+                >
+                  <RiDeleteBinLine /> Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

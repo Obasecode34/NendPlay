@@ -78,6 +78,39 @@ class NotificationController {
     }
   }
 
+  async listInAppNotifications(req, res) {
+    try {
+      const result = await notificationService.listInAppNotifications(req.query);
+      return ApiResponse.success(res, { data: result });
+    } catch (err) {
+      if (err.status) {
+        return ApiResponse.error(res, { statusCode: err.status, message: err.message });
+      }
+      return ApiResponse.error(res, { message: err.message || "Failed to load notifications" });
+    }
+  }
+
+  async deleteInAppNotification(req, res) {
+    try {
+      const result = await notificationService.deleteInAppNotification(req.params.id);
+      return ApiResponse.success(res, { message: "Notification deleted", data: result });
+    } catch (err) {
+      if (err.status) {
+        return ApiResponse.error(res, { statusCode: err.status, message: err.message });
+      }
+      return ApiResponse.error(res, { message: err.message || "Failed to delete notification" });
+    }
+  }
+
+  async getPublicPopups(req, res) {
+    try {
+      const result = await notificationService.getPublicPopups(req.query);
+      return ApiResponse.success(res, { data: result });
+    } catch (err) {
+      return ApiResponse.error(res, { message: err.message || "Failed to load pop-up messages" });
+    }
+  }
+
   async sendPushNotification(req, res) {
     try {
       const payload = parseNotificationPayload(req.body);

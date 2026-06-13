@@ -40,6 +40,7 @@ export default function MainLayout() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [notificationsLoading, setNotificationsLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [popupNotice, setPopupNotice] = useState(null)
 
   useEffect(() => {
     if (isAuthenticated) loadNotifications(false)
@@ -48,6 +49,12 @@ export default function MainLayout() {
       setUnreadCount(0)
     }
   }, [isAuthenticated])
+
+  useEffect(() => {
+    loadPublicPopups()
+    const id = setInterval(loadPublicPopups, 60000)
+    return () => clearInterval(id)
+  }, [])
 
   const handleLogout = async () => {
     await logout()
@@ -115,6 +122,60 @@ export default function MainLayout() {
     navigate(routes[item.screen] || '/home')
   }
 
+  const getDismissedPopups = () => {
+    try {
+      return JSON.parse(localStorage.getItem('nendplay-dismissed-popups') || '[]')
+    } catch {
+      return []
+    }
+  }
+
+  const dismissPopupNotice = () => {
+    if (popupNotice?._id) {
+      const dismissed = getDismissedPopups()
+      const next = [...new Set([...dismissed, popupNotice._id])].slice(-100)
+      localStorage.setItem('nendplay-dismissed-popups', JSON.stringify(next))
+    }
+    setPopupNotice(null)
+  }
+
+  const loadPublicPopups = async () => {
+    try {
+      const res = await notificationService.getPublicPopups({ limit: 5 })
+      const notices = res.data?.data?.notifications || []
+      const dismissed = getDismissedPopups()
+      const nextNotice = notices.find((item) => !dismissed.includes(item._id))
+      if (nextNotice) setPopupNotice((current) => current || nextNotice)
+    } catch {}
+  }
+
+  const openPopupNotice = () => {
+    if (!popupNotice) return
+    const item = popupNotice
+    dismissPopupNotice()
+    const routes = {
+      Home: '/home',
+      Shorts: '/shorts',
+      NovelHub: '/novelhub',
+      News: '/news',
+      Rewards: '/rewards',
+      Subscription: '/subscribe',
+      Downloads: '/downloads',
+      Profile: '/profile',
+    }
+    const linkedType = item.contentType || item.data?.contentType
+    const linkedId = item.contentId || item.data?.contentId || item.data?.newsId || item.data?.mediaId
+    if (linkedType === 'news' && linkedId) {
+      navigate(`/news/${linkedId}`)
+      return
+    }
+    if (linkedType === 'media' && linkedId) {
+      navigate(`/watch/${linkedId}`)
+      return
+    }
+    navigate(routes[item.screen] || '/home')
+  }
+
   const markAllNotificationsRead = async () => {
     try {
       await notificationService.markAllRead()
@@ -128,7 +189,7 @@ export default function MainLayout() {
 
       {/* ── Sidebar ─────────────────────────────────────────────────── */}
       <aside
-        className={`fixed left-0 top-0 h-full z-40 flex flex-col transition-all duration-300
+        className={`fixed left-0 top-0 h-full z-40 hidden md:flex flex-col transition-all duration-300
           ${sidebarOpen ? 'w-64' : 'w-20'}`}
         style={{
           background: 'var(--color-bg-deep)',
@@ -283,12 +344,12 @@ export default function MainLayout() {
 
       {/* ── Main content ──────────────────────────────────────────── */}
       <main
-        className={`flex-1 flex flex-col transition-all duration-300 min-h-screen
-          ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
+        className={`w-full flex-1 flex flex-col transition-all duration-300 min-h-screen pb-20 md:pb-0
+          ${sidebarOpen ? 'md:ml-64' : 'md:ml-20'}`}>
 
         {/* Top bar */}
         <header
-          className="sticky top-0 z-30 flex items-center justify-between px-6 py-4"
+          className="sticky top-0 z-30 flex items-center justify-between gap-2 px-3 py-3 sm:px-4 md:px-6 md:py-4"
           style={{
             background: 'rgba(var(--color-bg-deep), 0.8)',
             backdropFilter: 'blur(12px)',
@@ -296,7 +357,7 @@ export default function MainLayout() {
           }}>
 
           {/* Search */}
-          <div className="relative flex-1 max-w-md">
+          <div className="relative min-w-0 flex-1 max-w-md">
             <RiSearchLine
               className="absolute left-3 top-1/2 -translate-y-1/2 text-lg"
               style={{ color: 'var(--color-text-muted)' }} />
@@ -312,7 +373,7 @@ export default function MainLayout() {
           </div>
 
           {/* Right side */}
-          <div className="flex items-center gap-3 ml-4">
+          <div className="flex items-center gap-2 sm:gap-3 md:ml-4">
             <div className="relative">
               <button
                 onClick={openNotifications}
@@ -328,7 +389,7 @@ export default function MainLayout() {
               </button>
 
               {showNotifications && (
-                <div className="absolute right-0 mt-3 w-80 max-h-96 overflow-hidden rounded-2xl z-50"
+                <div className="fixed left-3 right-3 top-16 max-h-96 overflow-hidden rounded-2xl z-50 md:absolute md:left-auto md:right-0 md:top-auto md:mt-3 md:w-80"
                   style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: '0 18px 50px rgba(0,0,0,0.35)' }}>
                   <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
                     <div>
@@ -374,7 +435,7 @@ export default function MainLayout() {
 
             {/* User avatar */}
             <NavLink to="/profile"
-              className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all"
+              className="flex items-center gap-2 px-2 py-2 sm:px-3 rounded-xl transition-all"
               style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
               <div
                 className="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden text-xs font-bold text-white"
@@ -399,10 +460,34 @@ export default function MainLayout() {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 p-6 animate-fade-in">
+        <div className="flex-1 p-3 sm:p-4 md:p-6 animate-fade-in">
           <Outlet />
         </div>
       </main>
+
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-40 flex gap-1 overflow-x-auto px-2 py-2 md:hidden no-scrollbar"
+        style={{
+          background: 'rgba(4,4,15,0.94)',
+          backdropFilter: 'blur(16px)',
+          borderTop: '1px solid var(--color-border)',
+        }}
+      >
+        {navItems.map(({ to, icon: Icon, label }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className="min-w-[68px] flex-1 rounded-2xl px-2 py-2 text-center transition-all"
+            style={({ isActive }) => ({
+              background: isActive ? 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))' : 'transparent',
+              color: isActive ? '#fff' : 'var(--color-text-muted)',
+            })}
+          >
+            <Icon className="mx-auto text-xl" />
+            <span className="mt-1 block truncate text-[11px] font-bold">{label}</span>
+          </NavLink>
+        ))}
+      </nav>
 
       {/* ── Theme Picker Overlay ──────────────────────────────────── */}
       {showThemePicker && (
@@ -410,6 +495,50 @@ export default function MainLayout() {
       )}
 
       {/* ── Mini Player (persistent bottom player) ────────────────── */}
+      {popupNotice && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.72)' }}>
+          <div className="w-full max-w-md rounded-3xl overflow-hidden" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: '0 25px 80px rgba(0,0,0,0.45)' }}>
+            {popupNotice.imageUrl && (
+              <div className="aspect-video overflow-hidden" style={{ background: 'var(--color-surface-high)' }}>
+                <img src={popupNotice.imageUrl} alt="" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>
+                    NendPlay Update
+                  </p>
+                  <h2 className="mt-2 font-display font-black text-2xl leading-tight" style={{ color: 'var(--color-text)' }}>
+                    {popupNotice.title}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissPopupNotice}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'var(--color-surface-high)', color: 'var(--color-text-muted)' }}
+                  aria-label="Close pop-up message"
+                >
+                  <RiCloseFill />
+                </button>
+              </div>
+              <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                {popupNotice.body}
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button type="button" className="btn-ghost px-4 py-2 text-sm" onClick={dismissPopupNotice}>
+                  Later
+                </button>
+                <button type="button" className="btn-primary px-4 py-2 text-sm" onClick={openPopupNotice}>
+                  Open
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <MiniPlayer />
     </div>
   )

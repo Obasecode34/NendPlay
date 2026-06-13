@@ -54,6 +54,12 @@ class NotificationService {
     return {
       isActive: true,
       $and: [
+        {
+          $or: [
+            { deliveryMode: { $in: ["bell", "both"] } },
+            { deliveryMode: { $exists: false } },
+          ],
+        },
         { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] },
         { $or: audienceFilters },
       ],
@@ -181,13 +187,15 @@ class NotificationService {
   }
 
   async getInAppNotificationStats() {
-    const [total, active, unreadEligibleUsers] = await Promise.all([
+    const [total, active, bell, popup, unreadEligibleUsers] = await Promise.all([
       InAppNotification.countDocuments(),
       InAppNotification.countDocuments({ isActive: true }),
+      InAppNotification.countDocuments({ isActive: true, deliveryMode: { $in: ["bell", "both"] } }),
+      InAppNotification.countDocuments({ isActive: true, deliveryMode: { $in: ["popup", "both"] } }),
       User.countDocuments({ isActive: true }),
     ]);
 
-    return { total, active, eligibleUsers: unreadEligibleUsers };
+    return { total, active, bell, popup, eligibleUsers: unreadEligibleUsers };
   }
 
   async resolveAudience({ audience = "all", userId, userIds = [] } = {}) {
@@ -335,10 +343,14 @@ class NotificationService {
     imageUrl,
     imageCloudinaryId,
     expiresAt,
+    deliveryMode = "bell",
   }, admin) {
     const cleanTitle = String(title || "").trim();
     const cleanBody = String(body || "").trim();
     const cleanImageUrl = String(imageUrl || "").trim();
+    const normalizedDeliveryMode = ["bell", "popup", "both"].includes(String(deliveryMode || "").toLowerCase())
+      ? String(deliveryMode).toLowerCase()
+      : "bell";
     const normalized = this.normalizeNotificationAudience({ audience, userId, userIds });
 
     if (!cleanTitle) throw { status: 400, message: "Notification title is required" };
@@ -350,6 +362,7 @@ class NotificationService {
       title: cleanTitle,
       body: cleanBody,
       audience: normalized.audience,
+      deliveryMode: normalizedDeliveryMode,
       userIds: normalized.userIds,
       sentBy: admin?.id || null,
       screen: String(screen || "Home").trim() || "Home",
@@ -364,6 +377,64 @@ class NotificationService {
     });
 
     return notification;
+  }
+
+  async listInAppNotifications({ page = 1, limit = 25, search = "", deliveryMode = "" } = {}) {
+    const safePage = Math.max(Number(page) || 1, 1);
+    const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
+    const filter = {};
+
+    if (["bell", "popup", "both"].includes(String(deliveryMode || "").toLowerCase())) {
+      filter.deliveryMode = String(deliveryMode).toLowerCase();
+    }
+    if (search) {
+      const regex = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      filter.$or = [{ title: regex }, { body: regex }, { screen: regex }, { contentId: regex }];
+    }
+
+    const [notifications, total] = await Promise.all([
+      InAppNotification.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit)
+        .populate("sentBy", "profileName username email role")
+        .lean(),
+      InAppNotification.countDocuments(filter),
+    ]);
+
+    return {
+      notifications,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        pages: Math.ceil(total / safeLimit) || 1,
+      },
+    };
+  }
+
+  async deleteInAppNotification(notificationId) {
+    const notification = await InAppNotification.findById(notificationId);
+    if (!notification) throw { status: 404, message: "Notification not found" };
+    await InAppNotification.findByIdAndDelete(notificationId);
+    return { deletedNotificationId: notificationId };
+  }
+
+  async getPublicPopups({ limit = 5 } = {}) {
+    const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 20);
+    const now = new Date();
+    const notifications = await InAppNotification.find({
+      isActive: true,
+      audience: "all",
+      deliveryMode: { $in: ["popup", "both"] },
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
+    })
+      .sort({ createdAt: -1 })
+      .limit(safeLimit)
+      .populate("sentBy", "profileName username role profilePic")
+      .lean();
+
+    return { notifications };
   }
 
   async getUserNotifications(userId, { page = 1, limit = 20, unreadOnly = false } = {}) {

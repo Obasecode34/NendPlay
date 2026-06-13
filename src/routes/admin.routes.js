@@ -39,6 +39,7 @@ router.delete("/documents/:id", requireAdmin("documents:write"), adminController
 
 router.get("/ads", requireAdmin("ads:read"), adminController.listAds);
 router.patch("/ads/:id", requireAdmin("ads:write"), adminController.updateAd);
+router.delete("/ads/:id", requireAdmin("ads:write"), adminController.deleteAd);
 
 router.get("/subscriptions", requireAdmin("subscriptions:read"), adminController.listSubscriptions);
 router.get("/downloads", requireAdmin("downloads:read"), adminController.listDownloads);
