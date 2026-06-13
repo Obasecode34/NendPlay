@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast'
 import { mediaService, downloadService } from '../services/index'
 import { cacheDownloadFile, upsertLocalDownloadRecord } from '../services/localDownloads'
+import { getDeviceId } from '../services/guestSession'
 import useAuthStore from '../stores/authStore'
 import usePlayerStore from '../stores/playerStore'
 import MediaCard from '../components/media/MediaCard'
@@ -103,8 +104,7 @@ export default function MediaPlayerPage() {
 
   const handleDownload = async () => {
     try {
-      const deviceId = localStorage.getItem('nendplay-device-id') ||
-        (() => { const id = 'device-' + Date.now(); localStorage.setItem('nendplay-device-id', id); return id })()
+      const deviceId = getDeviceId()
 
       const res = await downloadService.authorize({
         contentType: 'media',

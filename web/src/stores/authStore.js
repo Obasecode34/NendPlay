@@ -5,9 +5,11 @@
 
 import { create } from 'zustand'
 import api from '../services/api'
+import { getGuestSession } from '../services/guestSession'
 
 const useAuthStore = create((set, get) => ({
   user: null,
+  guest: getGuestSession(),
   accessToken: null,
   isAuthenticated: false,
   isLoading: true, // true on startup while checking auth
@@ -34,26 +36,26 @@ const useAuthStore = create((set, get) => ({
 
   // ── Clear auth state on logout ────────────────────────────────────────
   clearAuth: () => {
-    set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false })
+    set({ user: null, guest: getGuestSession(), accessToken: null, isAuthenticated: false, isLoading: false })
     delete api.defaults.headers.common['Authorization']
   },
 
   // ── Initialize: check if we have a valid session on app load ─────────
   // Tries to refresh the access token using the HttpOnly cookie
- initAuth: async () => {
-  try {
-    const res = await api.post('/auth/refresh-token')
-    if (res.data.success) {
-      const { user, accessToken } = res.data.data
-      get().setAuth(user, accessToken)
-    } else {
-      set({ isLoading: false })
+  initAuth: async () => {
+    try {
+      const res = await api.post('/auth/refresh-token')
+      if (res.data.success) {
+        const { user, accessToken } = res.data.data
+        get().setAuth(user, accessToken)
+      } else {
+        set({ isLoading: false })
+      }
+    } catch {
+      // No active session: continue with guest rights.
+      set({ guest: getGuestSession(), isLoading: false })
     }
-  } catch {
-    // No active session — show landing page
-    set({ isLoading: false })
-  }
-},
+  },
 
   // ── Logout ────────────────────────────────────────────────────────────
   logout: async () => {

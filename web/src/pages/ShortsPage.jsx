@@ -8,6 +8,7 @@ import { useInView } from 'react-intersection-observer'
 import toast from 'react-hot-toast'
 import { mediaService, downloadService } from '../services/index'
 import { cacheDownloadFile, upsertLocalDownloadRecord } from '../services/localDownloads'
+import { getDeviceId } from '../services/guestSession'
 
 function formatCount(value = 0) {
   const count = Number(value) || 0
@@ -78,7 +79,7 @@ function ShortCard({ short, isActive, onActivate }) {
   const handleDownload = async (e) => {
     e.stopPropagation()
     try {
-      const deviceId = window.navigator.userAgent.slice(0, 64)
+      const deviceId = getDeviceId()
       const res = await downloadService.authorize({
         contentType: 'media',
         contentId: short._id,

@@ -60,11 +60,11 @@ export default function LandingPage() {
             Movies, music, podcasts, live events, shorts and more — all in one place.
           </p>
           <div className="flex items-center justify-center gap-4">
-            <Link to="/register" className="btn-primary flex items-center gap-2 py-3 px-6 text-base">
-              Start Watching <RiArrowRightLine />
+            <Link to="/home" className="btn-primary flex items-center gap-2 py-3 px-6 text-base">
+              Continue as Guest <RiArrowRightLine />
             </Link>
-            <Link to="/login" className="btn-ghost py-3 px-6 text-base">
-              Sign In
+            <Link to="/register" className="btn-ghost py-3 px-6 text-base">
+              Create Account
             </Link>
           </div>
         </div>
