@@ -49,7 +49,7 @@ const badgeColors = {
 
 const MEDIA_CATEGORY_OPTIONS = [
   'All', 'Hollywood', 'Nollywood', 'Bollywood', 'Western', 'K-Drama',
-  'Chinese Cinema', 'Hong Kong Cinema', 'Japanese Cinema', 'Philippine Cinema', 'European Cinema',
+  'Chinese Cinema', 'Hong Kong Cinema', 'Japanese Cinema', 'Australian Cinema', 'Philippine Cinema', 'European Cinema',
 ]
 const MEDIA_NAVIGATION_OPTIONS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon', 'Sports', 'WWE']
 const MOVIE_GENRE_OPTIONS = [
