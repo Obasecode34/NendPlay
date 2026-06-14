@@ -1,5 +1,5 @@
 // src/screens/HomeScreen.js
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, FlatList, Image, ActivityIndicator,
@@ -62,6 +62,58 @@ function shuffleItems(items) {
     shuffled[randomIndex] = current
   }
   return shuffled
+}
+
+function seededRandom(seed) {
+  let value = seed % 2147483647
+  if (value <= 0) value += 2147483646
+  return () => {
+    value = (value * 16807) % 2147483647
+    return (value - 1) / 2147483646
+  }
+}
+
+function hashText(value = '') {
+  return String(value).split('').reduce((hash, char) => (
+    ((hash << 5) - hash + char.charCodeAt(0)) | 0
+  ), 0)
+}
+
+function seededShuffleItems(items, seed) {
+  const shuffled = [...items]
+  const random = seededRandom(Math.abs(seed) + 1)
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(random() * (index + 1))
+    const current = shuffled[index]
+    shuffled[index] = shuffled[randomIndex]
+    shuffled[randomIndex] = current
+  }
+  return shuffled
+}
+
+function getGenrePinPosition(item, genre) {
+  const pins = item.genrePins || {}
+  const key = normalizeGenre(genre)
+  const value = pins instanceof Map ? pins.get(key) : pins[key]
+  const position = Number(value)
+  return Number.isInteger(position) && position >= 1 && position <= 4 ? position : null
+}
+
+function orderGenreItems(items, genre, seed) {
+  const pinned = []
+  const unpinned = []
+
+  items.forEach((item) => {
+    const pinPosition = getGenrePinPosition(item, genre)
+    if (pinPosition) pinned.push({ item, pinPosition })
+    else unpinned.push(item)
+  })
+
+  const fixedItems = pinned
+    .sort((a, b) => a.pinPosition - b.pinPosition || (a.item.featuredRank || 0) - (b.item.featuredRank || 0))
+    .map(({ item }) => item)
+
+  return [...fixedItems, ...seededShuffleItems(unpinned, seed + hashText(genre))]
 }
 
 function getSearchText(item) {
@@ -317,6 +369,7 @@ export default function HomeScreen({ navigation }) {
   const [documents, setDocuments] = useState([])
   const [featuredItems, setFeaturedItems] = useState([])
   const [featuredIndex, setFeaturedIndex] = useState(0)
+  const [shuffleSeed, setShuffleSeed] = useState(Date.now())
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch] = useState('')
@@ -343,6 +396,13 @@ export default function HomeScreen({ navigation }) {
     }, 5000)
     return () => clearInterval(timer)
   }, [featuredItems.length])
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setShuffleSeed(Date.now())
+    }, 120000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     if (!featuredItems.length) return
@@ -375,6 +435,7 @@ export default function HomeScreen({ navigation }) {
       const nextMedia = allRes.data.data.media || []
       const pagination = allRes.data.data.pagination || {}
       const all = append ? [...allMedia, ...nextMedia] : nextMedia
+      if (!append) setShuffleSeed(Date.now())
       setAllMedia(all)
       setMediaPage(pageToLoad)
       setHasMoreMedia(pageToLoad < (pagination.pages || 1))
@@ -448,13 +509,12 @@ export default function HomeScreen({ navigation }) {
     || hasLabel(item, activeCategory.label, ['category', 'categories'])
     || matchesAny(item, activeCategory.terms)
   ))
-  const visibleSections = groupMedia(visibleMedia)
   const shorts = visibleMedia.filter(isShortMedia)
   const genreMovies = visibleMedia.filter((item) => !isShortMedia(item) && MOVIE_GENRES.some((genre) => hasMovieGenre(item, genre)))
-  const genreSections = MOVIE_GENRES.map((genre) => ({
+  const genreSections = useMemo(() => MOVIE_GENRES.map((genre) => ({
     genre,
-    items: genreMovies.filter((item) => hasMovieGenre(item, genre)),
-  })).filter((section) => section.items.length > 0)
+    items: orderGenreItems(genreMovies.filter((item) => hasMovieGenre(item, genre)), genre, shuffleSeed),
+  })).filter((section) => section.items.length > 0), [genreMovies, shuffleSeed])
 
   const onRefresh = useCallback(() => {
     setRefreshing(true)
@@ -707,7 +767,7 @@ export default function HomeScreen({ navigation }) {
                 <MediaRow
                   key={section.genre}
                   title={section.genre}
-                  items={byPopularity(section.items).slice(0, 24)}
+                  items={section.items.slice(0, 24)}
                   onPress={handleMediaPress}
                   theme={theme}
                   onLayout={(event) => {
