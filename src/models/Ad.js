@@ -86,6 +86,10 @@ const adSchema = new mongoose.Schema(
       enum: [
         "home",         // Home tab
         "media",        // During media playback
+        "news",         // Daily news and article screens
+        "downloads",    // Downloads tab
+        "profile",      // Profile/settings screens
+        "subscription", // Subscription and rewards screens
         "live_event",   // Live events only (overlays/banners)
         "novels",       // NovelHub
         "shorts",       // Shorts tab

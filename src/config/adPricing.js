@@ -17,6 +17,10 @@ const AD_PRICING = {
     home: 2.0,        // Home tab gets most traffic — premium price
     live_event: 2.5,  // Live events — highest engagement
     media: 1.5,       // During media playback
+    news: 1.4,        // News feeds and article details
+    downloads: 1.0,   // Downloads screens
+    profile: 1.0,     // Profile/settings screens
+    subscription: 1.2,// Subscription and rewards screens
     shorts: 1.8,      // Shorts — high engagement
     novels: 1.0,      // NovelHub — standard
     all: 1.5,         // All placements — average multiplier

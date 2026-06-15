@@ -192,7 +192,7 @@ export default function NewsArticlePage() {
         {paragraphs.map((text, index) => (
           <React.Fragment key={index}>
             <p className="text-xl leading-9" style={{ color: 'var(--color-text)' }}>{text}</p>
-            {post.adsEnabled && index === 0 && <GoogleAdSlot />}
+            {post.adsEnabled && index === 0 && <GoogleAdSlot placement="news" />}
           </React.Fragment>
         ))}
       </div>

@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import { downloadService } from '../services/index'
 import { deleteLocalDownload, getCachedObjectUrl, getLocalDownloads } from '../services/localDownloads'
 import useAuthStore from '../stores/authStore'
+import GoogleAdSlot from '../components/ads/GoogleAdSlot'
 
 const DOWNLOAD_PAGE_LIMIT = 30
 
@@ -277,6 +278,8 @@ export default function DownloadsPage({ embedded = false, contentType = '' }) {
           )}
         </div>
       )}
+
+      {!embedded && <GoogleAdSlot placement="downloads" className="mb-6" />}
 
       {downloads.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">

@@ -7,7 +7,7 @@ const ADSENSE_CLIENT = import.meta.env.VITE_GOOGLE_ADSENSE_CLIENT
 const DEFAULT_SLOT = import.meta.env.VITE_GOOGLE_ADSENSE_SLOT
   || import.meta.env.VITE_GOOGLE_AD_SLOT
   || ''
-const ENABLE_NATIVE_FALLBACK = import.meta.env.VITE_NATIVE_AD_FALLBACK !== 'false'
+const ENABLE_NATIVE_ADS = import.meta.env.VITE_NENDPLAY_NATIVE_ADS !== 'false'
 
 let scriptLoaded = false
 
@@ -26,7 +26,7 @@ function loadAdsenseScript() {
   scriptLoaded = true
 }
 
-function NativeAdFallback({ placement, className }) {
+function NendPlayNativeAd({ placement, className }) {
   const [ad, setAd] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -78,7 +78,7 @@ function NativeAdFallback({ placement, className }) {
         className={`rounded-xl px-4 py-5 text-center text-sm ${className}`}
         style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
       >
-        Add Google web ad env vars or approve a NendPlay ad to show ads here.
+        Approve a NendPlay ad to show sponsored content here.
       </div>
     ) : null
   }
@@ -123,7 +123,7 @@ function NativeAdFallback({ placement, className }) {
   )
 }
 
-export default function GoogleAdSlot({ slot = DEFAULT_SLOT, className = '', placement = 'home' }) {
+function AdsenseSlot({ slot, className }) {
   useEffect(() => {
     loadAdsenseScript()
   }, [])
@@ -136,9 +136,7 @@ export default function GoogleAdSlot({ slot = DEFAULT_SLOT, className = '', plac
     } catch {}
   }, [slot])
 
-  if (!ADSENSE_CLIENT || !slot) {
-    return ENABLE_NATIVE_FALLBACK ? <NativeAdFallback placement={placement} className={className} /> : null
-  }
+  if (!ADSENSE_CLIENT || !slot) return null
 
   return (
     <ins
@@ -149,5 +147,18 @@ export default function GoogleAdSlot({ slot = DEFAULT_SLOT, className = '', plac
       data-ad-format="auto"
       data-full-width-responsive="true"
     />
+  )
+}
+
+export default function GoogleAdSlot({ slot = DEFAULT_SLOT, className = '', placement = 'home' }) {
+  const hasGoogleWebAd = Boolean(ADSENSE_CLIENT && slot)
+
+  if (!ENABLE_NATIVE_ADS && !hasGoogleWebAd) return null
+
+  return (
+    <div className={`space-y-3 ${className}`}>
+      {ENABLE_NATIVE_ADS ? <NendPlayNativeAd placement={placement} className="" /> : null}
+      {hasGoogleWebAd ? <AdsenseSlot slot={slot} className="" /> : null}
+    </div>
   )
 }

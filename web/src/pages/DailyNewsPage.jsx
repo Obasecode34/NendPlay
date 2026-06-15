@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { RiGlobalLine, RiSearchLine, RiNewspaperLine, RiTimeLine } from 'react-icons/ri'
 import { newsService } from '../services'
+import GoogleAdSlot from '../components/ads/GoogleAdSlot'
 
 const NEWS_TABS = [
   { value: 'for-you', label: 'For you' },
@@ -286,6 +287,7 @@ export default function DailyNewsPage() {
       ) : (
         <>
           {featured && <div className="mb-4"><NewsCard article={featured} featured onOpen={openArticle} /></div>}
+          <GoogleAdSlot placement={activeSection === 'news' ? 'news' : 'all'} className="mb-4" />
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {rest.map((article, index) => (
               <NewsCard key={article._id || article.id || index} article={article} onOpen={openArticle} />

@@ -11,6 +11,7 @@ import { cacheDownloadFile, upsertLocalDownloadRecord } from '../services/localD
 import { getDeviceId } from '../services/guestSession'
 import useAuthStore from '../stores/authStore'
 import DownloadsPage from './DownloadsPage'
+import GoogleAdSlot from '../components/ads/GoogleAdSlot'
 
 const DOCUMENT_PAGE_LIMIT = 60
 
@@ -608,6 +609,8 @@ export default function NovelHubPage() {
           </div>
         )}
       </div>
+
+      {activeTopTab === 'novels' && <GoogleAdSlot placement="novels" className="mb-6" />}
 
       {activeTopTab === 'downloads' ? (
         <DownloadsPage embedded contentType="document" />

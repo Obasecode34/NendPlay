@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import { mediaService, downloadService } from '../services/index'
 import { cacheDownloadFile, upsertLocalDownloadRecord } from '../services/localDownloads'
 import { getDeviceId } from '../services/guestSession'
+import GoogleAdSlot from '../components/ads/GoogleAdSlot'
 
 function formatCount(value = 0) {
   const count = Number(value) || 0
@@ -435,7 +436,7 @@ export default function ShortsPage() {
 
   if (loading && page === 1) {
     return (
-      <div className="mx-auto flex w-full flex-col items-center space-y-4">
+      <div className="mx-auto flex w-full flex-col items-center space-y-4 shorts-loading-skeleton">
         {[...Array(3)].map((_, i) => (
           <div
             key={i}
@@ -499,6 +500,8 @@ export default function ShortsPage() {
       </div>
 
       {/* Vertical scroll feed — centered like TikTok */}
+      <GoogleAdSlot placement="shorts" className="mx-auto mb-4 max-w-3xl" />
+
       <div className="mx-auto flex w-full flex-col items-center space-y-4">
         {shorts.map((short) => (
           <ShortCard

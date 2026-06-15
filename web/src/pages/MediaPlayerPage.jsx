@@ -13,6 +13,7 @@ import { getDeviceId } from '../services/guestSession'
 import useAuthStore from '../stores/authStore'
 import usePlayerStore from '../stores/playerStore'
 import MediaCard from '../components/media/MediaCard'
+import GoogleAdSlot from '../components/ads/GoogleAdSlot'
 
 function getCollectionLabel(item) {
   if (item.collectionType === 'series_episode') {
@@ -350,6 +351,12 @@ export default function MediaPlayerPage() {
                 </button>
               </div>
             </div>
+
+            {!locked && (
+              <div className="mt-5">
+                <GoogleAdSlot placement="media" />
+              </div>
+            )}
 
             {media.description && (
               <p className="mt-4 text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>

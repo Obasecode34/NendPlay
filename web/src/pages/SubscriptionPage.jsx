@@ -4,6 +4,7 @@ import { RiCheckLine, RiVipCrownFill, RiCalendarLine, RiCloseLine } from 'react-
 import toast from 'react-hot-toast'
 import { subscriptionService } from '../services/index'
 import useAuthStore from '../stores/authStore'
+import GoogleAdSlot from '../components/ads/GoogleAdSlot'
 
 const PLAN_COLORS = {
   mobile: '#60A5FA',
@@ -137,6 +138,8 @@ export default function SubscriptionPage() {
           </button>
         ))}
       </div>
+
+      <GoogleAdSlot placement="subscription" className="mb-8" />
 
       {/* Plans grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

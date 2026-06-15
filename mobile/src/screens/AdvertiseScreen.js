@@ -18,6 +18,10 @@ const AD_TYPES = [
 const PLACEMENTS = [
   { value: 'home', label: 'Home' },
   { value: 'media', label: 'Media' },
+  { value: 'news', label: 'News' },
+  { value: 'downloads', label: 'Downloads' },
+  { value: 'profile', label: 'Profile' },
+  { value: 'subscription', label: 'Subscription' },
   { value: 'live_event', label: 'Live Events' },
   { value: 'shorts', label: 'Shorts' },
   { value: 'novels', label: 'NovelHub' },

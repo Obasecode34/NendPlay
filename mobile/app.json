@@ -61,7 +61,6 @@
       [
         "./plugins/withGoogleMobileAds",
         {
-          // "androidAppId": "ca-app-pub-8160598841675696~4647379521",
           "androidAppId": "ca-app-pub-6883303133741538~7229887820",
           "iosAppId": "ca-app-pub-8160598841675696~1490733147"
         }
@@ -104,16 +103,6 @@
       "adMobSsvRewardsEnabled": true,
       "adMobRewardedInterstitialEnabled": false,
       "adMobSsvRewardsNote": "Set adMobSsvRewardsEnabled to true only after enabling SSV in AdMob for the real rewarded ad unit.",
-      // "adMobAndroidBannerId": "ca-app-pub-8160598841675696/3026872170",
-      // "adMobIosBannerId": "ca-app-pub-8160598841675696/7617157791",
-      // "adMobAndroidRewardedId": "ca-app-pub-8160598841675696/8463335603",
-      // "adMobIosRewardedId": "ca-app-pub-8160598841675696/2687960828",
-      // "adMobAndroidRewardedInterstitialId": "ca-app-pub-8160598841675696/4913615597",
-      // "adMobIosRewardedInterstitialId": "ca-app-pub-8160598841675696/9782798898",
-      // "adMobAndroidNativeId": "ca-app-pub-8160598841675696/2296548353",
-      // "adMobIosNativeId": "ca-app-pub-8160598841675696/8215923596",
-      // "adMobAndroidAppOpenId": "ca-app-pub-8160598841675696/6279721476",
-      // "adMobIosAppOpenId": "ca-app-pub-8160598841675696/5338174896",
       "adMobAndroidBannerId": "ca-app-pub-6883303133741538/9786154005",
       "adMobAndroidRewardedId": "ca-app-pub-6883303133741538/7086256866",
       "adMobAndroidRewardedInterstitialId": "ca-app-pub-6883303133741538/2464485570",

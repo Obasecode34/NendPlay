@@ -4,6 +4,7 @@ import { RiGiftFill, RiStarFill, RiVipCrownLine, RiShieldCheckLine } from 'react
 import toast from 'react-hot-toast'
 import useAuthStore from '../stores/authStore'
 import { rewardService } from '../services/index'
+import GoogleAdSlot from '../components/ads/GoogleAdSlot'
 
 const defaultRewards = [
   { id: 'adfree_1d', label: 'Ad-free for 1 day', coins: 5, kind: 'ad_free', days: 1 },
@@ -196,6 +197,8 @@ export default function RewardsPage() {
           Reward coins are optional NendPlay rewards. They have no cash value, cannot be transferred, and are only used for NendPlay ad-free access or plans. Rewarded ads are always optional and NendPlay is responsible for granting rewards.
         </p>
       </div>
+
+      <GoogleAdSlot placement="subscription" className="mb-6" />
 
       <div className="card p-6 mb-6" style={{ borderColor: 'rgba(245,197,66,0.28)' }}>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">

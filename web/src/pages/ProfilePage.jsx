@@ -9,6 +9,7 @@ import { authService } from '../services/auth.service'
 import { mediaService, subscriptionService } from '../services/index'
 import MediaCard from '../components/media/MediaCard'
 import UploadModal from '../components/media/UploadModal'
+import GoogleAdSlot from '../components/ads/GoogleAdSlot'
 
 const PROFILE_PAGE_LIMIT = 20
 
@@ -253,6 +254,8 @@ export default function ProfilePage() {
           </button>
         </div>
 
+        <GoogleAdSlot placement="profile" className="mt-6" />
+
         <div className="card p-6 space-y-4 mt-6">
           <h2 className="font-display font-bold text-lg" style={{ color: 'var(--color-text)' }}>About NendPlay</h2>
           <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
@@ -380,6 +383,8 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      <GoogleAdSlot placement="profile" className="mb-6" />
 
       {/* Subscription info */}
       {subscription?.isActive && (
