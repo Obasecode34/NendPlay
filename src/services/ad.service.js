@@ -157,11 +157,16 @@ class AdService {
   //   - isLiveEvent: whether this is a live event context
   async getAdsForContext({ isSubscribed, placement, isLiveEvent = false, limit = 3 }) {
     const now = new Date();
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 3, 1), 10);
 
     // Build query for active, non-expired ads
     const baseQuery = {
       status: "active",
-      expiryDate: { $gt: now },
+      $or: [
+        { expiryDate: { $gt: now } },
+        { expiryDate: null },
+        { expiryDate: { $exists: false } },
+      ],
     };
 
     // Live event context:
@@ -172,7 +177,8 @@ class AdService {
         ...baseQuery,
         placement: { $in: ["live_event", "all"] },
       })
-        .limit(limit)
+        .sort({ updatedAt: -1 })
+        .limit(safeLimit)
         .lean();
 
       return {
@@ -199,7 +205,8 @@ class AdService {
       placement: { $in: [placement, "all"] },
       targetAudience: { $in: ["unsubscribed", "all"] },
     })
-      .limit(limit)
+      .sort({ updatedAt: -1 })
+      .limit(safeLimit)
       .lean();
 
     return {

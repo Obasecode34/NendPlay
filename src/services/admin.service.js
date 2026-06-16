@@ -931,9 +931,13 @@ class AdminService {
   async updateAd(adId, body) {
     const updates = pickAllowed(body, ["status", "rejectionReason", "placement", "targetAudience", "durationDays"]);
     if (updates.status === "active") {
+      const existingAd = await Ad.findById(adId).select("durationDays expiryDate");
+      if (!existingAd) throw { status: 404, message: "Ad not found" };
       const now = new Date();
+      const durationDays = Number(body.durationDays) || Number(existingAd.durationDays) || 30;
       updates.startDate = now;
-      updates.expiryDate = new Date(now.getTime() + (Number(body.durationDays) || 1) * 24 * 60 * 60 * 1000);
+      updates.durationDays = durationDays;
+      updates.expiryDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
     }
     const ad = await Ad.findByIdAndUpdate(adId, updates, { new: true });
     if (!ad) throw { status: 404, message: "Ad not found" };

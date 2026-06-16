@@ -70,7 +70,7 @@ class AdController {
   // Frontend calls this to know which ads to show
   async serveAds(req, res) {
     try {
-      const { placement, isLiveEvent } = req.query;
+      const { placement, isLiveEvent, limit } = req.query;
 
       // Determine subscription status
       let isSubscribed = false;
@@ -84,6 +84,7 @@ class AdController {
         isSubscribed,
         placement: placement || "all",
         isLiveEvent: isLiveEvent === "true",
+        limit,
       });
 
       return ApiResponse.success(res, { data: result });

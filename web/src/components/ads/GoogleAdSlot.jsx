@@ -8,6 +8,7 @@ const DEFAULT_SLOT = import.meta.env.VITE_GOOGLE_ADSENSE_SLOT
   || import.meta.env.VITE_GOOGLE_AD_SLOT
   || ''
 const ENABLE_NATIVE_ADS = import.meta.env.VITE_NENDPLAY_NATIVE_ADS !== 'false'
+const ENABLE_HOUSE_ADS = import.meta.env.VITE_NENDPLAY_HOUSE_ADS !== 'false'
 
 let scriptLoaded = false
 
@@ -73,14 +74,27 @@ function NendPlayNativeAd({ placement, className }) {
   }
 
   if (!ad) {
-    return import.meta.env.DEV ? (
-      <div
-        className={`rounded-xl px-4 py-5 text-center text-sm ${className}`}
-        style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
+    if (!ENABLE_HOUSE_ADS) return null
+    return (
+      <a
+        href="/advertise"
+        className={`block rounded-xl px-4 py-5 text-left transition hover:-translate-y-0.5 ${className}`}
+        style={{
+          background: 'linear-gradient(135deg, rgba(124,58,237,0.18), rgba(14,165,233,0.12))',
+          color: 'var(--color-text)',
+          border: '1px solid var(--color-border)',
+        }}
       >
-        Approve a NendPlay ad to show sponsored content here.
-      </div>
-    ) : null
+        <div className="mb-2 inline-flex rounded-full px-2 py-1 text-[11px] font-bold uppercase tracking-wide"
+          style={{ background: 'rgba(124,58,237,0.18)', color: 'var(--color-primary)' }}>
+          Sponsored
+        </div>
+        <h3 className="text-base font-black">Advertise on NendPlay</h3>
+        <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+          Reach movie, music, news, and NovelHub audiences across web and mobile.
+        </p>
+      </a>
+    )
   }
 
   return (

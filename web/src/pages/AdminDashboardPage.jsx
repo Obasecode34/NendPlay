@@ -798,7 +798,7 @@ export default function AdminDashboardPage() {
           <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1" onClick={() => setPreviewAd(row)}>
             <RiEyeLine /> View
           </button>
-          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Ad approved', () => adminService.updateAd(row._id, { status: 'active', durationDays: row.durationDays || 1 }))}>Approve</button>
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Ad approved', () => adminService.updateAd(row._id, { status: 'active', durationDays: row.durationDays || 30 }))}>Approve</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Ad paused', () => adminService.updateAd(row._id, { status: 'paused' }))}>Pause</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Ad rejected', () => adminService.updateAd(row._id, { status: 'rejected', rejectionReason: 'Rejected by admin review' }))}>Reject</button>
           <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1"
