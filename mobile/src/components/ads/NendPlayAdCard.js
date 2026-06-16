@@ -6,13 +6,25 @@ import { adService } from '../../services'
 import useThemeStore from '../../stores/themeStore'
 import { hasAdFreeAccess } from './adEntitlements'
 
+const getExpoExtra = () => (
+  Constants.expoConfig?.extra ||
+  Constants.manifest?.extra ||
+  Constants.manifest2?.extra?.expoClient?.extra ||
+  {}
+)
+
+const withTimeout = (promise, ms = 5000) => Promise.race([
+  promise,
+  new Promise((_, reject) => setTimeout(() => reject(new Error('ad request timed out')), ms)),
+])
+
 export default function NendPlayAdCard({ placement = 'home', style }) {
   const { user } = useAuthStore()
   const { theme } = useThemeStore()
   const c = theme.colors
   const [ad, setAd] = useState(null)
   const [loading, setLoading] = useState(true)
-  const showHouseAds = Constants.expoConfig?.extra?.nendPlayHouseAdsEnabled !== false
+  const showHouseAds = getExpoExtra().nendPlayHouseAdsEnabled !== false
 
   useEffect(() => {
     if (hasAdFreeAccess(user)) {
@@ -25,7 +37,7 @@ export default function NendPlayAdCard({ placement = 'home', style }) {
 
     const loadAd = async () => {
       try {
-        const res = await adService.serve({ placement, limit: 1 })
+        const res = await withTimeout(adService.serve({ placement, limit: 1 }))
         const nextAd = res.data?.data?.nativeAds?.[0]
         if (!cancelled) setAd(nextAd || null)
         if (nextAd?._id) adService.recordImpression(nextAd._id).catch(() => {})
