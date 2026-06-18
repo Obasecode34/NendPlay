@@ -13,7 +13,10 @@ const ENABLE_HOUSE_ADS = import.meta.env.VITE_NENDPLAY_HOUSE_ADS !== 'false'
 let scriptLoaded = false
 
 function loadAdsenseScript() {
-  if (!ADSENSE_CLIENT || scriptLoaded || document.querySelector('script[data-nendplay-adsense]')) {
+  const existingScript = document.querySelector('script[data-nendplay-adsense]')
+    || document.querySelector('script[src*="pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"]')
+
+  if (!ADSENSE_CLIENT || scriptLoaded || existingScript) {
     scriptLoaded = true
     return
   }
