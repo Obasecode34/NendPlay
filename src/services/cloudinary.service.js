@@ -91,7 +91,47 @@ class CloudinaryService {
   }
 
   // ── Delete a file from Cloudinary ─────────────────────────────────────
-  // Called when a media item is deleted from NendPlay
+  // Upload and normalize an advertiser creative for native ads.
+  uploadAdCreative(buffer, options = {}) {
+    return new Promise((resolve, reject) => {
+      const {
+        folder = "nendplay/ads",
+        resourceType = "image",
+        publicId = null,
+      } = options;
+
+      const uploadOptions = {
+        folder,
+        resource_type: resourceType,
+        use_filename: true,
+        unique_filename: true,
+        overwrite: false,
+      };
+
+      if (resourceType === "image") {
+        uploadOptions.transformation = [
+          { width: 1280, height: 720, crop: "fill", gravity: "auto" },
+          { quality: "auto", fetch_format: "auto" },
+        ];
+      }
+
+      if (publicId) uploadOptions.public_id = publicId;
+
+      const uploadStream = cloudinary.uploader.upload_stream(
+        uploadOptions,
+        (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        }
+      );
+
+      const readableStream = new Readable();
+      readableStream.push(buffer);
+      readableStream.push(null);
+      readableStream.pipe(uploadStream);
+    });
+  }
+
   // Upload and normalize a profile image to a square, CDN-ready avatar.
   uploadProfileImage(buffer, options = {}) {
     return new Promise((resolve, reject) => {

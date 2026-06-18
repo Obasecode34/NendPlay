@@ -100,6 +100,23 @@ const uploadMediaWithThumbnail = multer({
   },
 });
 
+const uploadAdCreative = multer({
+  storage: memoryStorage,
+  limits: {
+    fileSize: MAX_VIDEO_SIZE_MB * 1024 * 1024,
+    files: 1,
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname !== "creative") {
+      return cb(new Error("Unexpected field name. Use creative for ad uploads."), false);
+    }
+    if ([...IMAGE_TYPES, ...VIDEO_TYPES].includes(file.mimetype)) {
+      return cb(null, true);
+    }
+    return cb(new Error("Invalid ad creative type. Upload an image or video."), false);
+  },
+});
+
 const uploadNewsMedia = multer({
   storage: memoryStorage,
   limits: {
@@ -146,6 +163,7 @@ module.exports = {
   uploadMedia,
   uploadThumbnail,
   uploadMediaWithThumbnail,
+  uploadAdCreative,
   uploadNewsMedia,
   handleMulterError,
   getMediaCategory,

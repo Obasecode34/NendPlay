@@ -931,8 +931,9 @@ class AdminService {
   async updateAd(adId, body) {
     const updates = pickAllowed(body, ["status", "rejectionReason", "placement", "targetAudience", "durationDays"]);
     if (updates.status === "active") {
-      const existingAd = await Ad.findById(adId).select("durationDays expiryDate");
+      const existingAd = await Ad.findById(adId).select("durationDays expiryDate isPaid");
       if (!existingAd) throw { status: 404, message: "Ad not found" };
+      if (!existingAd.isPaid) throw { status: 400, message: "Cannot activate an unpaid ad" };
       const now = new Date();
       const durationDays = Number(body.durationDays) || Number(existingAd.durationDays) || 30;
       updates.startDate = now;

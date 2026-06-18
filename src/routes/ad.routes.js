@@ -10,6 +10,7 @@ const router = express.Router();
 const adController = require("../controllers/ad.controller");
 const { authMiddleware } = require("../middleware/auth.middleware");
 const { attachSubscriptionStatus } = require("../middleware/subscription.middleware");
+const { uploadAdCreative, handleMulterError } = require("../middleware/upload.middleware");
 
 // ── Public routes ─────────────────────────────────────────────────────────
 // Pricing quote — anyone can check prices before signing up
@@ -20,7 +21,13 @@ router.get("/pricing", adController.getPriceQuote);
 router.get("/serve", attachSubscriptionStatus, adController.serveAds);
 
 // ── Protected routes ──────────────────────────────────────────────────────
-router.post("/submit",  authMiddleware, adController.submitAd);
+router.post(
+  "/submit",
+  authMiddleware,
+  uploadAdCreative.single("creative"),
+  handleMulterError,
+  adController.submitAd
+);
 router.post("/verify",  authMiddleware, adController.verifyAdPayment);
 router.get("/my",       authMiddleware, adController.getMyAds);
 

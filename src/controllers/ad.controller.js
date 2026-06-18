@@ -28,6 +28,7 @@ class AdController {
       const result = await adService.submitAd({
         userId: req.user.userId,
         body: req.body,
+        creativeFile: req.file,
       });
 
       return ApiResponse.created(res, {

@@ -27,12 +27,12 @@ const {
 class PaymentService {
   // ── Initialize Payment ─────────────────────────────────────────────────
   // Returns { paymentUrl, transactionRef } regardless of gateway
-  async initializePayment({ gateway, email, amountNaira, planId, userId, transactionRef }) {
+  async initializePayment({ gateway, email, amountNaira, planId, userId, transactionRef, callbackPath, title, description }) {
     if (gateway === "paystack") {
-      return this._initializePaystack({ email, amountNaira, planId, userId, transactionRef });
+      return this._initializePaystack({ email, amountNaira, planId, userId, transactionRef, callbackPath });
     }
     if (gateway === "flutterwave") {
-      return this._initializeFlutterwave({ email, amountNaira, planId, userId, transactionRef });
+      return this._initializeFlutterwave({ email, amountNaira, planId, userId, transactionRef, callbackPath, title, description });
     }
     throw { status: 400, message: "Invalid payment gateway. Choose paystack or flutterwave." };
   }
@@ -50,7 +50,7 @@ class PaymentService {
   }
 
   // ── Paystack: Initialize ───────────────────────────────────────────────
-  async _initializePaystack({ email, amountNaira, planId, userId, transactionRef }) {
+  async _initializePaystack({ email, amountNaira, planId, userId, transactionRef, callbackPath = "/subscription/verify" }) {
     try {
       const response = await axios.post(
         "https://api.paystack.co/transaction/initialize",
@@ -58,7 +58,7 @@ class PaymentService {
           email,
           amount: amountNaira * 100, // Paystack uses kobo
           reference: transactionRef,
-          callback_url: `${CLIENT_URL}/subscription/verify?gateway=paystack&ref=${transactionRef}`,
+          callback_url: `${CLIENT_URL}${callbackPath}?gateway=paystack&ref=${transactionRef}`,
           metadata: {
             planId,
             userId: userId.toString(),
@@ -113,7 +113,16 @@ class PaymentService {
   }
 
   // ── Flutterwave: Initialize ────────────────────────────────────────────
-  async _initializeFlutterwave({ email, amountNaira, planId, userId, transactionRef }) {
+  async _initializeFlutterwave({
+    email,
+    amountNaira,
+    planId,
+    userId,
+    transactionRef,
+    callbackPath = "/subscription/verify",
+    title = "NendPlay Subscription",
+    description = `NendPlay ${planId} plan`,
+  }) {
     try {
       const response = await axios.post(
         "https://api.flutterwave.com/v3/payments",
@@ -121,11 +130,11 @@ class PaymentService {
           tx_ref: transactionRef,
           amount: amountNaira, // Flutterwave uses Naira directly
           currency: "NGN",
-          redirect_url: `${CLIENT_URL}/subscription/verify?gateway=flutterwave&ref=${transactionRef}`,
+          redirect_url: `${CLIENT_URL}${callbackPath}?gateway=flutterwave&ref=${transactionRef}`,
           customer: { email },
           customizations: {
-            title: "NendPlay Subscription",
-            description: `NendPlay ${planId} plan`,
+            title,
+            description,
             logo: `${CLIENT_URL}/logo.png`,
           },
           meta: {

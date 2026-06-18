@@ -12,8 +12,23 @@
 const Ad = require("../models/Ad");
 const User = require("../models/User");
 const paymentService = require("./payment.service");
+const cloudinaryService = require("./cloudinary.service");
 const { calculateAdPrice } = require("../config/adPricing");
 const { nanoid } = require("nanoid");
+
+const AD_TYPES = ["banner", "video", "overlay"];
+const PLACEMENTS = [
+  "home",
+  "media",
+  "news",
+  "downloads",
+  "profile",
+  "subscription",
+  "live_event",
+  "novels",
+  "shorts",
+  "all",
+];
 
 class AdService {
   // ── Get price quote for an ad ─────────────────────────────────────────
@@ -31,12 +46,12 @@ class AdService {
       placement,
       durationDays,
       totalNaira,
-      breakdown: `₦${totalNaira} for ${durationDays} day(s)`,
+      breakdown: `NGN ${totalNaira.toLocaleString()} for ${durationDays} day(s)`,
     };
   }
 
   // ── Submit ad and initialize payment ─────────────────────────────────
-  async submitAd({ userId, body }) {
+  async submitAd({ userId, body, creativeFile }) {
     const {
       advertiserName,
       title,
@@ -52,6 +67,24 @@ class AdService {
     const user = await User.findById(userId);
     if (!user) throw { status: 404, message: "User not found" };
 
+    if (!advertiserName || !String(advertiserName).trim()) {
+      throw { status: 400, message: "advertiserName is required" };
+    }
+    if (!title || !String(title).trim()) {
+      throw { status: 400, message: "title is required" };
+    }
+    if (!AD_TYPES.includes(adType)) {
+      throw { status: 400, message: "Invalid adType. Choose banner, video, or overlay." };
+    }
+    if (!PLACEMENTS.includes(placement)) {
+      throw { status: 400, message: "Invalid placement." };
+    }
+
+    const parsedDurationDays = parseInt(durationDays, 10);
+    if (!parsedDurationDays || parsedDurationDays < 1 || parsedDurationDays > 365) {
+      throw { status: 400, message: "durationDays must be between 1 and 365" };
+    }
+
     if (!user.email) {
       throw {
         status: 400,
@@ -60,7 +93,7 @@ class AdService {
     }
 
     // Calculate price
-    const priceNaira = calculateAdPrice(adType, placement, parseInt(durationDays));
+    const priceNaira = calculateAdPrice(adType, placement, parsedDurationDays);
 
     // For live event ads — force targetAudience to "all"
     // (subscribers also see live event ads)
@@ -69,13 +102,25 @@ class AdService {
     // Generate transaction ref
     const transactionRef = `NP-AD-${nanoid(16).toUpperCase()}`;
 
+    let creativeUrl = mediaUrl || "";
+    let creativePublicId = null;
+    if (creativeFile) {
+      const isVideo = creativeFile.mimetype.startsWith("video/");
+      const uploaded = await cloudinaryService.uploadAdCreative(creativeFile.buffer, {
+        resourceType: isVideo ? "video" : "image",
+      });
+      creativeUrl = uploaded.secure_url;
+      creativePublicId = uploaded.public_id;
+    }
+
     // Create ad record (pending payment)
     const ad = await Ad.create({
       advertiserId: userId,
-      advertiserName,
-      title,
+      advertiserName: String(advertiserName).trim(),
+      title: String(title).trim(),
       description: description || "",
-      mediaUrl: mediaUrl || "",
+      mediaUrl: creativeUrl,
+      cloudinaryPublicId: creativePublicId,
       targetUrl: targetUrl || "",
       adType,
       placement,
@@ -83,7 +128,7 @@ class AdService {
       priceNaira,
       paymentGateway: gateway || "paystack",
       transactionRef,
-      durationDays: parseInt(durationDays),
+      durationDays: parsedDurationDays,
       status: "pending_payment",
     });
 
@@ -95,6 +140,9 @@ class AdService {
       planId: `ad_${adType}`,
       userId,
       transactionRef,
+      callbackPath: "/advertise",
+      title: "NendPlay Ad Campaign",
+      description: `${adType} ad on ${placement}`,
     });
 
     return {
@@ -114,6 +162,10 @@ class AdService {
       return { message: "Ad payment already processed", ad };
     }
 
+    if (ad.paymentGateway !== gateway) {
+      throw { status: 400, message: `This ad payment must be verified with ${ad.paymentGateway}.` };
+    }
+
     // Verify with gateway
     const verification = await paymentService.verifyPayment({
       gateway,
@@ -125,27 +177,23 @@ class AdService {
       throw { status: 400, message: "Payment verification failed. Please try again." };
     }
 
-    // Payment confirmed → move to pending_review
-    // In a real app, admin reviews before activating
-    // For now, auto-activate after payment
+    if (Number(verification.amount) < Number(ad.priceNaira)) {
+      throw { status: 400, message: "Payment amount is less than the ad price." };
+    }
+
     const now = new Date();
-    const expiry = new Date(now);
-    expiry.setDate(expiry.getDate() + ad.durationDays);
 
     await Ad.findByIdAndUpdate(ad._id, {
       isPaid: true,
       paidAt: now,
       gatewayTransactionId: verification.gatewayTransactionId,
-      status: "active", // auto-activate (change to "pending_review" if admin approval needed)
-      startDate: now,
-      expiryDate: expiry,
+      status: "pending_review",
     });
 
     const updatedAd = await Ad.findById(ad._id);
     return {
-      message: "Ad payment confirmed and ad is now active",
+      message: "Ad payment confirmed. Your ad is pending review.",
       ad: updatedAd,
-      expiryDate: expiry,
     };
   }
 
