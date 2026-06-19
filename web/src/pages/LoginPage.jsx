@@ -8,7 +8,7 @@ import { authService } from '../services/auth.service'
 export default function LoginPage() {
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
-  const [form, setForm] = useState({ email: '', password: '' })
+  const [form, setForm] = useState({ identifier: '', password: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [resetMode, setResetMode] = useState(false)
@@ -17,17 +17,18 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.email || !form.password) {
+    if (!form.identifier || !form.password) {
       toast.error('Please fill in all fields')
       return
     }
     setLoading(true)
     try {
-      const res = await authService.login({ email: form.email.trim(), password: form.password })
+      const identifier = form.identifier.trim()
+      const res = await authService.login({ email: identifier, identifier, password: form.password })
       const { user, accessToken } = res.data.data
       setAuth(user, accessToken)
       toast.success(`Welcome back, ${user.profileName || user.username}!`)
-      navigate('/home')
+      navigate(['admin', 'super_admin'].includes(user.role) ? '/admin' : '/home')
     } catch (err) {
       toast.error(err.response?.data?.message || 'Login failed')
     } finally {
@@ -36,7 +37,7 @@ export default function LoginPage() {
   }
 
   const handleForgotPassword = async () => {
-    const identifier = resetForm.identifier || form.email
+    const identifier = resetForm.identifier || form.identifier
     if (!identifier) {
       toast.error('Enter your email address first')
       return
@@ -72,7 +73,7 @@ export default function LoginPage() {
         newPassword: resetForm.newPassword,
       })
       toast.success('Password updated. Please sign in.')
-      setForm({ email: resetForm.identifier || form.email, password: '' })
+      setForm({ identifier: resetForm.identifier || form.identifier, password: '' })
       setResetForm({ identifier: '', token: '', newPassword: '' })
       setResetMode(false)
     } catch (err) {
@@ -141,13 +142,14 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>
-                Email Address
+                Email Address or Username
               </label>
               <input
-                type="email"
-                placeholder="Enter email address"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                type="text"
+                autoCapitalize="none"
+                placeholder="Enter email address or username"
+                value={form.identifier}
+                onChange={(e) => setForm({ ...form, identifier: e.target.value })}
                 className="input-base"
               />
             </div>
@@ -179,7 +181,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => {
                   setResetMode(!resetMode)
-                  setResetForm({ ...resetForm, identifier: resetForm.identifier || form.email })
+                  setResetForm({ ...resetForm, identifier: resetForm.identifier || form.identifier })
                 }}
                 className="text-sm font-semibold"
                 style={{ color: 'var(--color-primary)' }}>

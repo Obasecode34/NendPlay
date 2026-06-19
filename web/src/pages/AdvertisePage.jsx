@@ -79,15 +79,16 @@ export default function AdvertisePage() {
         toast.success('Free admin ad created')
       } else {
         const res = await adService.submit(payload)
-        const { paymentUrl } = res.data.data
-        toast.success('Ad submitted! Complete payment to go live.')
-        window.open(paymentUrl, '_blank')
+        const { paymentUrl } = res.data?.data || {}
+        if (!paymentUrl) throw new Error('Payment link was not returned')
+        toast.success('Ad submitted. Redirecting to payment.')
+        window.location.assign(paymentUrl)
       }
       setShowForm(false)
       setCreativeFile(null)
       fetchMyAds()
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Submission failed')
+      toast.error(err.response?.data?.message || err.message || 'Submission failed')
     } finally { setSubmitting(false) }
   }
 

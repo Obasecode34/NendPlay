@@ -137,18 +137,36 @@ class AdService {
       status: "pending_payment",
     });
 
-    // Initialize payment
-    const paymentData = await paymentService.initializePayment({
-      gateway: gateway || "paystack",
-      email: user.email,
-      amountNaira: priceNaira,
-      planId: `ad_${adType}`,
-      userId,
-      transactionRef,
-      callbackPath: "/advertise",
-      title: "NendPlay Ad Campaign",
-      description: `${adType} ad on ${placement}`,
-    });
+    // Initialize payment. If the gateway fails, leave a clear rejected record
+    // instead of a pending_payment ad that can never be completed.
+    let paymentData;
+    try {
+      paymentData = await paymentService.initializePayment({
+        gateway: gateway || "paystack",
+        email: user.email,
+        amountNaira: priceNaira,
+        planId: `ad_${adType}`,
+        userId,
+        transactionRef,
+        callbackPath: "/advertise",
+        title: "NendPlay Ad Campaign",
+        description: `${adType} ad on ${placement}`,
+      });
+    } catch (err) {
+      await Ad.findByIdAndUpdate(ad._id, {
+        status: "rejected",
+        rejectionReason: err.message || "Payment initialization failed",
+      }).catch(() => {});
+      throw err;
+    }
+
+    if (!paymentData?.paymentUrl) {
+      await Ad.findByIdAndUpdate(ad._id, {
+        status: "rejected",
+        rejectionReason: "Payment provider did not return a payment link",
+      }).catch(() => {});
+      throw { status: 502, message: "Payment provider did not return a payment link" };
+    }
 
     return {
       ad,

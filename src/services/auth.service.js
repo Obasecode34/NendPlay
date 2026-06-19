@@ -219,13 +219,18 @@ class AuthService {
   }
 
   async login({ email, identifier, password }) {
-    const normalizedEmail = (email || identifier || "").toLowerCase().trim();
-    if (!normalizedEmail.includes("@")) {
-      throw { status: 400, message: "Please sign in with your email address" };
+    const normalizedIdentifier = String(email || identifier || "").trim();
+    const normalizedLookup = normalizedIdentifier.toLowerCase();
+    if (!normalizedIdentifier) {
+      throw { status: 400, message: "Email address or username is required" };
     }
 
-    const user = await User.findOne({ email: normalizedEmail }).select("+password");
-    if (!user) throw { status: 401, message: "Invalid email or password" };
+    const user = await User.findOne(
+      normalizedLookup.includes("@")
+        ? { email: normalizedLookup }
+        : { username: normalizedIdentifier }
+    ).select("+password");
+    if (!user) throw { status: 401, message: "Invalid email/username or password" };
     if (user.authMethod === "google" && !user.password) {
       throw {
         status: 401,
