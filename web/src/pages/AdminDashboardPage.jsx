@@ -751,6 +751,7 @@ export default function AdminDashboardPage() {
       { key: 'title', label: 'Ad', render: (row) => <div><p className="font-bold max-w-sm truncate">{row.title}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.adType} · {row.placement}</p></div> },
       { key: 'advertiserName', label: 'Advertiser' },
       { key: 'status', label: 'Status', render: (row) => <Badge>{row.status}</Badge> },
+      { key: 'paymentGateway', label: 'Payment', render: (row) => row.paymentGateway === 'admin_comp' ? <Badge>free admin ad</Badge> : <Badge>{row.isPaid ? 'paid' : 'unpaid'}</Badge> },
       { key: 'impressions', label: 'Views' },
       { key: 'clicks', label: 'Clicks' },
     ]
