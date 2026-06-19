@@ -74,6 +74,7 @@ class AdService {
       placement,
       durationDays,
       gateway,
+      callbackUrl,
     } = body;
 
     const user = await User.findById(userId);
@@ -113,6 +114,7 @@ class AdService {
 
     // Generate transaction ref
     const transactionRef = `NP-AD-${nanoid(16).toUpperCase()}`;
+    const safeCallbackUrl = this.getSafePaymentCallbackUrl(callbackUrl);
 
     const uploadedCreative = await uploadCreativeFile(creativeFile);
     const creativeUrl = uploadedCreative.creativeUrl || mediaUrl || "";
@@ -149,6 +151,7 @@ class AdService {
         userId,
         transactionRef,
         callbackPath: "/advertise",
+        callbackUrl: safeCallbackUrl,
         title: "NendPlay Ad Campaign",
         description: `${adType} ad on ${placement}`,
       });
@@ -174,6 +177,18 @@ class AdService {
       transactionRef,
       priceNaira,
     };
+  }
+
+  getSafePaymentCallbackUrl(callbackUrl) {
+    if (!callbackUrl) return null;
+    const value = String(callbackUrl).trim();
+    const allowedOrigins = [
+      "nendplay://advertise",
+      "https://nendplay.com/advertise",
+      "https://www.nendplay.com/advertise",
+      "https://nendplay-web.onrender.com/advertise",
+    ];
+    return allowedOrigins.some((origin) => value.startsWith(origin)) ? value : null;
   }
 
   async createAdminAd({ adminId, body, creativeFile }) {

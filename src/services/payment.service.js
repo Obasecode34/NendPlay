@@ -27,12 +27,12 @@ const {
 class PaymentService {
   // ── Initialize Payment ─────────────────────────────────────────────────
   // Returns { paymentUrl, transactionRef } regardless of gateway
-  async initializePayment({ gateway, email, amountNaira, planId, userId, transactionRef, callbackPath, title, description }) {
+  async initializePayment({ gateway, email, amountNaira, planId, userId, transactionRef, callbackPath, callbackUrl, title, description }) {
     if (gateway === "paystack") {
-      return this._initializePaystack({ email, amountNaira, planId, userId, transactionRef, callbackPath });
+      return this._initializePaystack({ email, amountNaira, planId, userId, transactionRef, callbackPath, callbackUrl });
     }
     if (gateway === "flutterwave") {
-      return this._initializeFlutterwave({ email, amountNaira, planId, userId, transactionRef, callbackPath, title, description });
+      return this._initializeFlutterwave({ email, amountNaira, planId, userId, transactionRef, callbackPath, callbackUrl, title, description });
     }
     throw { status: 400, message: "Invalid payment gateway. Choose paystack or flutterwave." };
   }
@@ -50,7 +50,13 @@ class PaymentService {
   }
 
   // ── Paystack: Initialize ───────────────────────────────────────────────
-  async _initializePaystack({ email, amountNaira, planId, userId, transactionRef, callbackPath = "/subscription/verify" }) {
+  buildCallbackUrl({ callbackUrl, callbackPath = "/subscription/verify", gateway, transactionRef }) {
+    const baseUrl = callbackUrl || `${CLIENT_URL}${callbackPath}`;
+    const separator = baseUrl.includes("?") ? "&" : "?";
+    return `${baseUrl}${separator}gateway=${encodeURIComponent(gateway)}&ref=${encodeURIComponent(transactionRef)}`;
+  }
+
+  async _initializePaystack({ email, amountNaira, planId, userId, transactionRef, callbackPath = "/subscription/verify", callbackUrl }) {
     try {
       const response = await axios.post(
         "https://api.paystack.co/transaction/initialize",
@@ -58,7 +64,7 @@ class PaymentService {
           email,
           amount: amountNaira * 100, // Paystack uses kobo
           reference: transactionRef,
-          callback_url: `${CLIENT_URL}${callbackPath}?gateway=paystack&ref=${transactionRef}`,
+          callback_url: this.buildCallbackUrl({ callbackUrl, callbackPath, gateway: "paystack", transactionRef }),
           metadata: {
             planId,
             userId: userId.toString(),
@@ -120,6 +126,7 @@ class PaymentService {
     userId,
     transactionRef,
     callbackPath = "/subscription/verify",
+    callbackUrl,
     title = "NendPlay Subscription",
     description = `NendPlay ${planId} plan`,
   }) {
@@ -130,7 +137,7 @@ class PaymentService {
           tx_ref: transactionRef,
           amount: amountNaira, // Flutterwave uses Naira directly
           currency: "NGN",
-          redirect_url: `${CLIENT_URL}${callbackPath}?gateway=flutterwave&ref=${transactionRef}`,
+          redirect_url: this.buildCallbackUrl({ callbackUrl, callbackPath, gateway: "flutterwave", transactionRef }),
           customer: { email },
           customizations: {
             title,
