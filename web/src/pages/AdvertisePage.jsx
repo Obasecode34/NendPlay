@@ -30,6 +30,7 @@ export default function AdvertisePage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [verifyingPayment, setVerifyingPayment] = useState(false)
   const [creativeFile, setCreativeFile] = useState(null)
   const [form, setForm] = useState({
     advertiserName: '', title: '', description: '',
@@ -38,7 +39,16 @@ export default function AdvertisePage() {
   })
   const isAdmin = ['admin', 'super_admin'].includes(user?.role)
 
-  useEffect(() => { fetchMyAds() }, [])
+  useEffect(() => {
+    fetchMyAds()
+    const params = new URLSearchParams(window.location.search)
+    const ref = params.get('ref')
+    const gateway = params.get('gateway')
+    if (ref && gateway) {
+      verifyPayment(ref, gateway)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
 
   useEffect(() => {
     if (form.adType && form.placement && form.durationDays) {
@@ -92,6 +102,19 @@ export default function AdvertisePage() {
     } finally { setSubmitting(false) }
   }
 
+  const verifyPayment = async (transactionRef, gateway) => {
+    setVerifyingPayment(true)
+    try {
+      const res = await adService.verify({ transactionRef, gateway })
+      toast.success(res.data?.message || 'Ad payment confirmed. Pending admin review.')
+      fetchMyAds()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not verify ad payment')
+    } finally {
+      setVerifyingPayment(false)
+    }
+  }
+
   const handleToggle = async (id) => {
     try {
       const res = await adService.toggle(id)
@@ -119,6 +142,12 @@ export default function AdvertisePage() {
           <RiMegaphoneFill /> {isAdmin ? 'Create Free Ad' : 'Create Ad'}
         </button>
       </div>
+
+      {verifyingPayment && (
+        <div className="card p-4 mb-5 text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+          Verifying ad payment...
+        </div>
+      )}
 
       {/* My ads */}
       {loading ? (

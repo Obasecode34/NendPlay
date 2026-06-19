@@ -14,6 +14,7 @@ const emailService = require("./email.service");
 const bunnyService = require("./bunny.service");
 const muxService = require("./mux.service");
 const mediaThumbnailService = require("./mediaThumbnail.service");
+const paymentService = require("./payment.service");
 const { ADMIN_PERMISSIONS } = require("../config/adminPermissions");
 const { calculateAdPrice } = require("../config/adPricing");
 const { nanoid } = require("nanoid");
@@ -1037,13 +1038,31 @@ class AdminService {
       if (!existingAd.isPaid) {
         const advertiser = await User.findById(existingAd.advertiserId).select("role").lean();
         const adminOwnedAd = ["admin", "super_admin"].includes(advertiser?.role) || existingAd.paymentGateway === "admin_comp";
-        if (!adminOwnedAd) throw { status: 400, message: "Cannot activate an unpaid ad" };
-        updates.isPaid = true;
-        updates.paidAt = now;
-        updates.paymentGateway = "admin_comp";
-        updates.priceNaira = 0;
-        if (!existingAd.transactionRef || !String(existingAd.transactionRef).startsWith("NP-ADMIN-FREE-AD-")) {
-          updates.transactionRef = `NP-ADMIN-FREE-AD-${nanoid(16).toUpperCase()}`;
+        if (adminOwnedAd) {
+          updates.isPaid = true;
+          updates.paidAt = now;
+          updates.paymentGateway = "admin_comp";
+          updates.priceNaira = 0;
+          if (!existingAd.transactionRef || !String(existingAd.transactionRef).startsWith("NP-ADMIN-FREE-AD-")) {
+            updates.transactionRef = `NP-ADMIN-FREE-AD-${nanoid(16).toUpperCase()}`;
+          }
+        } else {
+          if (!existingAd.transactionRef || !["paystack", "flutterwave"].includes(existingAd.paymentGateway)) {
+            throw { status: 400, message: "Cannot activate an unpaid ad" };
+          }
+          const verification = await paymentService.verifyPayment({
+            gateway: existingAd.paymentGateway,
+            transactionRef: existingAd.transactionRef,
+          });
+          if (!verification.verified) {
+            throw { status: 400, message: "Payment has not been confirmed by the gateway yet" };
+          }
+          if (Number(verification.amount) < Number(existingAd.priceNaira)) {
+            throw { status: 400, message: "Payment amount is less than the ad price" };
+          }
+          updates.isPaid = true;
+          updates.paidAt = now;
+          updates.gatewayTransactionId = verification.gatewayTransactionId;
         }
       }
       const durationDays = Number(body.durationDays) || Number(existingAd.durationDays) || 30;

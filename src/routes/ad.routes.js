@@ -28,7 +28,9 @@ router.post(
   handleMulterError,
   adController.submitAd
 );
-router.post("/verify",  authMiddleware, adController.verifyAdPayment);
+// Payment callbacks can return after the browser has lost its in-memory access
+// token, so verification is public and still secured by gateway verification.
+router.post("/verify",  adController.verifyAdPayment);
 router.get("/my",       authMiddleware, adController.getMyAds);
 
 // ── Specific named routes before /:id ─────────────────────────────────────
