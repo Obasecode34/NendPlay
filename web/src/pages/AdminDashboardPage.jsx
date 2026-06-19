@@ -1120,6 +1120,16 @@ function AdminAdModal({ form, setForm, file, setFile, onClose, onSubmit }) {
             <textarea className="input-base min-h-24 resize-y" placeholder="Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
             <input className="input-base" placeholder="Target URL" value={form.targetUrl} onChange={(event) => setForm({ ...form, targetUrl: event.target.value })} />
             <input className="input-base" placeholder="Media URL if not uploading a file" value={form.mediaUrl} onChange={(event) => setForm({ ...form, mediaUrl: event.target.value })} />
+            <div
+              className="rounded-2xl px-4 py-3 text-sm font-black"
+              style={{
+                background: 'rgba(34,197,94,0.12)',
+                color: '#22C55E',
+                border: '1px solid rgba(34,197,94,0.28)',
+              }}
+            >
+              Payment: Free admin ad. Backend will save this as admin_comp automatically.
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <select className="input-base" value={form.adType} onChange={(event) => setForm({ ...form, adType: event.target.value })}>
@@ -1140,7 +1150,7 @@ function AdminAdModal({ form, setForm, file, setFile, onClose, onSubmit }) {
 
             <div className="flex justify-end gap-2 pt-2">
               <button className="btn-ghost px-4 py-2 text-sm" onClick={onClose}>Cancel</button>
-              <button className="btn-primary px-4 py-2 text-sm" onClick={onSubmit}>Create Ad</button>
+              <button className="btn-primary px-4 py-2 text-sm" onClick={onSubmit}>Create Free Ad</button>
             </div>
           </div>
         </div>
