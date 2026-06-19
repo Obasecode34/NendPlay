@@ -7,23 +7,23 @@
 const AD_PRICING = {
   // Base price per day (Naira)
   baseRatePerDay: {
-    banner: 500,      // ₦500/day for banner ads
-    video: 1500,      // ₦1500/day for video ads
-    overlay: 2000,    // ₦2000/day for live event overlay ads
+    banner: 399,      // ₦399/day for banner ads
+    video: 499,       // ₦499/day for video ads
+    overlay: 699,     // ₦699/day for live event overlay ads
   },
 
   // Placement multipliers
   placementMultiplier: {
     home: 2.0,        // Home tab gets most traffic — premium price
-    live_event: 2.5,  // Live events — highest engagement
+    live_event: 2.2,  // Live events — high engagement
     media: 1.5,       // During media playback
     news: 1.4,        // News feeds and article details
-    downloads: 1.0,   // Downloads screens
-    profile: 1.0,     // Profile/settings screens
+    downloads: 1.3,   // Downloads screens
+    profile: 1.1,     // Profile/settings screens
     subscription: 1.2,// Subscription and rewards screens
     shorts: 1.8,      // Shorts — high engagement
-    novels: 1.0,      // NovelHub — standard
-    all: 1.5,         // All placements — average multiplier
+    novels: 1.5,      // NovelHub
+    all: 2.7,         // All placements — premium coverage
   },
 };
 

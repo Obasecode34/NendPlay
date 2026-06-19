@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ReactPlayer from 'react-player'
 import { RiHeartLine, RiHeartFill, RiBookmarkLine, RiBookmarkFill,
@@ -368,6 +368,14 @@ export default function ShortsPage() {
   const [feedMode, setFeedMode] = useState('all')
   const [searchParams] = useSearchParams()
   const openShortId = searchParams.get('open')
+  const feedItems = useMemo(() => {
+    const items = []
+    shorts.forEach((short, index) => {
+      if (index > 0 && index % 5 === 0) items.push({ _id: `shorts-ad-${index}`, isAd: true })
+      items.push(short)
+    })
+    return items
+  }, [shorts])
 
   useEffect(() => { fetchShorts() }, [page, feedMode])
 
@@ -500,16 +508,30 @@ export default function ShortsPage() {
       </div>
 
       {/* Vertical scroll feed — centered like TikTok */}
-      <GoogleAdSlot placement="shorts" className="mx-auto mb-4 max-w-3xl" />
-
       <div className="mx-auto flex w-full flex-col items-center space-y-4">
-        {shorts.map((short) => (
+        {feedItems.map((item) => (
+          item.isAd ? (
+            <div
+              key={item._id}
+              className="flex items-center justify-center rounded-2xl p-4"
+              style={{
+                height: 'min(820px, max(420px, calc(100vh - 190px)))',
+                aspectRatio: '9 / 16',
+                maxWidth: '100%',
+                background: '#05050F',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <GoogleAdSlot placement="shorts" className="w-full" />
+            </div>
+          ) : (
           <ShortCard
-            key={short._id}
-            short={short}
-            isActive={activeId === short._id}
+            key={item._id}
+            short={item}
+            isActive={activeId === item._id}
             onActivate={setActiveId}
           />
+          )
         ))}
 
         {/* Load more trigger */}

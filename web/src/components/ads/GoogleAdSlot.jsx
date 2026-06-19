@@ -3,10 +3,12 @@ import { adService } from '../../services'
 
 const ADSENSE_CLIENT = import.meta.env.VITE_GOOGLE_ADSENSE_CLIENT
   || import.meta.env.VITE_GOOGLE_AD_CLIENT
-  || ''
+  || 'ca-pub-8160598841675696'
 const DEFAULT_SLOT = import.meta.env.VITE_GOOGLE_ADSENSE_SLOT
   || import.meta.env.VITE_GOOGLE_AD_SLOT
   || ''
+export const GOOGLE_IN_ARTICLE_SLOT = '5003488199'
+export const GOOGLE_MULTIPLEX_SLOT = '9436301614'
 const ENABLE_NATIVE_ADS = import.meta.env.VITE_NENDPLAY_NATIVE_ADS !== 'false'
 const ENABLE_HOUSE_ADS = import.meta.env.VITE_NENDPLAY_HOUSE_ADS !== 'false'
 
@@ -51,8 +53,10 @@ function NendPlayNativeAd({ placement, className }) {
     }
 
     loadNativeAd()
+    const interval = setInterval(loadNativeAd, 30000)
     return () => {
       cancelled = true
+      clearInterval(interval)
     }
   }, [placement])
 
@@ -109,12 +113,22 @@ function NendPlayNativeAd({ placement, className }) {
     >
       <div className="grid gap-3 p-3 sm:grid-cols-[160px_1fr] sm:items-center">
         {ad.mediaUrl ? (
-          <img
-            src={ad.mediaUrl}
-            alt={ad.title}
-            className="h-28 w-full rounded-lg object-cover sm:h-24"
-            loading="lazy"
-          />
+          ad.adType === 'video' || /\.(mp4|webm|mov|m3u8)(\?|$)/i.test(ad.mediaUrl) ? (
+            <video
+              src={ad.mediaUrl}
+              className="h-28 w-full rounded-lg object-cover sm:h-24"
+              muted
+              playsInline
+              preload="metadata"
+            />
+          ) : (
+            <img
+              src={ad.mediaUrl}
+              alt={ad.title}
+              className="h-28 w-full rounded-lg object-cover sm:h-24"
+              loading="lazy"
+            />
+          )
         ) : null}
         <div className="min-w-0">
           <div className="mb-2 inline-flex rounded-full px-2 py-1 text-[11px] font-bold uppercase tracking-wide"
@@ -140,7 +154,15 @@ function NendPlayNativeAd({ placement, className }) {
   )
 }
 
-function AdsenseSlot({ slot, className }) {
+function AdsenseSlot({
+  slot,
+  className,
+  adFormat = 'auto',
+  adLayout,
+  fullWidthResponsive = true,
+  textAlign,
+  minHeight = 90,
+}) {
   useEffect(() => {
     loadAdsenseScript()
   }, [])
@@ -151,31 +173,86 @@ function AdsenseSlot({ slot, className }) {
       window.adsbygoogle = window.adsbygoogle || []
       window.adsbygoogle.push({})
     } catch {}
-  }, [slot])
+  }, [slot, adFormat, adLayout])
 
   if (!ADSENSE_CLIENT || !slot) return null
+
+  const extraAttributes = {
+    ...(adLayout ? { 'data-ad-layout': adLayout } : {}),
+    ...(typeof fullWidthResponsive === 'boolean' ? { 'data-full-width-responsive': String(fullWidthResponsive) } : {}),
+  }
 
   return (
     <ins
       className={`adsbygoogle block ${className}`}
-      style={{ display: 'block', minHeight: 90 }}
+      style={{ display: 'block', minHeight, textAlign }}
       data-ad-client={ADSENSE_CLIENT}
       data-ad-slot={slot}
-      data-ad-format="auto"
-      data-full-width-responsive="true"
+      data-ad-format={adFormat}
+      {...extraAttributes}
     />
   )
 }
 
-export default function GoogleAdSlot({ slot = DEFAULT_SLOT, className = '', placement = 'home' }) {
+export default function GoogleAdSlot({
+  slot = DEFAULT_SLOT,
+  className = '',
+  placement = 'home',
+  adFormat = 'auto',
+  adLayout,
+  fullWidthResponsive = true,
+  textAlign,
+  minHeight = 90,
+  showNative = true,
+}) {
   const hasGoogleWebAd = Boolean(ADSENSE_CLIENT && slot)
+  const shouldShowNative = showNative && ENABLE_NATIVE_ADS
 
-  if (!ENABLE_NATIVE_ADS && !hasGoogleWebAd) return null
+  if (!shouldShowNative && !hasGoogleWebAd) return null
 
   return (
     <div className={`space-y-3 ${className}`}>
-      {ENABLE_NATIVE_ADS ? <NendPlayNativeAd placement={placement} className="" /> : null}
-      {hasGoogleWebAd ? <AdsenseSlot slot={slot} className="" /> : null}
+      {shouldShowNative ? <NendPlayNativeAd placement={placement} className="" /> : null}
+      {hasGoogleWebAd ? (
+        <AdsenseSlot
+          slot={slot}
+          className=""
+          adFormat={adFormat}
+          adLayout={adLayout}
+          fullWidthResponsive={fullWidthResponsive}
+          textAlign={textAlign}
+          minHeight={minHeight}
+        />
+      ) : null}
     </div>
+  )
+}
+
+export function InArticleAd({ placement = 'news', className = '' }) {
+  return (
+    <GoogleAdSlot
+      slot={GOOGLE_IN_ARTICLE_SLOT}
+      placement={placement}
+      className={className}
+      adLayout="in-article"
+      adFormat="fluid"
+      textAlign="center"
+      minHeight={140}
+      showNative={false}
+    />
+  )
+}
+
+export function MultiplexAd({ placement = 'news', className = '' }) {
+  return (
+    <GoogleAdSlot
+      slot={GOOGLE_MULTIPLEX_SLOT}
+      placement={placement}
+      className={className}
+      adFormat="autorelaxed"
+      fullWidthResponsive={false}
+      minHeight={220}
+      showNative={false}
+    />
   )
 }

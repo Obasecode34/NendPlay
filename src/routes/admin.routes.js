@@ -4,6 +4,7 @@ const adminController = require("../controllers/admin.controller");
 const { authMiddleware, requireAdmin } = require("../middleware/auth.middleware");
 const {
   uploadMediaWithThumbnail,
+  uploadAdCreative,
   uploadNewsMedia,
   handleMulterError,
 } = require("../middleware/upload.middleware");
@@ -38,7 +39,20 @@ router.patch("/documents/:id", requireAdmin("documents:write"), adminController.
 router.delete("/documents/:id", requireAdmin("documents:write"), adminController.deleteDocument);
 
 router.get("/ads", requireAdmin("ads:read"), adminController.listAds);
-router.patch("/ads/:id", requireAdmin("ads:write"), adminController.updateAd);
+router.post(
+  "/ads",
+  requireAdmin("ads:write"),
+  uploadAdCreative.single("creative"),
+  handleMulterError,
+  adminController.createAd
+);
+router.patch(
+  "/ads/:id",
+  requireAdmin("ads:write"),
+  uploadAdCreative.single("creative"),
+  handleMulterError,
+  adminController.updateAd
+);
 router.delete("/ads/:id", requireAdmin("ads:write"), adminController.deleteAd);
 
 router.get("/subscriptions", requireAdmin("subscriptions:read"), adminController.listSubscriptions);

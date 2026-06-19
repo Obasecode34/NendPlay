@@ -50,7 +50,9 @@ export const subscriptionService = {
 // src/services/ad.service.js
 export const adService = {
   getPricing: (params) => api.get('/ads/pricing', { params }),
-  submit: (data) => api.post('/ads/submit', data),
+  submit: (data) => api.post('/ads/submit', data, data instanceof FormData
+    ? { headers: { 'Content-Type': 'multipart/form-data' } }
+    : undefined),
   verify: (data) => api.post('/ads/verify', data),
   serve: (params) => api.get('/ads/serve', { params }),
   getMyAds: (params) => api.get('/ads/my', { params }),
@@ -136,7 +138,12 @@ export const adminService = {
   updateDocument: (id, data) => api.patch(`/admin/documents/${id}`, data),
   deleteDocument: (id) => api.delete(`/admin/documents/${id}`),
   getAds: (params) => api.get('/admin/ads', { params }),
-  updateAd: (id, data) => api.patch(`/admin/ads/${id}`, data),
+  createAd: (data) => api.post('/admin/ads', data, data instanceof FormData
+    ? { headers: { 'Content-Type': 'multipart/form-data' } }
+    : undefined),
+  updateAd: (id, data) => api.patch(`/admin/ads/${id}`, data, data instanceof FormData
+    ? { headers: { 'Content-Type': 'multipart/form-data' } }
+    : undefined),
   deleteAd: (id) => api.delete(`/admin/ads/${id}`),
   getSubscriptions: (params) => api.get('/admin/subscriptions', { params }),
   getDownloads: (params) => api.get('/admin/downloads', { params }),

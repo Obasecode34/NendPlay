@@ -15,6 +15,8 @@ const bunnyService = require("./bunny.service");
 const muxService = require("./mux.service");
 const mediaThumbnailService = require("./mediaThumbnail.service");
 const { ADMIN_PERMISSIONS } = require("../config/adminPermissions");
+const { calculateAdPrice } = require("../config/adPricing");
+const { nanoid } = require("nanoid");
 
 const PAGE_LIMIT_MAX = 100;
 const PLAN_ORDER = ["none", "mobile", "basic", "standard", "premium"];
@@ -35,6 +37,19 @@ function pagination(page, limit, total) {
     limit,
     total,
     pages: Math.max(Math.ceil(total / limit), 1),
+  };
+}
+
+async function uploadAdCreativeFile(creativeFile) {
+  if (!creativeFile) return null;
+  const isVideo = creativeFile.mimetype.startsWith("video/");
+  const uploaded = await cloudinaryService.uploadAdCreative(creativeFile.buffer, {
+    resourceType: isVideo ? "video" : "image",
+  });
+  return {
+    mediaUrl: uploaded.secure_url,
+    cloudinaryPublicId: uploaded.public_id,
+    resourceType: isVideo ? "video" : "image",
   };
 }
 
@@ -928,11 +943,96 @@ class AdminService {
     return { ads: items, pagination: pagination(page, limit, total) };
   }
 
-  async updateAd(adId, body) {
-    const updates = pickAllowed(body, ["status", "rejectionReason", "placement", "targetAudience", "durationDays"]);
+  async createAd(body, admin, creativeFile) {
+    const {
+      advertiserName,
+      title,
+      description,
+      mediaUrl,
+      targetUrl,
+      adType = "banner",
+      placement = "home",
+      targetAudience,
+      durationDays = 7,
+      status = "active",
+    } = body;
+
+    if (!advertiserName || !String(advertiserName).trim()) {
+      throw { status: 400, message: "advertiserName is required" };
+    }
+    if (!title || !String(title).trim()) {
+      throw { status: 400, message: "title is required" };
+    }
+
+    const allowedTypes = ["banner", "video", "overlay"];
+    const allowedPlacements = ["home", "media", "news", "downloads", "profile", "subscription", "live_event", "novels", "shorts", "all"];
+    if (!allowedTypes.includes(adType)) throw { status: 400, message: "Invalid ad type" };
+    if (!allowedPlacements.includes(placement)) throw { status: 400, message: "Invalid ad placement" };
+
+    const parsedDurationDays = Math.min(Math.max(parseInt(durationDays, 10) || 7, 1), 365);
+    const normalizedStatus = ["active", "pending_review", "paused", "rejected"].includes(status) ? status : "active";
+    const now = new Date();
+    const creative = await uploadAdCreativeFile(creativeFile);
+    const isServing = ["active", "paused"].includes(normalizedStatus);
+
+    return Ad.create({
+      advertiserId: admin.id,
+      advertiserName: String(advertiserName).trim(),
+      title: String(title).trim(),
+      description: description || "",
+      mediaUrl: creative?.mediaUrl || mediaUrl || "",
+      cloudinaryPublicId: creative?.cloudinaryPublicId || null,
+      targetUrl: targetUrl || "",
+      adType,
+      placement,
+      targetAudience: targetAudience === "all" || placement === "live_event" ? "all" : "unsubscribed",
+      priceNaira: calculateAdPrice(adType, placement, parsedDurationDays),
+      paymentGateway: "paystack",
+      transactionRef: `NP-ADMIN-AD-${nanoid(16).toUpperCase()}`,
+      isPaid: true,
+      paidAt: now,
+      durationDays: parsedDurationDays,
+      startDate: isServing ? now : null,
+      expiryDate: isServing ? new Date(now.getTime() + parsedDurationDays * 24 * 60 * 60 * 1000) : null,
+      status: normalizedStatus,
+    });
+  }
+
+  async updateAd(adId, body, creativeFile) {
+    const updates = pickAllowed(body, [
+      "status",
+      "rejectionReason",
+      "placement",
+      "targetAudience",
+      "durationDays",
+      "title",
+      "description",
+      "mediaUrl",
+      "targetUrl",
+      "adType",
+      "advertiserName",
+    ]);
+    const existingAd = await Ad.findById(adId);
+    if (!existingAd) throw { status: 404, message: "Ad not found" };
+
+    if (creativeFile) {
+      const uploaded = await uploadAdCreativeFile(creativeFile);
+      updates.mediaUrl = uploaded.mediaUrl;
+      updates.cloudinaryPublicId = uploaded.cloudinaryPublicId;
+      if (existingAd.cloudinaryPublicId) {
+        const resourceType = existingAd.adType === "video" ? "video" : "image";
+        await cloudinaryService.deleteFile(existingAd.cloudinaryPublicId, resourceType).catch(() => {});
+      }
+    }
+
+    const nextType = updates.adType || existingAd.adType;
+    const nextPlacement = updates.placement || existingAd.placement;
+    const nextDuration = Number(updates.durationDays || existingAd.durationDays || 30);
+    if (updates.adType || updates.placement || updates.durationDays) {
+      updates.priceNaira = calculateAdPrice(nextType, nextPlacement, nextDuration);
+    }
+
     if (updates.status === "active") {
-      const existingAd = await Ad.findById(adId).select("durationDays expiryDate isPaid");
-      if (!existingAd) throw { status: 404, message: "Ad not found" };
       if (!existingAd.isPaid) throw { status: 400, message: "Cannot activate an unpaid ad" };
       const now = new Date();
       const durationDays = Number(body.durationDays) || Number(existingAd.durationDays) || 30;

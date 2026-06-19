@@ -224,6 +224,20 @@ export default function AdminDashboardPage() {
   const [mediaThumbnailFile, setMediaThumbnailFile] = useState(null)
   const [previewMedia, setPreviewMedia] = useState(null)
   const [previewAd, setPreviewAd] = useState(null)
+  const [adminAdFormOpen, setAdminAdFormOpen] = useState(false)
+  const [adminAdFile, setAdminAdFile] = useState(null)
+  const [adminAdForm, setAdminAdForm] = useState({
+    advertiserName: 'NendPlay Media',
+    title: '',
+    description: '',
+    mediaUrl: '',
+    targetUrl: '',
+    adType: 'banner',
+    placement: 'home',
+    targetAudience: 'unsubscribed',
+    durationDays: 7,
+    status: 'active',
+  })
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [pushStats, setPushStats] = useState(null)
   const [pushForm, setPushForm] = useState({
@@ -675,6 +689,40 @@ export default function AdminDashboardPage() {
     }
   }
 
+  const createAdminAd = async () => {
+    if (!adminAdForm.title.trim() || !adminAdForm.advertiserName.trim()) {
+      toast.error('Enter advertiser name and ad title')
+      return
+    }
+    try {
+      let requestBody = adminAdForm
+      if (adminAdFile) {
+        requestBody = new FormData()
+        Object.entries(adminAdForm).forEach(([key, value]) => requestBody.append(key, String(value ?? '')))
+        requestBody.append('creative', adminAdFile)
+      }
+      await adminService.createAd(requestBody)
+      toast.success('Admin ad created')
+      setAdminAdFormOpen(false)
+      setAdminAdFile(null)
+      setAdminAdForm({
+        advertiserName: 'NendPlay Media',
+        title: '',
+        description: '',
+        mediaUrl: '',
+        targetUrl: '',
+        adType: 'banner',
+        placement: 'home',
+        targetAudience: 'unsubscribed',
+        durationDays: 7,
+        status: 'active',
+      })
+      if (activeTab === 'ads') loadTable(1)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not create ad')
+    }
+  }
+
   const columns = useMemo(() => {
     if (activeTab === 'users') return [
       { key: 'name', label: 'User', render: (row) => <div><p className="font-bold">{row.profileName || row.username || 'User'}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.email || row.username}</p></div> },
@@ -924,6 +972,15 @@ export default function AdminDashboardPage() {
                     {bunnySyncing ? 'Syncing Bunny...' : 'Sync Bunny'}
                   </button>
                 )}
+                {activeTab === 'ads' && (
+                  <button
+                    type="button"
+                    className="btn-primary px-4 py-2 text-sm"
+                    onClick={() => setAdminAdFormOpen(true)}
+                  >
+                    Create Free Ad
+                  </button>
+                )}
                 <select className="input-base py-2" value={status} onChange={(event) => setStatus(event.target.value)}>
                   <option value="">All status</option>
                   <option value="active">Active</option>
@@ -949,6 +1006,17 @@ export default function AdminDashboardPage() {
           )}
         </div>
         )
+      )}
+
+      {adminAdFormOpen && (
+        <AdminAdModal
+          form={adminAdForm}
+          setForm={setAdminAdForm}
+          file={adminAdFile}
+          setFile={setAdminAdFile}
+          onClose={() => setAdminAdFormOpen(false)}
+          onSubmit={createAdminAd}
+        />
       )}
 
       {selectedUserDetails && (
@@ -991,6 +1059,91 @@ export default function AdminDashboardPage() {
       {previewAd && (
         <AdPreviewModal ad={previewAd} onClose={() => setPreviewAd(null)} />
       )}
+    </div>
+  )
+}
+
+function AdminAdModal({ form, setForm, file, setFile, onClose, onSubmit }) {
+  const adTypes = ['banner', 'video', 'overlay']
+  const placements = ['home', 'media', 'news', 'downloads', 'profile', 'subscription', 'live_event', 'novels', 'shorts', 'all']
+  const statuses = ['active', 'pending_review', 'paused', 'rejected']
+  const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : form.mediaUrl || ''), [file, form.mediaUrl])
+  const isVideo = file?.type?.startsWith('video/') || /\.(mp4|webm|mov|m3u8)(\?|$)/i.test(previewUrl)
+
+  useEffect(() => {
+    return () => {
+      if (file && previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [file, previewUrl])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.72)' }}>
+      <div className="card w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <div>
+            <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>Create Free Admin Ad</h2>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Admin-created ads skip payment and can go active immediately.</p>
+          </div>
+          <button className="btn-ghost px-4 py-2 text-sm" onClick={onClose}>Close</button>
+        </div>
+
+        <div className="p-5 grid grid-cols-1 lg:grid-cols-[260px,1fr] gap-5">
+          <div>
+            <div className="aspect-video overflow-hidden rounded-2xl flex items-center justify-center" style={{ background: 'var(--color-surface-high)', color: 'var(--color-text-muted)' }}>
+              {previewUrl ? (
+                isVideo ? (
+                  <video src={previewUrl} controls className="h-full w-full object-cover" />
+                ) : (
+                  <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+                )
+              ) : (
+                <RiAdvertisementLine className="text-5xl" />
+              )}
+            </div>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+              className="input-base mt-3"
+              onChange={(event) => setFile(event.target.files?.[0] || null)}
+            />
+            {file && (
+              <button type="button" className="btn-ghost mt-2 px-3 py-2 text-xs" onClick={() => setFile(null)}>
+                Remove file
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <input className="input-base" placeholder="Advertiser name" value={form.advertiserName} onChange={(event) => setForm({ ...form, advertiserName: event.target.value })} />
+            <input className="input-base" placeholder="Ad title" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+            <textarea className="input-base min-h-24 resize-y" placeholder="Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+            <input className="input-base" placeholder="Target URL" value={form.targetUrl} onChange={(event) => setForm({ ...form, targetUrl: event.target.value })} />
+            <input className="input-base" placeholder="Media URL if not uploading a file" value={form.mediaUrl} onChange={(event) => setForm({ ...form, mediaUrl: event.target.value })} />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <select className="input-base" value={form.adType} onChange={(event) => setForm({ ...form, adType: event.target.value })}>
+                {adTypes.map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+              <select className="input-base" value={form.placement} onChange={(event) => setForm({ ...form, placement: event.target.value })}>
+                {placements.map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+              <select className="input-base" value={form.targetAudience} onChange={(event) => setForm({ ...form, targetAudience: event.target.value })}>
+                <option value="unsubscribed">Unsubscribed users</option>
+                <option value="all">Everyone</option>
+              </select>
+              <select className="input-base" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
+                {statuses.map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+              <input className="input-base" type="number" min="1" max="365" value={form.durationDays} onChange={(event) => setForm({ ...form, durationDays: event.target.value })} />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button className="btn-ghost px-4 py-2 text-sm" onClick={onClose}>Cancel</button>
+              <button className="btn-primary px-4 py-2 text-sm" onClick={onSubmit}>Create Ad</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

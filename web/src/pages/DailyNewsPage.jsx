@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { RiGlobalLine, RiSearchLine, RiNewspaperLine, RiTimeLine } from 'react-icons/ri'
 import { newsService } from '../services'
-import GoogleAdSlot from '../components/ads/GoogleAdSlot'
+import { InArticleAd, MultiplexAd } from '../components/ads/GoogleAdSlot'
 
 const NEWS_TABS = [
   { value: 'for-you', label: 'For you' },
@@ -170,6 +170,7 @@ export default function DailyNewsPage() {
   const featured = articles[0]
   const rest = articles.slice(1)
   const categoryTabs = activeSection === 'career' ? CAREER_TABS : NEWS_TABS
+  const feedAdPlacement = activeSection === 'news' ? 'news' : 'all'
 
   return (
     <div className="animate-fade-in pb-20">
@@ -287,11 +288,21 @@ export default function DailyNewsPage() {
       ) : (
         <>
           {featured && <div className="mb-4"><NewsCard article={featured} featured onOpen={openArticle} /></div>}
-          <GoogleAdSlot placement={activeSection === 'news' ? 'news' : 'all'} className="mb-4" />
+          <InArticleAd placement={feedAdPlacement} className="mb-4" />
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {rest.map((article, index) => (
-              <NewsCard key={article._id || article.id || index} article={article} onOpen={openArticle} />
+              <React.Fragment key={article._id || article.id || index}>
+                <NewsCard article={article} onOpen={openArticle} />
+                {(index + 1) % 6 === 0 && (
+                  <div className="md:col-span-2 xl:col-span-3">
+                    <InArticleAd placement={feedAdPlacement} />
+                  </div>
+                )}
+              </React.Fragment>
             ))}
+            <div className="md:col-span-2 xl:col-span-3">
+              <MultiplexAd placement={feedAdPlacement} />
+            </div>
           </div>
           <div ref={sentinelRef} className="mt-8 flex min-h-12 justify-center">
             {loadingMore && <span className="text-sm font-bold" style={{ color: 'var(--color-text-muted)' }}>Loading more news...</span>}

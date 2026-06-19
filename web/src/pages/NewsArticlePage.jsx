@@ -5,7 +5,7 @@ import { RiArrowLeftLine, RiChat3Line, RiHeartLine, RiShareForwardLine, RiSendPl
 import ReactPlayer from 'react-player'
 import { newsService } from '../services'
 import useAuthStore from '../stores/authStore'
-import GoogleAdSlot from '../components/ads/GoogleAdSlot'
+import { InArticleAd, MultiplexAd } from '../components/ads/GoogleAdSlot'
 
 function timeAgo(value) {
   if (!value) return 'Today'
@@ -81,6 +81,8 @@ export default function NewsArticlePage() {
   const audios = useMemo(() => (post?.mediaFiles || []).filter((item) => item.type === 'audio'), [post])
   const images = useMemo(() => (post?.mediaFiles || []).filter((item) => item.type === 'image'), [post])
   const paragraphs = useMemo(() => String(post?.body || '').split(/\n{2,}/).filter(Boolean), [post])
+  const articleAdPlacement = post?.section === 'news' ? 'news' : 'all'
+  const shouldShowInArticleAd = (index) => post?.adsEnabled && (index === 0 || (index + 1) % 4 === 0)
 
   useEffect(() => {
     loadPost()
@@ -192,7 +194,7 @@ export default function NewsArticlePage() {
         {paragraphs.map((text, index) => (
           <React.Fragment key={index}>
             <p className="text-xl leading-9" style={{ color: 'var(--color-text)' }}>{text}</p>
-            {post.adsEnabled && index === 0 && <GoogleAdSlot placement="news" />}
+            {shouldShowInArticleAd(index) && <InArticleAd placement={articleAdPlacement} />}
           </React.Fragment>
         ))}
       </div>
@@ -208,6 +210,8 @@ export default function NewsArticlePage() {
           <RiShareForwardLine /> {post.shareCount || 0}
         </button>
       </div>
+
+      {post.adsEnabled && <MultiplexAd placement={articleAdPlacement} className="mt-8" />}
 
       <section className="mt-10">
         <h2 className="mb-4 text-2xl font-black" style={{ color: 'var(--color-text)' }}>Comments</h2>

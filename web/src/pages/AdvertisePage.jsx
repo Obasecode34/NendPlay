@@ -28,6 +28,7 @@ export default function AdvertisePage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [creativeFile, setCreativeFile] = useState(null)
   const [form, setForm] = useState({
     advertiserName: '', title: '', description: '',
     targetUrl: '', adType: 'banner', placement: 'home',
@@ -64,11 +65,18 @@ export default function AdvertisePage() {
     e.preventDefault()
     setSubmitting(true)
     try {
-      const res = await adService.submit(form)
+      let payload = form
+      if (creativeFile) {
+        payload = new FormData()
+        Object.entries(form).forEach(([key, value]) => payload.append(key, String(value ?? '')))
+        payload.append('creative', creativeFile)
+      }
+      const res = await adService.submit(payload)
       const { paymentUrl, transactionRef } = res.data.data
       toast.success('Ad submitted! Complete payment to go live.')
       window.open(paymentUrl, '_blank')
       setShowForm(false)
+      setCreativeFile(null)
       fetchMyAds()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Submission failed')
@@ -184,6 +192,22 @@ export default function AdvertisePage() {
               <input type="url" placeholder="Ad media URL (image or video)" value={form.mediaUrl}
                 onChange={(e) => setForm({ ...form, mediaUrl: e.target.value })}
                 className="input-base" />
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                  Upload creative image/video
+                </label>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+                  onChange={(e) => setCreativeFile(e.target.files?.[0] || null)}
+                  className="input-base"
+                />
+                {creativeFile && (
+                  <button type="button" className="btn-ghost mt-2 px-3 py-1 text-xs" onClick={() => setCreativeFile(null)}>
+                    Remove selected file
+                  </button>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

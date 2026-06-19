@@ -91,8 +91,13 @@ class AdminController {
     return ApiResponse.success(res, { data: await adminService.listAds(req.query) });
   });
 
+  createAd = wrap(async (req, res) => {
+    const ad = await adminService.createAd(req.body, req.admin, req.file);
+    return ApiResponse.created(res, { message: "Admin ad created", data: { ad } });
+  });
+
   updateAd = wrap(async (req, res) => {
-    const ad = await adminService.updateAd(req.params.id, req.body);
+    const ad = await adminService.updateAd(req.params.id, req.body, req.file);
     return ApiResponse.success(res, { message: "Ad updated", data: { ad } });
   });
 

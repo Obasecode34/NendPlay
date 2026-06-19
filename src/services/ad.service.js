@@ -30,6 +30,18 @@ const PLACEMENTS = [
   "all",
 ];
 
+async function uploadCreativeFile(creativeFile) {
+  if (!creativeFile) return { creativeUrl: "", creativePublicId: null };
+  const isVideo = creativeFile.mimetype.startsWith("video/");
+  const uploaded = await cloudinaryService.uploadAdCreative(creativeFile.buffer, {
+    resourceType: isVideo ? "video" : "image",
+  });
+  return {
+    creativeUrl: uploaded.secure_url,
+    creativePublicId: uploaded.public_id,
+  };
+}
+
 class AdService {
   // ── Get price quote for an ad ─────────────────────────────────────────
   getAdPriceQuote({ adType, placement, durationDays }) {
@@ -102,16 +114,9 @@ class AdService {
     // Generate transaction ref
     const transactionRef = `NP-AD-${nanoid(16).toUpperCase()}`;
 
-    let creativeUrl = mediaUrl || "";
-    let creativePublicId = null;
-    if (creativeFile) {
-      const isVideo = creativeFile.mimetype.startsWith("video/");
-      const uploaded = await cloudinaryService.uploadAdCreative(creativeFile.buffer, {
-        resourceType: isVideo ? "video" : "image",
-      });
-      creativeUrl = uploaded.secure_url;
-      creativePublicId = uploaded.public_id;
-    }
+    const uploadedCreative = await uploadCreativeFile(creativeFile);
+    const creativeUrl = uploadedCreative.creativeUrl || mediaUrl || "";
+    const creativePublicId = uploadedCreative.creativePublicId;
 
     // Create ad record (pending payment)
     const ad = await Ad.create({
@@ -151,6 +156,69 @@ class AdService {
       transactionRef,
       priceNaira,
     };
+  }
+
+  async createAdminAd({ adminId, body, creativeFile }) {
+    const {
+      advertiserName,
+      title,
+      description,
+      mediaUrl,
+      targetUrl,
+      adType,
+      placement,
+      durationDays,
+      targetAudience,
+      status,
+    } = body;
+
+    if (!advertiserName || !String(advertiserName).trim()) {
+      throw { status: 400, message: "advertiserName is required" };
+    }
+    if (!title || !String(title).trim()) {
+      throw { status: 400, message: "title is required" };
+    }
+    if (!AD_TYPES.includes(adType)) {
+      throw { status: 400, message: "Invalid adType. Choose banner, video, or overlay." };
+    }
+    if (!PLACEMENTS.includes(placement)) {
+      throw { status: 400, message: "Invalid placement." };
+    }
+
+    const parsedDurationDays = parseInt(durationDays, 10);
+    if (!parsedDurationDays || parsedDurationDays < 1 || parsedDurationDays > 365) {
+      throw { status: 400, message: "durationDays must be between 1 and 365" };
+    }
+
+    const uploadedCreative = await uploadCreativeFile(creativeFile);
+    const creativeUrl = uploadedCreative.creativeUrl || mediaUrl || "";
+    const now = new Date();
+    const normalizedStatus = ["active", "pending_review", "paused", "rejected"].includes(status)
+      ? status
+      : "active";
+    const shouldSetDates = ["active", "paused"].includes(normalizedStatus);
+
+    return Ad.create({
+      advertiserId: adminId,
+      advertiserName: String(advertiserName).trim(),
+      title: String(title).trim(),
+      description: description || "",
+      mediaUrl: creativeUrl,
+      cloudinaryPublicId: uploadedCreative.creativePublicId,
+      targetUrl: targetUrl || "",
+      adType,
+      placement,
+      targetAudience: targetAudience === "all" || placement === "live_event" ? "all" : "unsubscribed",
+      priceNaira: calculateAdPrice(adType, placement, parsedDurationDays),
+      paymentGateway: "paystack",
+      isPaid: true,
+      paidAt: now,
+      transactionRef: `NP-ADMIN-AD-${nanoid(16).toUpperCase()}`,
+      durationDays: parsedDurationDays,
+      startDate: shouldSetDates ? now : null,
+      expiryDate: shouldSetDates ? new Date(now.getTime() + parsedDurationDays * 24 * 60 * 60 * 1000) : null,
+      status: normalizedStatus,
+    });
   }
 
   // ── Verify ad payment and activate ───────────────────────────────────
@@ -221,13 +289,13 @@ class AdService {
     // - Always return native ads (both subscribers and non-subscribers see them)
     // - These are overlay/banner ads that don't interrupt the stream
     if (isLiveEvent || placement === "live_event") {
-      const liveAds = await Ad.find({
+      const liveAds = await Ad.aggregate([
+        { $match: {
         ...baseQuery,
         placement: { $in: ["live_event", "all"] },
-      })
-        .sort({ updatedAt: -1 })
-        .limit(safeLimit)
-        .lean();
+        } },
+        { $sample: { size: safeLimit } },
+      ]);
 
       return {
         nativeAds: liveAds,
@@ -248,14 +316,14 @@ class AdService {
     }
 
     // Unsubscribed users: native NendPlay ads + AdMob
-    const nativeAds = await Ad.find({
+    const nativeAds = await Ad.aggregate([
+      { $match: {
       ...baseQuery,
       placement: { $in: [placement, "all"] },
       targetAudience: { $in: ["unsubscribed", "all"] },
-    })
-      .sort({ updatedAt: -1 })
-      .limit(safeLimit)
-      .lean();
+      } },
+      { $sample: { size: safeLimit } },
+    ]);
 
     return {
       nativeAds,
