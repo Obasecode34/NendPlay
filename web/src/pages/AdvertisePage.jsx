@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { RiMegaphoneFill, RiBarChartFill, RiPauseFill, RiPlayFill } from 'react-icons/ri'
 import toast from 'react-hot-toast'
-import { adService } from '../services/index'
+import { adService, adminService } from '../services/index'
+import useAuthStore from '../stores/authStore'
 
 const AD_TYPES = [
   { value: 'banner', label: 'Banner', desc: 'Static image above/below content' },
@@ -23,6 +24,7 @@ const PLACEMENTS = [
 ]
 
 export default function AdvertisePage() {
+  const { user } = useAuthStore()
   const [myAds, setMyAds] = useState([])
   const [quote, setQuote] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -34,6 +36,7 @@ export default function AdvertisePage() {
     targetUrl: '', adType: 'banner', placement: 'home',
     durationDays: 7, gateway: 'paystack', mediaUrl: '',
   })
+  const isAdmin = ['admin', 'super_admin'].includes(user?.role)
 
   useEffect(() => { fetchMyAds() }, [])
 
@@ -71,10 +74,15 @@ export default function AdvertisePage() {
         Object.entries(form).forEach(([key, value]) => payload.append(key, String(value ?? '')))
         payload.append('creative', creativeFile)
       }
-      const res = await adService.submit(payload)
-      const { paymentUrl, transactionRef } = res.data.data
-      toast.success('Ad submitted! Complete payment to go live.')
-      window.open(paymentUrl, '_blank')
+      if (isAdmin) {
+        await adminService.createAd(payload)
+        toast.success('Free admin ad created')
+      } else {
+        const res = await adService.submit(payload)
+        const { paymentUrl } = res.data.data
+        toast.success('Ad submitted! Complete payment to go live.')
+        window.open(paymentUrl, '_blank')
+      }
       setShowForm(false)
       setCreativeFile(null)
       fetchMyAds()
@@ -107,7 +115,7 @@ export default function AdvertisePage() {
           </p>
         </div>
         <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
-          <RiMegaphoneFill /> Create Ad
+          <RiMegaphoneFill /> {isAdmin ? 'Create Free Ad' : 'Create Ad'}
         </button>
       </div>
 
@@ -126,7 +134,7 @@ export default function AdvertisePage() {
             Create your first ad to reach NendPlay users
           </p>
           <button onClick={() => setShowForm(true)} className="btn-primary">
-            Create Ad
+            {isAdmin ? 'Create Free Ad' : 'Create Ad'}
           </button>
         </div>
       ) : (
@@ -173,7 +181,7 @@ export default function AdvertisePage() {
             style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
 
             <h2 className="font-display font-bold text-xl mb-4" style={{ color: 'var(--color-text)' }}>
-              Create Ad
+              {isAdmin ? 'Create Free Admin Ad' : 'Create Ad'}
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-3">
@@ -245,8 +253,21 @@ export default function AdvertisePage() {
                   className="w-full" style={{ accentColor: 'var(--color-primary)' }} />
               </div>
 
+              {isAdmin && (
+                <div
+                  className="p-3 rounded-xl text-sm font-bold"
+                  style={{
+                    background: 'rgba(34,197,94,0.12)',
+                    color: '#22C55E',
+                    border: '1px solid rgba(34,197,94,0.28)',
+                  }}
+                >
+                  Payment: Free admin ad. No Paystack or Flutterwave payment is required.
+                </div>
+              )}
+
               {/* Price quote */}
-              {quote && (
+              {!isAdmin && quote && (
                 <div className="p-3 rounded-xl" style={{ background: 'var(--color-surface-high)' }}>
                   <p className="text-sm font-bold" style={{ color: 'var(--color-primary)' }}>
                     Total: ₦{quote.totalNaira?.toLocaleString()}
@@ -257,25 +278,27 @@ export default function AdvertisePage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                {['paystack', 'flutterwave'].map((gw) => (
-                  <button key={gw} type="button" onClick={() => setForm({ ...form, gateway: gw })}
-                    className="py-2 rounded-xl text-sm capitalize transition-all"
-                    style={{
-                      background: form.gateway === gw ? 'var(--color-primary)' : 'var(--color-surface-high)',
-                      color: form.gateway === gw ? 'white' : 'var(--color-text-muted)',
-                    }}>
-                    {gw}
-                  </button>
-                ))}
-              </div>
+              {!isAdmin && (
+                <div className="grid grid-cols-2 gap-3">
+                  {['paystack', 'flutterwave'].map((gw) => (
+                    <button key={gw} type="button" onClick={() => setForm({ ...form, gateway: gw })}
+                      className="py-2 rounded-xl text-sm capitalize transition-all"
+                      style={{
+                        background: form.gateway === gw ? 'var(--color-primary)' : 'var(--color-surface-high)',
+                        color: form.gateway === gw ? 'white' : 'var(--color-text-muted)',
+                      }}>
+                      {gw}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <button type="button" onClick={() => setShowForm(false)} className="btn-ghost flex-1">
                   Cancel
                 </button>
                 <button type="submit" disabled={submitting} className="btn-primary flex-1">
-                  {submitting ? 'Submitting...' : 'Submit & Pay'}
+                  {submitting ? 'Submitting...' : isAdmin ? 'Create Free Ad' : 'Submit & Pay'}
                 </button>
               </div>
             </form>

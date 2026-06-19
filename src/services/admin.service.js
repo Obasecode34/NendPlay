@@ -998,7 +998,7 @@ class AdminService {
     });
   }
 
-  async updateAd(adId, body, creativeFile) {
+  async updateAd(adId, body, creativeFile, admin) {
     const updates = pickAllowed(body, [
       "status",
       "rejectionReason",
@@ -1033,8 +1033,19 @@ class AdminService {
     }
 
     if (updates.status === "active") {
-      if (!existingAd.isPaid) throw { status: 400, message: "Cannot activate an unpaid ad" };
       const now = new Date();
+      if (!existingAd.isPaid) {
+        const advertiser = await User.findById(existingAd.advertiserId).select("role").lean();
+        const adminOwnedAd = ["admin", "super_admin"].includes(advertiser?.role) || existingAd.paymentGateway === "admin_comp";
+        if (!adminOwnedAd) throw { status: 400, message: "Cannot activate an unpaid ad" };
+        updates.isPaid = true;
+        updates.paidAt = now;
+        updates.paymentGateway = "admin_comp";
+        updates.priceNaira = 0;
+        if (!existingAd.transactionRef || !String(existingAd.transactionRef).startsWith("NP-ADMIN-FREE-AD-")) {
+          updates.transactionRef = `NP-ADMIN-FREE-AD-${nanoid(16).toUpperCase()}`;
+        }
+      }
       const durationDays = Number(body.durationDays) || Number(existingAd.durationDays) || 30;
       updates.startDate = now;
       updates.durationDays = durationDays;

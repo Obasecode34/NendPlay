@@ -97,7 +97,7 @@ class AdminController {
   });
 
   updateAd = wrap(async (req, res) => {
-    const ad = await adminService.updateAd(req.params.id, req.body, req.file);
+    const ad = await adminService.updateAd(req.params.id, req.body, req.file, req.admin);
     return ApiResponse.success(res, { message: "Ad updated", data: { ad } });
   });
 
