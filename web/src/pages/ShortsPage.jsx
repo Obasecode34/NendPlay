@@ -407,7 +407,7 @@ export default function ShortsPage() {
   const feedItems = useMemo(() => {
     const items = []
     shorts.forEach((short, index) => {
-      if (index > 0 && index % 5 === 0) items.push({ _id: `shorts-ad-${index}`, isAd: true })
+      if (index > 0 && (index === 1 || index % 4 === 0)) items.push({ _id: `shorts-ad-${index}`, isAd: true })
       items.push(short)
     })
     return items

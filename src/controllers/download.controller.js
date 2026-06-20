@@ -2,6 +2,19 @@
 
 const downloadService = require("../services/download.service");
 const ApiResponse = require("../utils/apiResponse");
+const analyticsService = require("../services/analytics.service");
+
+function trackRequestEvent(req, eventType, data = {}) {
+  analyticsService.track({
+    user: req.user,
+    headers: req.headers,
+    body: {
+      eventType,
+      platform: req.headers["x-client-platform"] || req.body?.platform || "unknown",
+      ...data,
+    },
+  }).catch(() => {});
+}
 
 class DownloadController {
   // POST /api/downloads/authorize
@@ -57,6 +70,11 @@ class DownloadController {
         userId: req.user?.userId,
         storageKey,
         storedFileSize,
+      });
+      trackRequestEvent(req, "download", {
+        screen: "downloads",
+        contentType: download.contentType,
+        contentId: download.contentId,
       });
 
       return ApiResponse.success(res, {

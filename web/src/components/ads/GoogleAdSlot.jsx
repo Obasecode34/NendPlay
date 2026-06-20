@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { RiVolumeMuteLine, RiVolumeUpLine } from 'react-icons/ri'
 import { adService } from '../../services'
 
 const ADSENSE_CLIENT = import.meta.env.VITE_GOOGLE_ADSENSE_CLIENT
@@ -35,6 +36,7 @@ function loadAdsenseScript() {
 function NendPlayNativeAd({ placement, className }) {
   const [ad, setAd] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [muted, setMuted] = useState(true)
 
   useEffect(() => {
     let cancelled = false
@@ -114,22 +116,46 @@ function NendPlayNativeAd({ placement, className }) {
       <div className="grid gap-3 p-3 sm:grid-cols-[160px_1fr] sm:items-center">
         {ad.mediaUrl ? (
           ad.adType === 'video' || /\.(mp4|webm|mov|m3u8)(\?|$)/i.test(ad.mediaUrl) ? (
-            <video
-              src={ad.mediaUrl}
-              className="h-28 w-full rounded-lg object-cover sm:h-24"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
-            />
+            <div className="relative overflow-hidden rounded-lg" style={{ aspectRatio: '16 / 9', background: '#05050F' }}>
+              <video
+                src={ad.mediaUrl}
+                className="h-full w-full object-contain"
+                autoPlay
+                muted={muted}
+                loop
+                playsInline
+                preload="metadata"
+              />
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setMuted((value) => !value)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setMuted((value) => !value)
+                }}
+                className="absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-white"
+                style={{ background: 'rgba(0,0,0,0.66)' }}
+                aria-label={muted ? 'Turn ad sound on' : 'Turn ad sound off'}
+              >
+                {muted ? <RiVolumeMuteLine /> : <RiVolumeUpLine />}
+              </span>
+            </div>
           ) : (
-            <img
-              src={ad.mediaUrl}
-              alt={ad.title}
-              className="h-28 w-full rounded-lg object-cover sm:h-24"
-              loading="lazy"
-            />
+            <div className="overflow-hidden rounded-lg" style={{ aspectRatio: '16 / 9', background: '#05050F' }}>
+              <img
+                src={ad.mediaUrl}
+                alt={ad.title}
+                className="h-full w-full object-contain"
+                loading="lazy"
+              />
+            </div>
           )
         ) : null}
         <div className="min-w-0">

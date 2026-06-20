@@ -8,6 +8,7 @@ const mediaService = require("../services/media.service");
 const Media = require("../models/Media");
 const ApiResponse = require("../utils/apiResponse");
 const axios = require("axios");
+const analyticsService = require("../services/analytics.service");
 
 const BUNNY_REFERER = process.env.BUNNY_STREAM_REFERER || "https://nendplay.com";
 
@@ -19,6 +20,18 @@ function getBunnyProxyHeaders() {
     Origin: BUNNY_REFERER.replace(/\/+$/, ""),
     "User-Agent": "Mozilla/5.0 NendPlayMedia/1.0",
   };
+}
+
+function trackRequestEvent(req, eventType, data = {}) {
+  analyticsService.track({
+    user: req.user,
+    headers: req.headers,
+    body: {
+      eventType,
+      platform: req.headers["x-client-platform"] || "unknown",
+      ...data,
+    },
+  }).catch(() => {});
 }
 
 function getRequestOrigin(req) {
@@ -216,6 +229,11 @@ class MediaController {
   async getMediaById(req, res) {
     try {
       const media = await mediaService.getMediaById(req.params.id);
+      trackRequestEvent(req, "screen_view", {
+        screen: "media_detail",
+        contentType: "media",
+        contentId: req.params.id,
+      });
 
       // Check if media is locked and user is not subscribed
       // Full subscription check comes in Phase 4 — for now return the media
@@ -256,6 +274,11 @@ class MediaController {
   async getPlayback(req, res) {
     try {
       const manifest = await mediaService.getPlaybackManifest(req.params.id, req.user?.userId);
+      trackRequestEvent(req, "media_watch", {
+        screen: "media_player",
+        contentType: "media",
+        contentId: req.params.id,
+      });
       return ApiResponse.success(res, { data: { playback: manifest } });
     } catch (err) {
       if (err.status) {
@@ -505,6 +528,11 @@ class MediaController {
   async likeMedia(req, res) {
     try {
       const result = await mediaService.toggleLike(req.params.id);
+      trackRequestEvent(req, "like", {
+        screen: "media",
+        contentType: "media",
+        contentId: req.params.id,
+      });
       return ApiResponse.success(res, { data: result });
     } catch (err) {
       if (err.status) {
@@ -535,6 +563,11 @@ class MediaController {
         return ApiResponse.badRequest(res, "Comment text is required");
       }
       const result = await mediaService.addComment(req.params.id, req.user.userId, text);
+      trackRequestEvent(req, "comment", {
+        screen: "media",
+        contentType: "media",
+        contentId: req.params.id,
+      });
       return ApiResponse.success(res, { data: result });
     } catch (err) {
       if (err.status) {

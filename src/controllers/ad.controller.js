@@ -2,6 +2,19 @@
 
 const adService = require("../services/ad.service");
 const ApiResponse = require("../utils/apiResponse");
+const analyticsService = require("../services/analytics.service");
+
+function trackRequestEvent(req, eventType, data = {}) {
+  analyticsService.track({
+    user: req.user,
+    headers: req.headers,
+    body: {
+      eventType,
+      platform: req.headers["x-client-platform"] || "unknown",
+      ...data,
+    },
+  }).catch(() => {});
+}
 
 class AdController {
   // GET /api/ads/pricing — get price quote before submitting
@@ -98,6 +111,11 @@ class AdController {
   async recordImpression(req, res) {
     try {
       await adService.recordImpression(req.params.id);
+      trackRequestEvent(req, "ad_impression", {
+        screen: req.body?.screen || req.query?.placement || "ads",
+        contentType: "ad",
+        contentId: req.params.id,
+      });
       return ApiResponse.success(res, { message: "Impression recorded" });
     } catch (err) {
       return ApiResponse.error(res);
@@ -108,6 +126,11 @@ class AdController {
   async recordClick(req, res) {
     try {
       const result = await adService.recordClick(req.params.id);
+      trackRequestEvent(req, "ad_click", {
+        screen: req.body?.screen || req.query?.placement || "ads",
+        contentType: "ad",
+        contentId: req.params.id,
+      });
       return ApiResponse.success(res, {
         message: "Click recorded",
         data: { targetUrl: result.targetUrl },

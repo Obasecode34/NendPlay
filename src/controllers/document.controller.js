@@ -5,6 +5,19 @@
 
 const documentService = require("../services/document.service");
 const ApiResponse = require("../utils/apiResponse");
+const analyticsService = require("../services/analytics.service");
+
+function trackRequestEvent(req, eventType, data = {}) {
+  analyticsService.track({
+    user: req.user,
+    headers: req.headers,
+    body: {
+      eventType,
+      platform: req.headers["x-client-platform"] || "unknown",
+      ...data,
+    },
+  }).catch(() => {});
+}
 
 class DocumentController {
   // POST /api/novels/upload
@@ -78,6 +91,11 @@ class DocumentController {
   async getDocumentById(req, res) {
     try {
       const document = await documentService.getDocumentById(req.params.id);
+      trackRequestEvent(req, "novel_read", {
+        screen: "novelhub",
+        contentType: "document",
+        contentId: req.params.id,
+      });
       return ApiResponse.success(res, { data: { document } });
     } catch (err) {
       if (err.status) {
@@ -161,6 +179,11 @@ class DocumentController {
   async downloadDocument(req, res) {
     try {
       const result = await documentService.recordDownload(req.params.id);
+      trackRequestEvent(req, "download", {
+        screen: "novelhub_downloads",
+        contentType: "document",
+        contentId: req.params.id,
+      });
 
       // Return the direct Cloudinary URL — frontend redirects to it
       return ApiResponse.success(res, {
@@ -185,6 +208,11 @@ class DocumentController {
   async likeDocument(req, res) {
     try {
       const result = await documentService.likeDocument(req.params.id);
+      trackRequestEvent(req, "like", {
+        screen: "novelhub",
+        contentType: "document",
+        contentId: req.params.id,
+      });
       return ApiResponse.success(res, { data: result });
     } catch (err) {
       if (err.status) {

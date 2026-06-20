@@ -9,7 +9,10 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true, // sends cookies with every request
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    'x-client-platform': 'web',
+  },
 })
 
 // ── Response interceptor: auto-refresh on 401 ─────────────────────────────
