@@ -113,6 +113,12 @@ const documentSchema = new mongoose.Schema(
       default: "fiction",
     },
 
+    language: {
+      type: String,
+      trim: true,
+      default: "English",
+    },
+
     // ── Author Info ────────────────────────────────────────────────────
     // The real-world author (not the uploader)
     author: {
@@ -299,6 +305,7 @@ documentSchema.index({
 documentSchema.index({ fileType: 1, isActive: 1 });
 documentSchema.index({ category: 1, isActive: 1 });
 documentSchema.index({ genre: 1, isActive: 1 });
+documentSchema.index({ language: 1, isActive: 1 });
 documentSchema.index({ isActive: 1, publishStatus: 1, reviewStatus: 1, createdAt: -1 });
 documentSchema.index({ fileType: 1, category: 1, isActive: 1, createdAt: -1 });
 documentSchema.index({ uploadedBy: 1, isActive: 1 });

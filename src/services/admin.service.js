@@ -856,6 +856,7 @@ class AdminService {
     const filter = {};
     if (query.fileType) filter.fileType = query.fileType;
     if (query.genre) filter.genre = query.genre;
+    if (query.language) filter.language = new RegExp(`^${escapeRegex(query.language)}$`, "i");
     if (query.reviewStatus) filter.reviewStatus = query.reviewStatus;
     if (query.publishStatus) filter.publishStatus = query.publishStatus;
     if (query.licenseType) filter.licenseType = query.licenseType;
@@ -893,6 +894,7 @@ class AdminService {
       "description",
       "category",
       "genre",
+      "language",
       "tags",
       "thumbnailUrl",
       "author",
@@ -993,6 +995,7 @@ class AdminService {
       fileSize: Number(body.fileSize || 0),
       category,
       genre: category,
+      language: body.language || "English",
       tags: parseList(body.tags, 12),
       author: body.author || "",
       licenseType,

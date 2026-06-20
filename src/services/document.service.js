@@ -69,6 +69,7 @@ const PUBLIC_LICENSE_TYPES = new Set([
 ]);
 
 const parseBoolean = (value) => value === true || value === "true";
+const escapeRegex = (value = "") => value.toString().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const parseRightsMetadata = (body = {}) => {
   const licenseType = LICENSE_TYPES.has(body.licenseType) ? body.licenseType : "unknown";
@@ -138,6 +139,7 @@ class DocumentService {
       genre,
       author,
       thumbnailUrl,
+      language,
     } = body;
 
     const fileType = getFileType(file.mimetype);
@@ -188,6 +190,7 @@ class DocumentService {
       category: normalizedGenre,
       tags: normalizedTags,
       genre: normalizedGenre,
+      language: language || "English",
       author: author || "",
       ...rightsMetadata,
       contentOrigin: trustedImport
@@ -215,6 +218,8 @@ class DocumentService {
   async getAllDocuments({
     fileType,
     category,
+    genre,
+    language,
     search,
     page = 1,
     limit = 20,
@@ -225,6 +230,8 @@ class DocumentService {
 
     if (fileType) query.fileType = fileType;
     if (category && isNovelGenre(category)) query.category = normalizeNovelGenre(category);
+    if (genre && isNovelGenre(genre)) query.genre = normalizeNovelGenre(genre);
+    if (language) query.language = new RegExp(`^${escapeRegex(language)}$`, "i");
     if (search) query.$text = { $search: search };
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -302,6 +309,7 @@ class DocumentService {
       category: original.category,
       tags: [...original.tags],
       genre: original.genre,
+      language: original.language || "English",
       author: original.author,
       licenseType: original.licenseType || "unknown",
       licenseUrl: original.licenseUrl || "",
