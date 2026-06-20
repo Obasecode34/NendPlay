@@ -132,6 +132,7 @@ function toPublicNewsPost(post) {
     mediaFiles,
     url: "",
     publishedAt: post.createdAt,
+    viewCount: post.viewCount || 0,
     commentCount: post.commentCount || 0,
     shareCount: post.shareCount || 0,
     likeCount: post.likeCount || 0,
@@ -544,11 +545,15 @@ class NewsService {
   }
 
   async getNewsPost(id) {
-    const post = await NewsPost.findById(id)
+    const post = await NewsPost.findOneAndUpdate(
+      { _id: id, status: "published" },
+      { $inc: { viewCount: 1 } },
+      { new: true }
+    )
       .populate("comments.user", "username profileName profilePic role")
       .populate("comments.replies.user", "username profileName profilePic role")
       .lean();
-    if (!post || post.status !== "published") {
+    if (!post) {
       throw { status: 404, message: "News post not found" };
     }
     return {

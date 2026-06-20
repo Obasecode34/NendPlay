@@ -120,6 +120,7 @@ export const newsService = {
 
 export const adminService = {
   getDashboard: () => api.get('/admin/dashboard'),
+  getAnalyticsSummary: () => api.get('/analytics/admin/summary'),
   getPermissions: () => api.get('/admin/permissions'),
   getUsers: (params) => api.get('/admin/users', { params }),
   getUserDetails: (id) => api.get(`/admin/users/${id}`),
@@ -172,4 +173,8 @@ export const notificationService = {
   getPublicPopups: (params) => api.get('/notifications/public/popups', { params }),
   markRead: (id) => api.patch(`/notifications/me/${id}/read`),
   markAllRead: () => api.patch('/notifications/me/read-all'),
+}
+
+export const analyticsService = {
+  track: (data) => api.post('/analytics/track', data),
 }

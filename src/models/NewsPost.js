@@ -177,6 +177,10 @@ const newsPostSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    viewCount: {
+      type: Number,
+      default: 0,
+    },
     shareCount: {
       type: Number,
       default: 0,

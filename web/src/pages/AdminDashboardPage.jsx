@@ -23,6 +23,7 @@ import { adminService } from '../services/index'
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: RiDashboardLine },
+  { id: 'statistics', label: 'Statistics', icon: RiDashboardLine },
   { id: 'users', label: 'Users', icon: RiUserLine },
   { id: 'media', label: 'Media', icon: RiFilmLine },
   { id: 'documents', label: 'NovelHub', icon: RiBookOpenLine },
@@ -160,6 +161,171 @@ function StatCard({ label, value, icon: Icon }) {
   )
 }
 
+function compactNumber(value) {
+  const number = Number(value || 0)
+  if (number >= 1000000) return `${(number / 1000000).toFixed(1)}M`
+  if (number >= 1000) return `${(number / 1000).toFixed(1)}K`
+  return number.toLocaleString()
+}
+
+function eventValue(period, key) {
+  return period?.[key]?.total || 0
+}
+
+function BarChart({ title, items }) {
+  const max = Math.max(...items.map((item) => Number(item.value || 0)), 1)
+  return (
+    <div className="card p-5">
+      <h3 className="font-black mb-4" style={{ color: 'var(--color-text)' }}>{title}</h3>
+      <div className="space-y-3">
+        {items.map((item) => (
+          <div key={item.label}>
+            <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+              <span className="font-bold" style={{ color: 'var(--color-text-muted)' }}>{item.label}</span>
+              <span className="font-black" style={{ color: 'var(--color-text)' }}>{compactNumber(item.value)}</span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full" style={{ background: 'var(--color-surface-high)' }}>
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.max(4, (Number(item.value || 0) / max) * 100)}%`,
+                  background: item.color || 'var(--color-primary)',
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function DonutChart({ title, items }) {
+  const total = items.reduce((sum, item) => sum + Number(item.value || 0), 0) || 1
+  let cursor = 0
+  const stops = items.map((item) => {
+    const start = cursor
+    const end = cursor + (Number(item.value || 0) / total) * 100
+    cursor = end
+    return `${item.color} ${start}% ${end}%`
+  }).join(', ')
+
+  return (
+    <div className="card p-5">
+      <h3 className="font-black mb-4" style={{ color: 'var(--color-text)' }}>{title}</h3>
+      <div className="flex flex-col sm:flex-row items-center gap-5">
+        <div
+          className="h-36 w-36 rounded-full"
+          style={{ background: `conic-gradient(${stops || '#2A2350 0% 100%'})` }}
+        >
+          <div className="m-8 h-20 w-20 rounded-full" style={{ background: 'var(--color-surface)' }} />
+        </div>
+        <div className="flex-1 space-y-3">
+          {items.map((item) => (
+            <div key={item.label} className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2 font-bold" style={{ color: 'var(--color-text-muted)' }}>
+                <span className="h-3 w-3 rounded-full" style={{ background: item.color }} />
+                {item.label}
+              </span>
+              <span className="font-black" style={{ color: 'var(--color-text)' }}>{compactNumber(item.value)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatisticsPanel({ analytics }) {
+  const daily = analytics?.periods?.daily || {}
+  const weekly = analytics?.periods?.weekly || {}
+  const yearly = analytics?.periods?.yearly || {}
+  const totals = analytics?.totals || {}
+
+  const engagementItems = [
+    { label: 'Movies watched', value: eventValue(weekly, 'media_watch') || totals.media?.views || 0, color: '#7C3AED' },
+    { label: 'Novels read', value: eventValue(weekly, 'novel_read') || totals.novels?.views || 0, color: '#22C55E' },
+    { label: 'News read', value: eventValue(weekly, 'news_read') || totals.newsBySection?.news?.views || totals.news?.views || 0, color: '#38BDF8' },
+    { label: 'Jobs clicked', value: eventValue(weekly, 'career_click') || totals.newsBySection?.career?.views || 0, color: '#F59E0B' },
+    { label: 'Unspoken opened', value: eventValue(weekly, 'unspoken_open') || totals.newsBySection?.unspoken?.views || 0, color: '#EC4899' },
+  ]
+
+  const socialItems = [
+    { label: 'Comments', value: eventValue(weekly, 'comment') || (totals.media?.comments || 0) + (totals.news?.comments || 0), color: '#A78BFA' },
+    { label: 'Shares', value: eventValue(weekly, 'share') || totals.news?.shares || 0, color: '#60A5FA' },
+    { label: 'Likes', value: eventValue(weekly, 'like') || (totals.media?.likes || 0) + (totals.novels?.likes || 0) + (totals.news?.likes || 0), color: '#F472B6' },
+    { label: 'Ad impressions', value: eventValue(weekly, 'ad_impression') || totals.ads?.impressions || 0, color: '#FBBF24' },
+    { label: 'Ad clicks', value: eventValue(weekly, 'ad_click') || totals.ads?.clicks || 0, color: '#34D399' },
+  ]
+
+  const userMixItems = [
+    { label: 'Guests today', value: totals.users?.guestsToday || 0, color: '#38BDF8' },
+    { label: 'Registered', value: totals.users?.registered || 0, color: '#7C3AED' },
+    { label: 'Admins', value: totals.users?.admins || 0, color: '#F59E0B' },
+  ]
+
+  const newsSectionItems = [
+    { label: 'News', value: totals.newsBySection?.news?.views || 0, color: '#22C55E' },
+    { label: 'Career', value: totals.newsBySection?.career?.views || 0, color: '#F97316' },
+    { label: 'Unspoken', value: totals.newsBySection?.unspoken?.views || 0, color: '#EC4899' },
+  ]
+
+  const periodRows = [
+    ['Today', daily],
+    ['This week', weekly],
+    ['This year', yearly],
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatCard label="Total Users" value={compactNumber(totals.users?.total)} icon={RiUserLine} />
+        <StatCard label="Guests Today" value={compactNumber(totals.users?.guestsToday)} icon={RiUserLine} />
+        <StatCard label="Registered Users" value={compactNumber(totals.users?.registered)} icon={RiUserLine} />
+        <StatCard label="Admins" value={compactNumber(totals.users?.admins)} icon={RiShieldUserLine} />
+        <StatCard label="Movies Watched" value={compactNumber(totals.media?.views)} icon={RiFilmLine} />
+        <StatCard label="Novels Read" value={compactNumber(totals.novels?.views)} icon={RiBookOpenLine} />
+        <StatCard label="News Engagement" value={compactNumber((totals.news?.views || 0) + (totals.news?.likes || 0) + (totals.news?.comments || 0) + (totals.news?.shares || 0))} icon={RiNewspaperLine} />
+        <StatCard label="Ad Activity" value={compactNumber((totals.ads?.impressions || 0) + (totals.ads?.clicks || 0))} icon={RiAdvertisementLine} />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <BarChart title="Weekly Content Activity" items={engagementItems} />
+        <BarChart title="Weekly Engagement & Ads" items={socialItems} />
+        <DonutChart title="User Mix" items={userMixItems} />
+        <DonutChart title="News, Career & Unspoken Reads" items={newsSectionItems} />
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="p-5" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <h3 className="font-black" style={{ color: 'var(--color-text)' }}>Daily, Weekly, Yearly Summary</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[820px] w-full text-left text-sm">
+            <thead>
+              <tr style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>
+                {['Period', 'App Opens', 'Screen Views', 'Media', 'Novels', 'News', 'Jobs', 'Unspoken', 'Comments', 'Shares', 'Likes'].map((item) => (
+                  <th key={item} className="px-4 py-3 font-black">{item}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {periodRows.map(([label, period]) => (
+                <tr key={label} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                  <td className="px-4 py-3 font-black" style={{ color: 'var(--color-text)' }}>{label}</td>
+                  {['app_open', 'screen_view', 'media_watch', 'novel_read', 'news_read', 'career_click', 'unspoken_open', 'comment', 'share', 'like'].map((key) => (
+                    <td key={key} className="px-4 py-3" style={{ color: 'var(--color-text-muted)' }}>{compactNumber(eventValue(period, key))}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TableShell({ title, children, search, setSearch, filters }) {
   return (
     <div className="card overflow-hidden">
@@ -210,6 +376,7 @@ export default function AdminDashboardPage() {
   const { user, isAuthenticated, updateUser } = useAuthStore()
   const [activeTab, setActiveTab] = useState('overview')
   const [dashboard, setDashboard] = useState(null)
+  const [analytics, setAnalytics] = useState(null)
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -289,6 +456,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     if (!isAdmin) return
     if (activeTab === 'overview') loadDashboard()
+    else if (activeTab === 'statistics') loadAnalyticsSummary()
     else if (activeTab === 'notifications') loadPushStats()
     else if (activeTab === 'news') loadNews(1)
     else loadTable(1)
@@ -301,6 +469,18 @@ export default function AdminDashboardPage() {
       setDashboard(res.data.data)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Admin dashboard failed to load')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadAnalyticsSummary = async () => {
+    setLoading(true)
+    try {
+      const res = await adminService.getAnalyticsSummary()
+      setAnalytics(res.data.data)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not load statistics')
     } finally {
       setLoading(false)
     }
@@ -919,7 +1099,11 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {!loading && activeTab !== 'overview' && (
+      {!loading && activeTab === 'statistics' && analytics && (
+        <StatisticsPanel analytics={analytics} />
+      )}
+
+      {!loading && activeTab !== 'overview' && activeTab !== 'statistics' && (
         activeTab === 'notifications' ? (
           <NotificationPanel
             stats={pushStats}

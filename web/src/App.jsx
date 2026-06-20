@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import useAuthStore from './stores/authStore'
 import useThemeStore from './stores/themeStore'
+import { analyticsService } from './services'
 
 // Layout
 import MainLayout from './components/layout/MainLayout'
@@ -39,6 +40,16 @@ export default function App() {
   // Check auth on app load
   useEffect(() => {
     initAuth()
+    const key = 'nendplay-analytics-guest-id'
+    const existing = localStorage.getItem(key)
+    const guestId = existing || `web-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    if (!existing) localStorage.setItem(key, guestId)
+    analyticsService.track({
+      eventType: 'app_open',
+      platform: 'web',
+      screen: 'app',
+      guestId,
+    }).catch(() => {})
   }, [])
 
   // Apply theme to document

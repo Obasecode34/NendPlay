@@ -20,6 +20,7 @@ const newsRoutes         = require("./routes/news.routes");
 const notificationRoutes = require("./routes/notification.routes");
 const rewardRoutes       = require("./routes/reward.routes");
 const adminRoutes        = require("./routes/admin.routes");
+const analyticsRoutes    = require("./routes/analytics.routes");
 
 const app = express();
 
@@ -61,6 +62,7 @@ app.use("/api/ads",       adRoutes);
 app.use("/api/downloads", downloadRoutes);
 app.use("/api/referrals", referralRoutes);
 app.use("/api/rewards",   rewardRoutes);
+app.use("/api/analytics", analyticsRoutes);
 app.use("/api/admin",     adminRoutes);
 app.use("/api/news",      newsRoutes);
 app.use("/api/notifications", notificationRoutes);
