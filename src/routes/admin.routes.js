@@ -35,7 +35,10 @@ router.post("/media/:id/reject", requireAdmin("media:write"), adminController.re
 router.delete("/media/:id", requireAdmin("media:write"), adminController.deleteMedia);
 
 router.get("/documents", requireAdmin("documents:read"), adminController.listDocuments);
+router.post("/documents/import", requireAdmin("documents:write"), adminController.importDocument);
 router.patch("/documents/:id", requireAdmin("documents:write"), adminController.updateDocument);
+router.post("/documents/:id/approve", requireAdmin("documents:write"), adminController.approveDocument);
+router.post("/documents/:id/reject", requireAdmin("documents:write"), adminController.rejectDocument);
 router.delete("/documents/:id", requireAdmin("documents:write"), adminController.deleteDocument);
 
 router.get("/ads", requireAdmin("ads:read"), adminController.listAds);

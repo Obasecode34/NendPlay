@@ -66,6 +66,26 @@ const COLLECTION_TYPE_OPTIONS = [
   { value: 'series_episode', label: 'Series/episode' },
 ]
 
+const NOVEL_GENRE_OPTIONS = [
+  'business', 'love', 'finance', 'drama', 'fiction', 'non-fiction', 'mystery',
+  'horror', 'fan-fiction', 'sci-fi', 'urban', 'teen', 'military-history',
+  'games-sport', 'literature', 'eastern-fantasy', 'western-fantasy',
+]
+
+const DOCUMENT_LICENSE_OPTIONS = [
+  'public_domain', 'cc0', 'cc_by', 'cc_by_sa', 'cc_by_nc', 'cc_by_nc_sa',
+  'cc_by_nd', 'cc_by_nc_nd',
+]
+
+const TRUSTED_DOCUMENT_SOURCE_OPTIONS = [
+  'Project Gutenberg',
+  'Standard Ebooks',
+  'Internet Archive',
+  'Open Library',
+  'Government Library',
+  'Educational Library',
+]
+
 const NEWS_TAB_OPTIONS = [
   { value: 'for-you', label: 'For You' },
   { value: 'headlines', label: 'Headlines' },
@@ -392,6 +412,7 @@ export default function AdminDashboardPage() {
   const [previewMedia, setPreviewMedia] = useState(null)
   const [previewAd, setPreviewAd] = useState(null)
   const [adminAdFormOpen, setAdminAdFormOpen] = useState(false)
+  const [documentImportOpen, setDocumentImportOpen] = useState(false)
   const [adminAdFile, setAdminAdFile] = useState(null)
   const [adminAdForm, setAdminAdForm] = useState({
     advertiserName: 'NendPlay Media',
@@ -404,6 +425,21 @@ export default function AdminDashboardPage() {
     targetAudience: 'unsubscribed',
     durationDays: 7,
     status: 'active',
+  })
+  const [documentImportForm, setDocumentImportForm] = useState({
+    title: '',
+    author: '',
+    description: '',
+    category: 'fiction',
+    fileUrl: '',
+    coverImage: '',
+    sourceName: 'Project Gutenberg',
+    sourceUrl: '',
+    licenseType: 'public_domain',
+    licenseUrl: '',
+    attributionText: '',
+    rightsSummary: '',
+    tags: '',
   })
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [pushStats, setPushStats] = useState(null)
@@ -903,6 +939,51 @@ export default function AdminDashboardPage() {
     }
   }
 
+  const importAdminDocument = async () => {
+    const requiredFields = ['title', 'fileUrl', 'sourceName', 'sourceUrl', 'licenseType']
+    if (requiredFields.some((key) => !String(documentImportForm[key] || '').trim())) {
+      toast.error('Enter title, PDF URL, source, source URL, and license')
+      return
+    }
+    try {
+      await adminService.importDocument({
+        ...documentImportForm,
+        title: documentImportForm.title.trim(),
+        author: documentImportForm.author.trim(),
+        category: documentImportForm.category,
+        genre: documentImportForm.category,
+        fileUrl: documentImportForm.fileUrl.trim(),
+        sourceName: documentImportForm.sourceName.trim(),
+        sourceUrl: documentImportForm.sourceUrl.trim(),
+        licenseUrl: documentImportForm.licenseUrl.trim(),
+        coverImage: documentImportForm.coverImage.trim(),
+        rightsConfirmed: true,
+        isPublicDomain: documentImportForm.licenseType === 'public_domain',
+        isCreativeCommons: documentImportForm.licenseType !== 'public_domain',
+      })
+      toast.success('Legal PDF imported')
+      setDocumentImportOpen(false)
+      setDocumentImportForm({
+        title: '',
+        author: '',
+        description: '',
+        category: 'fiction',
+        fileUrl: '',
+        coverImage: '',
+        sourceName: 'Project Gutenberg',
+        sourceUrl: '',
+        licenseType: 'public_domain',
+        licenseUrl: '',
+        attributionText: '',
+        rightsSummary: '',
+        tags: '',
+      })
+      if (activeTab === 'documents') loadTable(1)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not import document')
+    }
+  }
+
   const columns = useMemo(() => {
     if (activeTab === 'users') return [
       { key: 'name', label: 'User', render: (row) => <div><p className="font-bold">{row.profileName || row.username || 'User'}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.email || row.username}</p></div> },
@@ -923,7 +1004,10 @@ export default function AdminDashboardPage() {
     if (activeTab === 'documents') return [
       { key: 'title', label: 'Document', render: (row) => <div><p className="font-bold max-w-sm truncate">{row.title}</p><p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.fileType} · {row.genre}</p></div> },
       { key: 'author', label: 'Author' },
-      { key: 'isActive', label: 'Status', render: (row) => <Badge>{row.isActive ? 'active' : 'inactive'}</Badge> },
+      { key: 'reviewStatus', label: 'Review', render: (row) => <Badge>{row.reviewStatus || 'pending_review'}</Badge> },
+      { key: 'publishStatus', label: 'Publish', render: (row) => <Badge>{row.publishStatus || (row.isActive ? 'published' : 'archived')}</Badge> },
+      { key: 'licenseType', label: 'License', render: (row) => row.licenseType || 'unknown' },
+      { key: 'sourceName', label: 'Source', render: (row) => row.sourceName || row.contentOrigin || '-' },
       { key: 'downloadCount', label: 'Downloads' },
       { key: 'createdAt', label: 'Created', render: (row) => new Date(row.createdAt).toLocaleDateString() },
     ]
@@ -1010,6 +1094,8 @@ export default function AdminDashboardPage() {
     if (activeTab === 'documents') {
       return (
         <div className="flex flex-wrap gap-2">
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Document approved', () => adminService.approveDocument(row._id, { rightsConfirmed: true }))}>Approve</button>
+          <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Document rejected', () => adminService.rejectDocument(row._id, { reviewNote: 'Rejected by admin review' }))}>Reject</button>
           <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patchAndReload('Document status updated', () => adminService.updateDocument(row._id, { isActive: !row.isActive }))}>{row.isActive ? 'Hide' : 'Restore'}</button>
           {isSuperAdmin && (
             <button className="btn-ghost px-3 py-1 text-xs flex items-center gap-1"
@@ -1166,6 +1252,15 @@ export default function AdminDashboardPage() {
                     Create Free Ad
                   </button>
                 )}
+                {activeTab === 'documents' && (
+                  <button
+                    type="button"
+                    className="btn-primary px-4 py-2 text-sm"
+                    onClick={() => setDocumentImportOpen(true)}
+                  >
+                    Import Legal PDF
+                  </button>
+                )}
                 <select className="input-base py-2" value={status} onChange={(event) => setStatus(event.target.value)}>
                   <option value="">All status</option>
                   <option value="active">Active</option>
@@ -1201,6 +1296,15 @@ export default function AdminDashboardPage() {
           setFile={setAdminAdFile}
           onClose={() => setAdminAdFormOpen(false)}
           onSubmit={createAdminAd}
+        />
+      )}
+
+      {documentImportOpen && (
+        <DocumentImportModal
+          form={documentImportForm}
+          setForm={setDocumentImportForm}
+          onClose={() => setDocumentImportOpen(false)}
+          onSubmit={importAdminDocument}
         />
       )}
 
@@ -1244,6 +1348,67 @@ export default function AdminDashboardPage() {
       {previewAd && (
         <AdPreviewModal ad={previewAd} onClose={() => setPreviewAd(null)} />
       )}
+    </div>
+  )
+}
+
+function DocumentImportModal({ form, setForm, onClose, onSubmit }) {
+  const update = (key, value) => setForm({ ...form, [key]: value })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.72)' }}>
+      <div className="card w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <div>
+            <h2 className="font-display font-black text-2xl" style={{ color: 'var(--color-text)' }}>Import Legal PDF</h2>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              Use only public-domain, Creative Commons, government, educational, or rights-cleared books.
+            </p>
+          </div>
+          <button className="btn-ghost px-4 py-2 text-sm" onClick={onClose}>Close</button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input className="input-base" placeholder="Title" value={form.title} onChange={(event) => update('title', event.target.value)} />
+            <input className="input-base" placeholder="Author" value={form.author} onChange={(event) => update('author', event.target.value)} />
+            <select className="input-base" value={form.category} onChange={(event) => update('category', event.target.value)}>
+              {NOVEL_GENRE_OPTIONS.map((genre) => <option key={genre} value={genre}>{genre}</option>)}
+            </select>
+            <input className="input-base" placeholder="Cover image URL" value={form.coverImage} onChange={(event) => update('coverImage', event.target.value)} />
+          </div>
+
+          <textarea className="input-base min-h-24 resize-y" placeholder="Description" value={form.description} onChange={(event) => update('description', event.target.value)} />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input className="input-base" placeholder="PDF file URL" value={form.fileUrl} onChange={(event) => update('fileUrl', event.target.value)} />
+            <input className="input-base" placeholder="Original source URL" value={form.sourceUrl} onChange={(event) => update('sourceUrl', event.target.value)} />
+            <select className="input-base" value={form.sourceName} onChange={(event) => update('sourceName', event.target.value)}>
+              {TRUSTED_DOCUMENT_SOURCE_OPTIONS.map((source) => <option key={source} value={source}>{source}</option>)}
+            </select>
+            <select className="input-base" value={form.licenseType} onChange={(event) => update('licenseType', event.target.value)}>
+              {DOCUMENT_LICENSE_OPTIONS.map((license) => <option key={license} value={license}>{license}</option>)}
+            </select>
+            <input className="input-base" placeholder="License URL" value={form.licenseUrl} onChange={(event) => update('licenseUrl', event.target.value)} />
+            <input className="input-base" placeholder="Tags, comma separated" value={form.tags} onChange={(event) => update('tags', event.target.value)} />
+          </div>
+
+          <textarea className="input-base min-h-20 resize-y" placeholder="Attribution text" value={form.attributionText} onChange={(event) => update('attributionText', event.target.value)} />
+          <textarea className="input-base min-h-20 resize-y" placeholder="Rights summary / verification note" value={form.rightsSummary} onChange={(event) => update('rightsSummary', event.target.value)} />
+
+          <div
+            className="rounded-2xl px-4 py-3 text-sm"
+            style={{ background: 'rgba(251,191,36,0.12)', color: '#FBBF24', border: '1px solid rgba(251,191,36,0.24)' }}
+          >
+            Importing confirms NendPlay has permission to list this PDF. Trusted public-domain and Creative Commons imports publish immediately; other submissions must be approved.
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button className="btn-ghost px-4 py-2 text-sm" onClick={onClose}>Cancel</button>
+            <button className="btn-primary px-4 py-2 text-sm" onClick={onSubmit}>Import PDF</button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

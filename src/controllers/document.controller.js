@@ -34,6 +34,7 @@ class DocumentController {
         file: req.file,
         body: req.body,
         userId: req.user.userId,
+        user: req.user,
       });
 
       return ApiResponse.created(res, {

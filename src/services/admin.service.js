@@ -17,6 +17,7 @@ const mediaThumbnailService = require("./mediaThumbnail.service");
 const paymentService = require("./payment.service");
 const { ADMIN_PERMISSIONS } = require("../config/adminPermissions");
 const { calculateAdPrice } = require("../config/adPricing");
+const { normalizeNovelGenre } = require("../config/novelGenres");
 const { nanoid } = require("nanoid");
 
 const PAGE_LIMIT_MAX = 100;
@@ -855,8 +856,15 @@ class AdminService {
     const filter = {};
     if (query.fileType) filter.fileType = query.fileType;
     if (query.genre) filter.genre = query.genre;
+    if (query.reviewStatus) filter.reviewStatus = query.reviewStatus;
+    if (query.publishStatus) filter.publishStatus = query.publishStatus;
+    if (query.licenseType) filter.licenseType = query.licenseType;
+    if (query.contentOrigin) filter.contentOrigin = query.contentOrigin;
     if (query.status === "active") filter.isActive = true;
     if (query.status === "inactive") filter.isActive = false;
+    if (query.status === "pending_review") filter.reviewStatus = "pending_review";
+    if (query.status === "published") filter.publishStatus = "published";
+    if (query.status === "rejected") filter.reviewStatus = "rejected";
     if (query.search) {
       const search = new RegExp(escapeRegex(query.search), "i");
       filter.$or = [
@@ -886,6 +894,7 @@ class AdminService {
       "category",
       "genre",
       "tags",
+      "thumbnailUrl",
       "author",
       "isActive",
       "licenseType",
@@ -897,9 +906,115 @@ class AdminService {
       "requiresAttribution",
       "isRightsVerified",
       "rightsVerifiedAt",
+      "contentOrigin",
+      "rightsOwnerName",
+      "rightsConfirmed",
+      "importedFromTrustedSource",
+      "reviewStatus",
+      "publishStatus",
+      "reviewNote",
     ]);
+    if (updates.tags !== undefined) updates.tags = parseList(updates.tags);
+    if (updates.reviewStatus === "approved") {
+      updates.publishStatus = updates.publishStatus || "published";
+      updates.isRightsVerified = true;
+      updates.rightsVerifiedAt = updates.rightsVerifiedAt || new Date();
+    }
+    if (updates.reviewStatus === "rejected") {
+      updates.publishStatus = "rejected";
+    }
     const document = await Document.findByIdAndUpdate(documentId, updates, { new: true });
     if (!document) throw { status: 404, message: "Document not found" };
+    return document;
+  }
+
+  async approveDocument(documentId, admin, body = {}) {
+    const document = await Document.findById(documentId);
+    if (!document) throw { status: 404, message: "Document not found" };
+
+    document.reviewStatus = "approved";
+    document.publishStatus = "published";
+    document.isActive = true;
+    document.isRightsVerified = true;
+    document.rightsVerifiedAt = new Date();
+    document.reviewedBy = admin.id;
+    document.reviewedAt = new Date();
+    document.reviewNote = body.reviewNote || "";
+    if (body.rightsSummary !== undefined) document.rightsSummary = body.rightsSummary;
+    if (body.licenseType !== undefined) document.licenseType = body.licenseType;
+    if (body.sourceUrl !== undefined) document.sourceUrl = body.sourceUrl;
+    if (body.sourceName !== undefined) document.sourceName = body.sourceName;
+    if (body.attributionText !== undefined) document.attributionText = body.attributionText;
+    if (body.rightsConfirmed !== undefined) document.rightsConfirmed = body.rightsConfirmed === true || body.rightsConfirmed === "true";
+    await document.save();
+    return document;
+  }
+
+  async rejectDocument(documentId, admin, body = {}) {
+    const document = await Document.findById(documentId);
+    if (!document) throw { status: 404, message: "Document not found" };
+
+    document.reviewStatus = "rejected";
+    document.publishStatus = "rejected";
+    document.reviewedBy = admin.id;
+    document.reviewedAt = new Date();
+    document.reviewNote = body.reviewNote || "Rejected by admin review";
+    await document.save();
+    return document;
+  }
+
+  async importDocument(body, admin) {
+    const required = ["title", "fileUrl", "licenseType", "sourceUrl", "sourceName"];
+    const missing = required.filter((key) => !body[key]);
+    if (missing.length) {
+      throw { status: 400, message: `Missing required import fields: ${missing.join(", ")}` };
+    }
+
+    const category = normalizeNovelGenre(body.genre || body.category || "fiction");
+    const licenseType = body.licenseType || "unknown";
+    const trustedLicense = [
+      "public_domain",
+      "cc0",
+      "cc_by",
+      "cc_by_sa",
+      "cc_by_nc",
+      "cc_by_nc_sa",
+      "cc_by_nd",
+      "cc_by_nc_nd",
+    ].includes(licenseType);
+
+    const document = await Document.create({
+      title: body.title,
+      description: body.description || "",
+      fileUrl: body.fileUrl,
+      thumbnailUrl: body.thumbnailUrl || body.coverImage || "",
+      fileType: "pdf",
+      mimeType: "application/pdf",
+      fileSize: Number(body.fileSize || 0),
+      category,
+      genre: category,
+      tags: parseList(body.tags, 12),
+      author: body.author || "",
+      licenseType,
+      licenseUrl: body.licenseUrl || "",
+      sourceUrl: body.sourceUrl,
+      sourceName: body.sourceName,
+      attributionText: body.attributionText || "",
+      rightsSummary: body.rightsSummary || "",
+      requiresAttribution: body.requiresAttribution === true || body.requiresAttribution === "true",
+      contentOrigin: licenseType === "public_domain" ? "public_domain_import" : "creative_commons_import",
+      rightsOwnerName: body.rightsOwnerName || "",
+      rightsConfirmed: true,
+      importedFromTrustedSource: trustedLicense,
+      isRightsVerified: trustedLicense,
+      rightsVerifiedAt: trustedLicense ? new Date() : null,
+      reviewStatus: trustedLicense ? "approved" : "pending_review",
+      publishStatus: trustedLicense ? "published" : "pending_review",
+      reviewedBy: trustedLicense ? admin.id : null,
+      reviewedAt: trustedLicense ? new Date() : null,
+      uploadedBy: admin.id,
+    });
+
     return document;
   }
 

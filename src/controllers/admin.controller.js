@@ -82,6 +82,21 @@ class AdminController {
     return ApiResponse.success(res, { message: "Document updated", data: { document } });
   });
 
+  approveDocument = wrap(async (req, res) => {
+    const document = await adminService.approveDocument(req.params.id, req.admin, req.body);
+    return ApiResponse.success(res, { message: "Document approved", data: { document } });
+  });
+
+  rejectDocument = wrap(async (req, res) => {
+    const document = await adminService.rejectDocument(req.params.id, req.admin, req.body);
+    return ApiResponse.success(res, { message: "Document rejected", data: { document } });
+  });
+
+  importDocument = wrap(async (req, res) => {
+    const document = await adminService.importDocument(req.body, req.admin);
+    return ApiResponse.created(res, { message: "Legal PDF imported", data: { document } });
+  });
+
   deleteDocument = wrap(async (req, res) => {
     const result = await adminService.deleteDocument(req.params.id, req.admin);
     return ApiResponse.success(res, { message: "Document deleted", data: result });

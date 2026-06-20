@@ -48,6 +48,26 @@ const ATTRIBUTION_LICENSES = new Set([
   "cc_by_nc_nd",
 ]);
 
+const TRUSTED_IMPORT_SOURCES = new Set([
+  "project_gutenberg",
+  "standard_ebooks",
+  "internet_archive",
+  "open_library",
+  "government_library",
+  "educational_library",
+]);
+
+const PUBLIC_LICENSE_TYPES = new Set([
+  "public_domain",
+  "cc0",
+  "cc_by",
+  "cc_by_sa",
+  "cc_by_nc",
+  "cc_by_nc_sa",
+  "cc_by_nd",
+  "cc_by_nc_nd",
+]);
+
 const parseBoolean = (value) => value === true || value === "true";
 
 const parseRightsMetadata = (body = {}) => {
@@ -65,8 +85,23 @@ const parseRightsMetadata = (body = {}) => {
     attributionText: body.attributionText || "",
     rightsSummary: body.rightsSummary || "",
     requiresAttribution,
+    contentOrigin: body.contentOrigin || "creator_upload",
+    rightsOwnerName: body.rightsOwnerName || "",
+    rightsConfirmed: parseBoolean(body.rightsConfirmed),
   };
 };
+
+function isTrustedImport(body = {}) {
+  const source = String(body.importSource || body.sourceName || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  const licenseType = LICENSE_TYPES.has(body.licenseType) ? body.licenseType : "unknown";
+  return TRUSTED_IMPORT_SOURCES.has(source) && PUBLIC_LICENSE_TYPES.has(licenseType);
+}
+
+function licenseTypeToImportOrigin(licenseType = "unknown") {
+  if (licenseType === "public_domain") return "public_domain_import";
+  if (PUBLIC_LICENSE_TYPES.has(licenseType)) return "creative_commons_import";
+  return "admin_upload";
+}
 
 class DocumentService {
   // ── Upload document to Cloudinary ─────────────────────────────────────
@@ -94,7 +129,7 @@ class DocumentService {
   }
 
   // ── Upload and create document ────────────────────────────────────────
-  async uploadDocument({ file, body, userId }) {
+  async uploadDocument({ file, body, userId, user }) {
     const {
       title,
       description,
@@ -102,6 +137,7 @@ class DocumentService {
       tags,
       genre,
       author,
+      thumbnailUrl,
     } = body;
 
     const fileType = getFileType(file.mimetype);
@@ -134,12 +170,17 @@ class DocumentService {
     const normalizedGenre = normalizeNovelGenre(genre || category);
     const normalizedTags = Array.from(new Set([normalizedGenre, ...parsedTags]));
     const rightsMetadata = parseRightsMetadata(body);
+    const adminUpload = ["admin", "super_admin"].includes(user?.role);
+    const trustedImport = adminUpload && isTrustedImport(body);
+    const reviewStatus = trustedImport ? "approved" : "pending_review";
+    const publishStatus = trustedImport ? "published" : "pending_review";
 
     // 4. Save to MongoDB
     const document = await Document.create({
       title,
       description: description || "",
       fileUrl: cloudinaryResult.secure_url,
+      thumbnailUrl: thumbnailUrl || body.coverImage || "",
       cloudinaryPublicId: cloudinaryResult.public_id,
       fileType,
       mimeType: file.mimetype,
@@ -149,6 +190,19 @@ class DocumentService {
       genre: normalizedGenre,
       author: author || "",
       ...rightsMetadata,
+      contentOrigin: trustedImport
+        ? licenseTypeToImportOrigin(rightsMetadata.licenseType)
+        : adminUpload
+          ? "admin_upload"
+          : rightsMetadata.contentOrigin || "creator_upload",
+      importedFromTrustedSource: trustedImport,
+      rightsConfirmed: trustedImport || rightsMetadata.rightsConfirmed,
+      isRightsVerified: trustedImport,
+      rightsVerifiedAt: trustedImport ? new Date() : null,
+      reviewStatus,
+      publishStatus,
+      reviewedBy: trustedImport ? userId : null,
+      reviewedAt: trustedImport ? new Date() : null,
       uploadedBy: userId,
       isFork: false,
       originalDocument: null,
@@ -167,7 +221,7 @@ class DocumentService {
     sortBy = "createdAt",
     sortOrder = "desc",
   }) {
-    const query = { isActive: true };
+    const query = { isActive: true, reviewStatus: "approved", publishStatus: "published" };
 
     if (fileType) query.fileType = fileType;
     if (category && isNovelGenre(category)) query.category = normalizeNovelGenre(category);
@@ -204,7 +258,7 @@ class DocumentService {
       .populate("uploadedBy", "profileName username profilePic")
       .populate("originalDocument", "title uploadedBy");
 
-    if (!document || !document.isActive) {
+    if (!document || !document.isActive || document.reviewStatus !== "approved" || document.publishStatus !== "published") {
       throw { status: 404, message: "Document not found" };
     }
 
@@ -220,7 +274,7 @@ class DocumentService {
   async forkDocument(documentId, userId) {
     const original = await Document.findById(documentId);
 
-    if (!original || !original.isActive) {
+    if (!original || !original.isActive || original.reviewStatus !== "approved" || original.publishStatus !== "published") {
       throw { status: 404, message: "Document not found" };
     }
 
@@ -240,6 +294,7 @@ class DocumentService {
       title: `${original.title} (My Copy)`,
       description: original.description,
       fileUrl: original.fileUrl, // same Cloudinary URL
+      thumbnailUrl: original.thumbnailUrl || "",
       cloudinaryPublicId: original.cloudinaryPublicId,
       fileType: original.fileType,
       mimeType: original.mimeType,
@@ -257,6 +312,14 @@ class DocumentService {
       requiresAttribution: original.requiresAttribution || false,
       isRightsVerified: original.isRightsVerified || false,
       rightsVerifiedAt: original.rightsVerifiedAt || null,
+      contentOrigin: original.contentOrigin || "creator_upload",
+      rightsOwnerName: original.rightsOwnerName || "",
+      rightsConfirmed: original.rightsConfirmed || false,
+      importedFromTrustedSource: original.importedFromTrustedSource || false,
+      reviewStatus: "approved",
+      publishStatus: "published",
+      reviewedBy: original.reviewedBy || null,
+      reviewedAt: original.reviewedAt || null,
       uploadedBy: userId,
       isFork: true,
       originalDocument: original._id,
@@ -274,7 +337,7 @@ class DocumentService {
   async updateDocument(documentId, userId, updates) {
     const document = await Document.findById(documentId);
 
-    if (!document || !document.isActive) {
+    if (!document || !document.isActive || document.reviewStatus !== "approved" || document.publishStatus !== "published") {
       throw { status: 404, message: "Document not found" };
     }
 
@@ -319,7 +382,7 @@ class DocumentService {
   async deleteDocument(documentId, userId) {
     const document = await Document.findById(documentId);
 
-    if (!document || !document.isActive) {
+    if (!document || !document.isActive || document.reviewStatus !== "approved" || document.publishStatus !== "published") {
       throw { status: 404, message: "Document not found" };
     }
 

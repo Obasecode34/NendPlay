@@ -28,6 +28,10 @@ const LICENSE_TYPES = [
   "permission_granted",
 ];
 
+const DOCUMENT_REVIEW_STATUSES = ["pending_review", "approved", "rejected"];
+const DOCUMENT_PUBLISH_STATUSES = ["draft", "pending_review", "published", "rejected", "archived"];
+const DOCUMENT_ORIGINS = ["creator_upload", "admin_upload", "public_domain_import", "creative_commons_import", "publisher_submission"];
+
 const documentSchema = new mongoose.Schema(
   {
     // ── Identity ───────────────────────────────────────────────────────
@@ -55,6 +59,12 @@ const documentSchema = new mongoose.Schema(
     cloudinaryPublicId: {
       type: String,
       default: null,
+    },
+
+    thumbnailUrl: {
+      type: String,
+      trim: true,
+      default: "",
     },
 
     fileType: {
@@ -155,6 +165,28 @@ const documentSchema = new mongoose.Schema(
       default: false,
     },
 
+    contentOrigin: {
+      type: String,
+      enum: DOCUMENT_ORIGINS,
+      default: "creator_upload",
+    },
+
+    rightsOwnerName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    rightsConfirmed: {
+      type: Boolean,
+      default: false,
+    },
+
+    importedFromTrustedSource: {
+      type: Boolean,
+      default: false,
+    },
+
     isRightsVerified: {
       type: Boolean,
       default: false,
@@ -208,6 +240,38 @@ const documentSchema = new mongoose.Schema(
       default: 0,
     },
 
+    reviewStatus: {
+      type: String,
+      enum: DOCUMENT_REVIEW_STATUSES,
+      default: "pending_review",
+      index: true,
+    },
+
+    publishStatus: {
+      type: String,
+      enum: DOCUMENT_PUBLISH_STATUSES,
+      default: "pending_review",
+      index: true,
+    },
+
+    reviewNote: {
+      type: String,
+      trim: true,
+      maxlength: [1000, "Review note cannot exceed 1000 characters"],
+      default: "",
+    },
+
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    reviewedAt: {
+      type: Date,
+      default: null,
+    },
+
     // ── Status ─────────────────────────────────────────────────────────
     isActive: {
       type: Boolean,
@@ -235,6 +299,7 @@ documentSchema.index({
 documentSchema.index({ fileType: 1, isActive: 1 });
 documentSchema.index({ category: 1, isActive: 1 });
 documentSchema.index({ genre: 1, isActive: 1 });
+documentSchema.index({ isActive: 1, publishStatus: 1, reviewStatus: 1, createdAt: -1 });
 documentSchema.index({ fileType: 1, category: 1, isActive: 1, createdAt: -1 });
 documentSchema.index({ uploadedBy: 1, isActive: 1 });
 documentSchema.index({ originalDocument: 1 });
