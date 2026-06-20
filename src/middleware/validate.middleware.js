@@ -51,8 +51,7 @@ const validateRegister = [
 const validateLogin = [
   body("email")
     .optional({ checkFalsy: true })
-    .isEmail().withMessage("Invalid email format")
-    .normalizeEmail(),
+    .trim(),
 
   body("identifier")
     .optional({ checkFalsy: true })

@@ -36,7 +36,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-client-platform"],
 }));
 
 app.use(morgan(NODE_ENV === "development" ? "dev" : "combined"));

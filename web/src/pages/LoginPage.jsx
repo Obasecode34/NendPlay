@@ -24,7 +24,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const identifier = form.identifier.trim()
-      const res = await authService.login({ email: identifier, identifier, password: form.password })
+      const res = await authService.login({ identifier, password: form.password })
       const { user, accessToken } = res.data.data
       setAuth(user, accessToken)
       toast.success(`Welcome back, ${user.profileName || user.username}!`)
