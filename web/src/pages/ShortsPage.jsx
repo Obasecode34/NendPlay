@@ -18,7 +18,7 @@ function formatCount(value = 0) {
   return `${count}`
 }
 
-function ShortCard({ short, isActive, onActivate }) {
+function ShortCard({ short, isActive, onActivate, onEnded }) {
   const { ref, inView } = useInView({ threshold: 0.7 })
   const [playing, setPlaying] = useState(false)
   const [liked, setLiked] = useState(false)
@@ -204,14 +204,16 @@ function ShortCard({ short, isActive, onActivate }) {
 
       {/* Player */}
       <ReactPlayer
-        url={mediaService.getStreamUrl(short._id)}
+        url={mediaService.resolveStreamUrl(mediaService.getStreamUrl(short._id))}
         playing={playing && isActive}
-        muted={false}
-        loop
+        muted
+        playsinline
+        loop={false}
+        onEnded={onEnded}
         width="100%"
         height="100%"
         style={{ objectFit: 'cover' }}
-        config={{ file: { attributes: { style: { objectFit: 'cover', width: '100%', height: '100%' } } } }}
+        config={{ file: { attributes: { playsInline: true, muted: true, style: { objectFit: 'cover', width: '100%', height: '100%' } } } }}
       />
 
       {/* Gradient overlay */}
@@ -359,9 +361,43 @@ function ShortCard({ short, isActive, onActivate }) {
   )
 }
 
+function ShortsAdCard({ adItem, isActive, onActivate, onEnded }) {
+  const { ref, inView } = useInView({ threshold: 0.7 })
+  const shortFrameStyle = {
+    height: 'min(820px, max(420px, calc(100vh - 190px)))',
+    aspectRatio: '9 / 16',
+    maxWidth: '100%',
+    background: '#05050F',
+  }
+
+  useEffect(() => {
+    if (inView) onActivate(adItem._id)
+  }, [adItem._id, inView, onActivate])
+
+  useEffect(() => {
+    if (!isActive) return undefined
+    const timer = setTimeout(onEnded, 15000)
+    return () => clearTimeout(timer)
+  }, [isActive, onEnded])
+
+  return (
+    <div
+      id={`short-${adItem._id}`}
+      ref={ref}
+      className="relative flex-shrink-0 overflow-hidden rounded-2xl p-4 shadow-2xl"
+      style={shortFrameStyle}
+    >
+      <div className="flex h-full w-full items-center justify-center">
+        <GoogleAdSlot placement="shorts" className="w-full" />
+      </div>
+    </div>
+  )
+}
+
 export default function ShortsPage() {
   const [shorts, setShorts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [activeId, setActiveId] = useState(null)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
@@ -380,6 +416,8 @@ export default function ShortsPage() {
   useEffect(() => { fetchShorts() }, [page, feedMode])
 
   const fetchShorts = async () => {
+    if (loadingMore) return
+    setLoadingMore(true)
     try {
       const serviceCall = feedMode === 'subscriptions'
         ? mediaService.getSubscribedShorts
@@ -392,16 +430,17 @@ export default function ShortsPage() {
       toast.error('Failed to load Shorts')
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }
 
   const { ref: loadMoreRef, inView: loadMoreInView } = useInView({ threshold: 1 })
 
   useEffect(() => {
-    if (loadMoreInView && hasMore && !loading) {
+    if (loadMoreInView && hasMore && !loading && !loadingMore) {
       setPage(prev => prev + 1)
     }
-  }, [loadMoreInView])
+  }, [hasMore, loading, loadingMore, loadMoreInView])
 
   const switchFeedMode = (nextMode) => {
     if (nextMode === feedMode) return
@@ -411,6 +450,22 @@ export default function ShortsPage() {
     setPage(1)
     setHasMore(true)
     setLoading(true)
+    setLoadingMore(false)
+  }
+
+  const advanceToNext = (currentId) => {
+    if (feedItems.length === 0) return
+    const currentIndex = feedItems.findIndex((item) => item._id === currentId)
+    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % feedItems.length : 0
+    const nextItem = feedItems[nextIndex]
+    if (!nextItem) return
+    setActiveId(nextItem._id)
+    setTimeout(() => {
+      document.getElementById(`short-${nextItem._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 50)
+    if (hasMore && nextIndex >= feedItems.length - 2 && !loading && !loadingMore) {
+      setPage((prev) => prev + 1)
+    }
   }
 
   useEffect(() => {
@@ -511,26 +566,21 @@ export default function ShortsPage() {
       <div className="mx-auto flex w-full flex-col items-center space-y-4">
         {feedItems.map((item) => (
           item.isAd ? (
-            <div
+            <ShortsAdCard
               key={item._id}
-              className="flex items-center justify-center rounded-2xl p-4"
-              style={{
-                height: 'min(820px, max(420px, calc(100vh - 190px)))',
-                aspectRatio: '9 / 16',
-                maxWidth: '100%',
-                background: '#05050F',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              <GoogleAdSlot placement="shorts" className="w-full" />
-            </div>
+              adItem={item}
+              isActive={activeId === item._id}
+              onActivate={setActiveId}
+              onEnded={() => advanceToNext(item._id)}
+            />
           ) : (
-          <ShortCard
-            key={item._id}
-            short={item}
-            isActive={activeId === item._id}
-            onActivate={setActiveId}
-          />
+            <ShortCard
+              key={item._id}
+              short={item}
+              isActive={activeId === item._id}
+              onActivate={setActiveId}
+              onEnded={() => advanceToNext(item._id)}
+            />
           )
         ))}
 

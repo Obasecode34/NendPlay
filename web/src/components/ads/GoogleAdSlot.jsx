@@ -117,7 +117,9 @@ function NendPlayNativeAd({ placement, className }) {
             <video
               src={ad.mediaUrl}
               className="h-28 w-full rounded-lg object-cover sm:h-24"
+              autoPlay
               muted
+              loop
               playsInline
               preload="metadata"
             />
