@@ -29,6 +29,29 @@ const extraItems = [
   { to: '/referrals', icon: RiGiftFill, label: 'Referrals' },
 ]
 
+function NendPlayHeaderLogo() {
+  return (
+    <NavLink to="/home" className="flex items-center" aria-label="NendPlay Media home">
+      <div className="leading-none">
+        <div className="flex items-center">
+          <span className="font-display text-[24px] font-black text-white sm:text-[28px]">NENDPL</span>
+          <span className="relative mx-0.5 inline-flex h-7 w-6 items-center justify-center sm:h-8 sm:w-7">
+            <span
+              className="absolute h-0 w-0 rotate-[-10deg] border-y-[10px] border-l-[17px] border-y-transparent sm:border-y-[11px] sm:border-l-[19px]"
+              style={{ borderLeftColor: '#8B5CF6' }}
+            />
+            <span className="absolute left-[7px] top-[9px] h-1.5 w-1.5 rounded-full bg-white sm:left-[8px] sm:top-[10px]" />
+          </span>
+          <span className="font-display text-[24px] font-black text-white sm:text-[28px]">Y</span>
+        </div>
+        <div className="ml-[29px] mt-0 flex gap-[9px] text-[10px] font-black text-[#B456FF] sm:ml-[34px] sm:gap-[11px] sm:text-[11px]">
+          {'MEDIA'.split('').map((letter) => <span key={letter}>{letter}</span>)}
+        </div>
+      </div>
+    </NavLink>
+  )
+}
+
 export default function MainLayout() {
   const { user, isAuthenticated, logout } = useAuthStore()
   const { activeTheme } = useThemeStore()
@@ -40,6 +63,7 @@ export default function MainLayout() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [notificationsLoading, setNotificationsLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
   const [popupNotice, setPopupNotice] = useState(null)
 
   useEffect(() => {
@@ -61,11 +85,19 @@ export default function MainLayout() {
     navigate('/home')
   }
 
-  const handleSearch = (e) => {
-    if (e.key === 'Enter' && searchQuery.trim()) {
-      navigate(`/home?search=${encodeURIComponent(searchQuery.trim())}`)
-      setSearchQuery('')
+  const submitSearch = () => {
+    const query = searchQuery.trim()
+    if (!query) {
+      setSearchOpen((value) => !value)
+      return
     }
+    navigate(`/home?search=${encodeURIComponent(query)}`)
+    setSearchQuery('')
+    setSearchOpen(false)
+  }
+
+  const handleSearch = (e) => {
+    if (e.key === 'Enter') submitSearch()
   }
 
   const loadNotifications = async (showLoader = true) => {
@@ -349,41 +381,59 @@ export default function MainLayout() {
 
         {/* Top bar */}
         <header
-          className="sticky top-0 z-30 flex items-center justify-between gap-2 px-3 py-3 sm:px-4 md:px-6 md:py-4"
+          className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 px-4 sm:h-[72px] sm:px-6 md:px-8"
           style={{
-            background: 'rgba(var(--color-bg-deep), 0.8)',
-            backdropFilter: 'blur(12px)',
-            borderBottom: '1px solid var(--color-border)',
+            background: 'linear-gradient(90deg, #030409 0%, #05050C 50%, #030308 100%)',
+            borderBottom: '1px solid rgba(139, 92, 246, 0.18)',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.28)',
           }}>
 
-          {/* Search */}
-          <div className="relative min-w-0 flex-1 max-w-md">
-            <RiSearchLine
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-lg"
-              style={{ color: 'var(--color-text-muted)' }} />
-            <input
-              type="text"
-              placeholder="Search movies, music, shows..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearch}
-              className="input-base pl-10 py-2.5"
-              style={{ maxWidth: '400px' }}
-            />
-          </div>
+          <NendPlayHeaderLogo />
 
           {/* Right side */}
-          <div className="flex items-center gap-2 sm:gap-3 md:ml-4">
+          <div className="ml-auto flex items-center gap-3 sm:gap-4">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={submitSearch}
+                className="flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-white/10 sm:h-12 sm:w-12"
+                style={{ border: '1px solid rgba(255,255,255,0.28)', color: '#FFFFFF', background: 'rgba(255,255,255,0.02)' }}
+                aria-label="Search">
+                <RiSearchLine className="text-2xl" />
+              </button>
+              {searchOpen && (
+                <div
+                  className="absolute right-0 top-14 z-50 w-[min(84vw,360px)] rounded-2xl p-2"
+                  style={{ background: 'rgba(5,5,15,0.98)', border: '1px solid rgba(139,92,246,0.35)', boxShadow: '0 18px 50px rgba(0,0,0,0.45)' }}>
+                  <div className="relative">
+                    <RiSearchLine
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-lg"
+                      style={{ color: 'var(--color-text-muted)' }} />
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="Search movies, music, shows..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={handleSearch}
+                      className="input-base pl-10 py-3"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="relative">
               <button
                 onClick={openNotifications}
-                className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
-                style={{ background: 'var(--color-surface)', color: unreadCount ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
-                <RiNotification3Line className="text-xl" />
+                className="relative flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-white/10 sm:h-12 sm:w-12"
+                style={{ border: '1px solid rgba(255,255,255,0.28)', color: '#FFFFFF', background: 'rgba(255,255,255,0.02)' }}
+                aria-label="Notifications">
+                <RiNotification3Line className="text-2xl" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-[10px] font-black text-white"
-                    style={{ background: '#EF4444' }}>
-                    {unreadCount > 9 ? '9+' : unreadCount}
+                    style={{ background: '#8B5CF6' }}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </button>
@@ -435,10 +485,11 @@ export default function MainLayout() {
 
             {/* User avatar */}
             <NavLink to="/profile"
-              className="flex items-center gap-2 px-2 py-2 sm:px-3 rounded-xl transition-all"
-              style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+              className="flex h-11 w-11 items-center justify-center rounded-full transition-all sm:h-12 sm:w-12"
+              style={{ border: '1px solid rgba(255,255,255,0.28)', background: 'rgba(255,255,255,0.02)' }}
+              aria-label="Profile">
               <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden text-xs font-bold text-white"
+                className="h-9 w-9 overflow-hidden rounded-full flex items-center justify-center text-sm font-bold text-white sm:h-10 sm:w-10"
                 style={{ background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))' }}>
                 {user?.profilePic ? (
                   <img
@@ -451,10 +502,6 @@ export default function MainLayout() {
                   user?.profileName?.[0]?.toUpperCase() || user?.username?.[0]?.toUpperCase() || 'G'
                 )}
               </div>
-              <span className="text-sm font-medium hidden md:block"
-                style={{ color: 'var(--color-text)' }}>
-                {user?.profileName || user?.username || 'Guest'}
-              </span>
             </NavLink>
           </div>
         </header>
