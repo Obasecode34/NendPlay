@@ -1,24 +1,35 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { RiPlayFill, RiGlobalLine } from 'react-icons/ri'
+import {
+  RiAddLine,
+  RiBookOpenLine,
+  RiBroadcastLine,
+  RiGiftLine,
+  RiGlobalLine,
+  RiMovie2Line,
+  RiMusic2Line,
+  RiNewspaperLine,
+  RiPlayFill,
+  RiTv2Line,
+  RiVideoLine,
+} from 'react-icons/ri'
 import { useInView } from 'react-intersection-observer'
 import toast from 'react-hot-toast'
 import { mediaService, novelService } from '../services/index'
 import MediaRow from '../components/media/MediaRow'
 import GoogleAdSlot from '../components/ads/GoogleAdSlot'
-import useAuthStore from '../stores/authStore'
 
-const CATEGORY_LABELS = {
-  movie: 'Movies',
-  music: 'Music',
-  tv_show: 'TV Shows',
-  podcast: 'Podcasts',
-  comedy: 'Comedy',
-  talk_show: 'Talk Shows',
-  short: 'Shorts',
-}
-const CATEGORY_ORDER = ['movie', 'music', 'tv_show', 'podcast', 'comedy', 'talk_show', 'short']
-const HOME_TABS = ['Shorts', 'Trending', 'Movie', 'Anime', 'Cartoon', 'Sports', 'WWE']
+const HOME_TABS = [
+  { label: 'All', icon: RiGlobalLine },
+  { label: 'Movies', icon: RiMovie2Line },
+  { label: 'Series', icon: RiTv2Line },
+  { label: 'Shorts', icon: RiVideoLine },
+  { label: 'Live', icon: RiBroadcastLine },
+  { label: 'News', icon: RiNewspaperLine, route: '/news' },
+  { label: 'NovelHub', icon: RiBookOpenLine, route: '/novelhub' },
+  { label: 'Music', icon: RiMusic2Line },
+]
+
 const HOME_CATEGORIES = [
   { label: 'All', terms: [] },
   { label: 'Hollywood', terms: ['hollywood'] },
@@ -33,28 +44,24 @@ const HOME_CATEGORIES = [
   { label: 'Philippine Cinema', terms: ['philippine cinema', 'philippines', 'philippine', 'filipino', 'tagalog'] },
   { label: 'European Cinema', terms: ['european cinema', 'europe', 'british', 'french', 'german', 'italian', 'spanish'] },
 ]
+
 const MOVIE_GENRES = [
   'Action', 'Adventure', 'Sports', 'Martial Arts', 'Comedy', 'Drama', 'Romance',
   'Horror', 'Mystery', 'Crime', 'Fantasy', 'Science Fiction', 'Animation',
   'Family', 'Musical', 'Documentary', 'War', 'Western', 'Biography', 'WWE',
 ]
+
 const HOME_PAGE_LIMIT = 120
 const SEARCH_PAGE_LIMIT = 20
 
-function getCategoryLabel(type) {
-  if (!type) return 'Other'
-  return CATEGORY_LABELS[type] || type.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+function normalizeGenre(value = '') {
+  return String(value).trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
-function shuffleItems(items) {
-  const shuffled = [...items]
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1))
-    const current = shuffled[index]
-    shuffled[index] = shuffled[randomIndex]
-    shuffled[randomIndex] = current
-  }
-  return shuffled
+function hashText(value = '') {
+  return String(value).split('').reduce((hash, char) => (
+    ((hash << 5) - hash + char.charCodeAt(0)) | 0
+  ), 0)
 }
 
 function seededRandom(seed) {
@@ -66,13 +73,7 @@ function seededRandom(seed) {
   }
 }
 
-function hashText(value = '') {
-  return String(value).split('').reduce((hash, char) => (
-    ((hash << 5) - hash + char.charCodeAt(0)) | 0
-  ), 0)
-}
-
-function seededShuffleItems(items, seed) {
+function shuffleItems(items, seed = Date.now()) {
   const shuffled = [...items]
   const random = seededRandom(Math.abs(seed) + 1)
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
@@ -82,31 +83,6 @@ function seededShuffleItems(items, seed) {
     shuffled[randomIndex] = current
   }
   return shuffled
-}
-
-function getGenrePinPosition(item, genre) {
-  const pins = item.genrePins || {}
-  const key = normalizeGenre(genre)
-  const value = pins instanceof Map ? pins.get(key) : pins[key]
-  const position = Number(value)
-  return Number.isInteger(position) && position >= 1 && position <= 4 ? position : null
-}
-
-function orderGenreItems(items, genre, seed) {
-  const pinned = []
-  const unpinned = []
-
-  items.forEach((item) => {
-    const pinPosition = getGenrePinPosition(item, genre)
-    if (pinPosition) pinned.push({ item, pinPosition })
-    else unpinned.push(item)
-  })
-
-  const fixedItems = pinned
-    .sort((a, b) => a.pinPosition - b.pinPosition || (a.item.featuredRank || 0) - (b.item.featuredRank || 0))
-    .map(({ item }) => item)
-
-  return [...fixedItems, ...seededShuffleItems(unpinned, seed + hashText(genre))]
 }
 
 function getSearchText(item) {
@@ -150,31 +126,51 @@ function isShortMedia(item) {
   return item.type === 'short' || item.isShort || labels.includes('shorts') || labels.includes('short')
 }
 
-function matchesHomeTab(item, tab) {
-  if (tab === 'Shorts') return isShortMedia(item)
-  if (hasLabel(item, tab, ['navigationLabels', 'homeSections'])) return true
-  if (tab === 'Movie') return item.type === 'movie'
-  if (tab === 'Anime') return matchesAny(item, ['anime'])
-  if (tab === 'Cartoon') return matchesAny(item, ['cartoon', 'animation', 'animated'])
-  if (tab === 'Sports') return hasMovieGenre(item, 'Sports') || matchesAny(item, ['sports', 'sport', 'football', 'soccer', 'basketball', 'tennis', 'boxing', 'wrestling'])
-  if (tab === 'WWE') return hasMovieGenre(item, 'WWE') || matchesAny(item, ['wwe', 'wrestling', 'wrestlemania', 'raw', 'smackdown'])
-  return true
-}
-
-function normalizeGenre(value = '') {
-  return String(value).trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim()
-}
-
 function getMediaGenres(item) {
-  const values = [
+  return [
     ...(item.genres || []),
     ...String(item.genre || '').split(','),
-  ]
-  return values.map(normalizeGenre).filter(Boolean)
+  ].map(normalizeGenre).filter(Boolean)
 }
 
 function hasMovieGenre(item, genre) {
   return getMediaGenres(item).includes(normalizeGenre(genre))
+}
+
+function matchesHomeTab(item, tab) {
+  if (tab === 'All') return true
+  if (tab === 'Shorts') return isShortMedia(item)
+  if (hasLabel(item, tab, ['navigationLabels', 'homeSections'])) return true
+  if (tab === 'Movies') return item.type === 'movie'
+  if (tab === 'Series') return ['series', 'tv_show'].includes(item.type) || item.collectionType === 'series'
+  if (tab === 'Live') return item.isLive || item.type === 'live'
+  if (tab === 'Music') return ['music', 'audio'].includes(item.type)
+  return true
+}
+
+function getGenrePinPosition(item, genre) {
+  const pins = item.genrePins || {}
+  const key = normalizeGenre(genre)
+  const value = pins instanceof Map ? pins.get(key) : pins[key]
+  const position = Number(value)
+  return Number.isInteger(position) && position >= 1 && position <= 4 ? position : null
+}
+
+function orderGenreItems(items, genre, seed) {
+  const pinned = []
+  const unpinned = []
+  items.forEach((item) => {
+    const pinPosition = getGenrePinPosition(item, genre)
+    if (pinPosition) pinned.push({ item, pinPosition })
+    else unpinned.push(item)
+  })
+
+  return [
+    ...pinned
+      .sort((a, b) => a.pinPosition - b.pinPosition || (a.item.featuredRank || 0) - (b.item.featuredRank || 0))
+      .map(({ item }) => item),
+    ...shuffleItems(unpinned, seed + hashText(genre)),
+  ]
 }
 
 function byPopularity(items) {
@@ -184,32 +180,154 @@ function byPopularity(items) {
   ))
 }
 
-function groupMedia(items) {
-  const grouped = {}
-  const typeOrder = [
-    ...CATEGORY_ORDER,
-    ...Array.from(new Set(items.map((m) => m.type).filter((type) => type && !CATEGORY_ORDER.includes(type)))),
-  ]
-  typeOrder.forEach((type) => {
-    const typeItems = items.filter((m) => m.type === type)
-    if (typeItems.length > 0) grouped[getCategoryLabel(type)] = typeItems
-  })
-  return grouped
+function getMediaImage(item) {
+  return item.thumbnailUrl || item.thumbnail || item.posterUrl || item.coverUrl || item.imageUrl || ''
+}
+
+function displayTitle(item) {
+  return item.title || item.name || 'Untitled'
+}
+
+function SectionHeader({ title, accent, onSeeAll }) {
+  return (
+    <div className="mb-4 flex items-center justify-between gap-4">
+      <h2 className="text-lg font-black text-white sm:text-xl">
+        {title} {accent && <span>{accent}</span>}
+      </h2>
+      {onSeeAll && (
+        <button
+          type="button"
+          onClick={onSeeAll}
+          className="text-sm font-semibold text-white/70 transition-colors hover:text-white"
+        >
+          See All
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ImageFallback({ title, className = '' }) {
+  return (
+    <div
+      className={`flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-950 via-neutral-950 to-amber-950 p-4 text-center text-sm font-black uppercase tracking-wide text-white/80 ${className}`}
+    >
+      {title}
+    </div>
+  )
+}
+
+function LandscapeCard({ item, onClick, progress }) {
+  const image = getMediaImage(item)
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(item)}
+      className="group w-[250px] flex-none overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-left transition-transform hover:-translate-y-1 sm:w-[290px]"
+    >
+      <div className="relative aspect-video overflow-hidden">
+        {image ? (
+          <img src={image} alt={displayTitle(item)} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        ) : (
+          <ImageFallback title={displayTitle(item)} />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+        <span className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur">
+          <RiPlayFill />
+        </span>
+        {typeof progress === 'number' && (
+          <div className="absolute bottom-0 left-3 right-3 h-1 rounded-full bg-white/20">
+            <div className="h-full rounded-full bg-purple-500" style={{ width: `${progress}%` }} />
+          </div>
+        )}
+      </div>
+      <div className="p-3">
+        <p className="line-clamp-1 text-sm font-bold text-white">{displayTitle(item)}</p>
+        <p className="mt-1 text-xs text-white/55">{item.type || 'Media'} {progress ? `- ${progress}%` : ''}</p>
+      </div>
+    </button>
+  )
+}
+
+function PosterCard({ item, onClick }) {
+  const image = getMediaImage(item)
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(item)}
+      className="group w-[150px] flex-none text-left sm:w-[170px]"
+    >
+      <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
+        {image ? (
+          <img src={image} alt={displayTitle(item)} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        ) : (
+          <ImageFallback title={displayTitle(item)} />
+        )}
+        <div className="absolute inset-x-0 bottom-0 p-2">
+          <span className="rounded bg-black/65 px-2 py-1 text-[10px] font-bold capitalize text-white/90">
+            {item.type || 'Movie'}
+          </span>
+        </div>
+      </div>
+      <p className="mt-2 line-clamp-2 text-sm font-bold leading-snug text-white">{displayTitle(item)}</p>
+    </button>
+  )
+}
+
+function LiveCard({ item, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(item)}
+      className="group w-[260px] flex-none overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-left sm:w-[300px]"
+    >
+      <div className="relative aspect-video">
+        {getMediaImage(item) ? (
+          <img src={getMediaImage(item)} alt={displayTitle(item)} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        ) : (
+          <ImageFallback title={displayTitle(item)} />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+        <div className="absolute bottom-3 left-3 right-3">
+          <p className="line-clamp-2 text-sm font-black uppercase text-white">{displayTitle(item)}</p>
+          <p className="mt-1 text-xs text-white/75"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-red-500" />{item.viewerCount || item.viewCount || 'Live'} watching</p>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function NovelCard({ item, onClick }) {
+  const image = item.coverImage || item.coverUrl || item.thumbnailUrl || ''
+  return (
+    <button type="button" onClick={onClick} className="w-[150px] flex-none text-left sm:w-[170px]">
+      <div className="aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
+        {image ? <img src={image} alt={item.title} className="h-full w-full object-cover" /> : <ImageFallback title={item.title || 'NovelHub'} />}
+      </div>
+      <p className="mt-2 line-clamp-2 text-sm font-bold text-white">{item.title || 'NovelHub book'}</p>
+      <p className="mt-1 line-clamp-1 text-xs text-white/55">{item.author || item.genre || 'NovelHub'}</p>
+    </button>
+  )
+}
+
+function NewsMiniCard({ title, label, image }) {
+  return (
+    <button type="button" className="flex w-[260px] flex-none gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left transition-colors hover:bg-white/[0.08]">
+      <div className="h-16 w-20 flex-none overflow-hidden rounded-lg bg-white/10">
+        {image ? <img src={image} alt={title} className="h-full w-full object-cover" /> : <ImageFallback title="" />}
+      </div>
+      <div className="min-w-0">
+        <p className="line-clamp-2 text-sm font-bold text-white">{title}</p>
+        <p className="mt-1 text-xs text-white/55">{label}</p>
+      </div>
+    </button>
+  )
 }
 
 export default function HomePage() {
-  const { user } = useAuthStore()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const searchQuery = searchParams.get('search')
-
-  const navigateMedia = (media) => {
-    if (isShortMedia(media)) {
-      navigate(`/shorts?open=${media._id}`)
-      return
-    }
-    navigate(`/watch/${media._id}`)
-  }
 
   const [sections, setSections] = useState({})
   const [liveEvents, setLiveEvents] = useState([])
@@ -225,47 +343,21 @@ export default function HomePage() {
   const [featuredItems, setFeaturedItems] = useState([])
   const [featuredIndex, setFeaturedIndex] = useState(0)
   const [shuffleSeed, setShuffleSeed] = useState(Date.now())
-  const [activeHomeTab, setActiveHomeTab] = useState('Trending')
+  const [activeHomeTab, setActiveHomeTab] = useState('All')
   const [activeCategory, setActiveCategory] = useState(HOME_CATEGORIES[0])
   const movieSectionRef = useRef(null)
-  const firstSectionRef = useRef(null)
   const { ref: loadMoreRef, inView: loadMoreInView } = useInView({ rootMargin: '320px' })
 
-  useEffect(() => {
-    fetchContent(1, false)
-  }, [searchQuery])
-
-  useEffect(() => {
-    if (!loadMoreInView || loading) return
-    if (searchQuery) loadMoreSearch()
-    else loadMoreHomeMedia()
-  }, [loadMoreInView, loading, searchQuery, hasMoreMedia, hasMoreSearch, mediaPage, searchPage])
-
-  useEffect(() => {
-    if (featuredItems.length <= 1 || searchQuery) return undefined
-    const timer = setInterval(() => {
-      setFeaturedIndex((prev) => (prev + 1) % featuredItems.length)
-    }, 5000)
-    return () => clearInterval(timer)
-  }, [featuredItems.length, searchQuery])
-
-  useEffect(() => {
-    if (searchQuery) return undefined
-    const timer = setInterval(() => {
-      setShuffleSeed(Date.now())
-    }, 120000)
-    return () => clearInterval(timer)
-  }, [searchQuery])
+  const navigateMedia = (media) => {
+    if (isShortMedia(media)) navigate(`/shorts?open=${media._id}`)
+    else navigate(`/watch/${media._id}`)
+  }
 
   const fetchContent = async (pageToLoad = 1, append = false) => {
     if (!append) setLoading(true)
     try {
       if (searchQuery) {
-        const res = await mediaService.getAll({
-          search: searchQuery,
-          limit: SEARCH_PAGE_LIMIT,
-          page: pageToLoad,
-        })
+        const res = await mediaService.getAll({ search: searchQuery, limit: SEARCH_PAGE_LIMIT, page: pageToLoad })
         const nextMedia = res.data.data.media || []
         const pagination = res.data.data.pagination || {}
         setSections((current) => ({
@@ -276,27 +368,25 @@ export default function HomePage() {
       } else {
         const [allRes, liveRes, novelRes] = await Promise.all([
           mediaService.getAll({ limit: HOME_PAGE_LIMIT, page: pageToLoad }),
-          mediaService.getLiveEvents({ limit: 6 }),
+          mediaService.getLiveEvents({ limit: 8 }),
           novelService.getAll({ limit: 12 }),
         ])
-
         const nextMedia = allRes.data.data.media || []
         const pagination = allRes.data.data.pagination || {}
         const mergedMedia = append ? [...allMedia, ...nextMedia] : nextMedia
-        if (!append) setShuffleSeed(Date.now())
+        const featured = mergedMedia
+          .filter((item) => item.isFeatured || item.homeSections?.includes('banner'))
+          .sort((a, b) => (a.featuredRank || 0) - (b.featuredRank || 0))
+
         setAllMedia(mergedMedia)
         setMediaPage(pageToLoad)
         setHasMoreMedia(pageToLoad < (pagination.pages || 1))
         setDocuments(novelRes.data.data.documents || [])
-        const movies = mergedMedia.filter((item) => item.type === 'movie')
-        const featured = mergedMedia
-          .filter((item) => item.isFeatured || item.homeSections?.includes('banner'))
-          .sort((a, b) => (a.featuredRank || 0) - (b.featuredRank || 0))
-        setFeaturedItems(featured.length ? featured : shuffleItems(movies.length ? movies : mergedMedia))
+        setFeaturedItems(featured.length ? featured : shuffleItems(mergedMedia.filter((item) => !isShortMedia(item)), Date.now()))
         setFeaturedIndex(0)
-
-        setSections(groupMedia(mergedMedia))
-        setLiveEvents(liveRes.data.data.media)
+        setSections({ Home: mergedMedia })
+        setLiveEvents(liveRes.data.data.media || [])
+        if (!append) setShuffleSeed(Date.now())
       }
     } catch (err) {
       toast.error('Failed to load content')
@@ -319,287 +409,292 @@ export default function HomePage() {
     fetchContent(searchPage + 1, true)
   }
 
-  const openMovieCategory = () => {
-    const target = movieSectionRef.current || firstSectionRef.current
-    target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  useEffect(() => {
+    fetchContent(1, false)
+  }, [searchQuery])
 
-  const tabMedia = allMedia.filter((item) => matchesHomeTab(item, activeHomeTab))
-  const visibleMedia = tabMedia.filter((item) => (
+  useEffect(() => {
+    if (!loadMoreInView || loading) return
+    if (searchQuery) loadMoreSearch()
+    else loadMoreHomeMedia()
+  }, [loadMoreInView, loading, searchQuery, hasMoreMedia, hasMoreSearch, mediaPage, searchPage])
+
+  useEffect(() => {
+    if (featuredItems.length <= 1 || searchQuery) return undefined
+    const timer = setInterval(() => {
+      setFeaturedIndex((prev) => (prev + 1) % featuredItems.length)
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [featuredItems.length, searchQuery])
+
+  useEffect(() => {
+    if (searchQuery) return undefined
+    const timer = setInterval(() => setShuffleSeed(Date.now()), 120000)
+    return () => clearInterval(timer)
+  }, [searchQuery])
+
+  const tabMedia = useMemo(() => allMedia.filter((item) => matchesHomeTab(item, activeHomeTab)), [allMedia, activeHomeTab])
+  const visibleMedia = useMemo(() => tabMedia.filter((item) => (
     activeCategory.label === 'All'
     || hasLabel(item, activeCategory.label, ['category', 'categories'])
     || matchesAny(item, activeCategory.terms)
-  ))
-  const shorts = visibleMedia.filter(isShortMedia)
-  const genreMovies = visibleMedia.filter((item) => !isShortMedia(item) && MOVIE_GENRES.some((genre) => hasMovieGenre(item, genre)))
+  )), [tabMedia, activeCategory])
+
+  const rankedMedia = useMemo(() => byPopularity(visibleMedia), [visibleMedia])
+  const shorts = useMemo(() => byPopularity(visibleMedia.filter(isShortMedia)), [visibleMedia])
+  const genreMovies = useMemo(() => visibleMedia.filter((item) => !isShortMedia(item) && MOVIE_GENRES.some((genre) => hasMovieGenre(item, genre))), [visibleMedia])
   const genreSections = useMemo(() => MOVIE_GENRES.map((genre) => ({
     genre,
     items: orderGenreItems(genreMovies.filter((item) => hasMovieGenre(item, genre)), genre, shuffleSeed),
   })).filter((section) => section.items.length > 0), [genreMovies, shuffleSeed])
 
-  return (
-    <div className="relative animate-fade-in pb-20">
-      {!searchQuery && (
-        <div className="mb-4 flex gap-5 overflow-x-auto no-scrollbar text-base font-semibold sm:mb-5 sm:gap-7 sm:text-lg">
-          {HOME_TABS.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveHomeTab(tab)}
-              style={{ color: activeHomeTab === tab ? 'var(--color-text)' : 'var(--color-text-muted)' }}
-              className={`whitespace-nowrap ${activeHomeTab === tab ? 'font-black' : ''}`}
-            >
-              {tab}
-            </button>
-          ))}
+  const continueWatching = rankedMedia.slice(0, 6)
+  const trendingMedia = rankedMedia.filter((item) => !isShortMedia(item)).slice(0, 16)
+  const liveSectionItems = liveEvents.length ? liveEvents : rankedMedia.filter((item) => item.isLive || item.type === 'live').slice(0, 8)
+  const musicItems = allMedia.filter((item) => ['music', 'audio'].includes(item.type)).slice(0, 12)
+  const hero = featuredItems[featuredIndex] || rankedMedia[0]
+  const heroImage = hero ? getMediaImage(hero) : ''
+  const newsHighlights = [
+    ['Global Leaders Meet for Peace Summit', '2h ago'],
+    ['Tech Innovation Changing the World', '5h ago'],
+    ['Sports Update: Local Team Wins Again', '1h ago'],
+    ['Economy Shows Signs of Recovery', '3h ago'],
+  ]
+
+  const openTab = (tab) => {
+    if (tab.route) {
+      navigate(tab.route)
+      return
+    }
+    setActiveHomeTab(tab.label)
+  }
+
+  if (searchQuery) {
+    return (
+      <div className="animate-fade-in pb-20">
+        <div className="mb-6">
+          <h1 className="font-display text-2xl font-bold text-white">Results for "{searchQuery}"</h1>
         </div>
-      )}
-
-      {/* Hero Banner */}
-      {!searchQuery && featuredItems.length > 0 && (
-        <div className="relative h-[240px] overflow-hidden rounded-2xl mb-6 sm:h-[320px] sm:mb-8 lg:h-[380px]"
-          role="button"
-          tabIndex={0}
-          onClick={openMovieCategory}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') openMovieCategory()
-          }}
-          style={{ cursor: 'pointer' }}>
-          <div
-            className="flex h-full transition-transform duration-700 ease-out"
-            style={{ transform: `translateX(-${featuredIndex * 100}%)` }}
-          >
-            {featuredItems.map((media) => (
-              <div key={media._id} className="relative h-full w-full flex-shrink-0">
-                {media.thumbnailUrl ? (
-                  <img src={media.thumbnailUrl} alt={media.title}
-                    className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full"
-                    style={{ background: 'var(--gradient-hero)' }} />
-                )}
-              </div>
-            ))}
+        {loading ? (
+          <>
+            <MediaRow title="" items={[]} loading />
+            <MediaRow title="" items={[]} loading />
+          </>
+        ) : (
+          Object.entries(sections).map(([title, items]) => (
+            <MediaRow key={title} title={title} items={items} size="md" />
+          ))
+        )}
+        {!loading && Object.keys(sections).length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 text-2xl text-white/50">
+              <RiPlayFill />
+            </div>
+            <p className="mb-2 text-xl font-bold text-white">No results found</p>
+            <p className="text-sm text-white/55">Try a different search term</p>
           </div>
+        )}
+        <div ref={loadMoreRef} className="flex items-center justify-center py-8">
+          {loadingMoreSearch && <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />}
+        </div>
+      </div>
+    )
+  }
 
-          {/* Overlay */}
-          <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.88) 20%, rgba(0,0,0,0.42) 68%, transparent 100%)' }} />
+  return (
+    <div className="relative animate-fade-in pb-24">
+      <div className="mb-5 flex gap-3 overflow-x-auto no-scrollbar">
+        {HOME_TABS.map((tab) => {
+          const Icon = tab.icon
+          const isActive = activeHomeTab === tab.label
+          return (
+            <button
+              key={tab.label}
+              type="button"
+              onClick={() => openTab(tab)}
+              className={`flex flex-none items-center gap-2 rounded-xl border px-4 py-3 text-sm font-bold transition-all ${
+                isActive ? 'border-purple-500 bg-purple-600 text-white shadow-lg shadow-purple-900/30' : 'border-white/10 bg-black/30 text-white hover:bg-white/10'
+              }`}
+            >
+              <Icon className="text-base" />
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
 
-          {/* Glow */}
-          <div className="absolute inset-0 pointer-events-none"
-            style={{ background: 'linear-gradient(to top, var(--color-bg) 0%, transparent 50%)' }} />
-
-          <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-8">
-            <div className="max-w-lg">
-              <span className="inline-block px-3 py-1 rounded-full text-xs font-bold text-white mb-3"
-                style={{ background: 'var(--color-primary)' }}>
-                Featured
-              </span>
-              <h1 className="font-display font-black text-2xl text-white mb-2 leading-tight sm:text-4xl">
-                {featuredItems[featuredIndex]?.title}
+      {hero && (
+        <section className="relative mb-7 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04]">
+          <button
+            type="button"
+            onClick={() => navigateMedia(hero)}
+            className="block h-[310px] w-full text-left md:h-[390px]"
+          >
+            {heroImage ? (
+              <img src={heroImage} alt={displayTitle(hero)} className="h-full w-full object-cover" />
+            ) : (
+              <ImageFallback title={displayTitle(hero)} />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-r from-black via-black/55 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/90 to-transparent" />
+            <div className="absolute left-5 top-5 rounded-md border border-white/35 px-2 py-1 text-xs font-bold text-white md:right-5 md:left-auto">
+              {hero.contentRating || 'PG-13'}
+            </div>
+            <div className="absolute bottom-8 left-6 max-w-xl md:left-10">
+              <p className="mb-2 text-xs font-black uppercase tracking-wide text-purple-300">NendPlay Exclusive</p>
+              <h1 className="mb-3 line-clamp-2 text-4xl font-black uppercase leading-none text-white md:text-6xl">
+                {displayTitle(hero)}
               </h1>
-              {featuredItems[featuredIndex]?.description && (
-                <p className="text-xs text-white/70 mb-4 line-clamp-2 max-w-sm sm:text-sm">
-                  {featuredItems[featuredIndex].description}
-                </p>
-              )}
-              <div className="flex flex-wrap gap-2 sm:gap-3">
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    openMovieCategory()
-                  }}
-                  className="btn-primary flex items-center gap-2">
-                  <RiPlayFill /> View Movies
-                </button>
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    openMovieCategory()
-                  }}
-                  className="btn-ghost text-white border-white/20">
-                  Movie Category
-                </button>
+              <p className="mb-5 line-clamp-2 max-w-md text-sm font-semibold text-white/85 md:text-base">
+                {hero.description || 'Stream premium movies, shows, shorts, music, news, and stories.'}
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <span className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-black text-white">
+                  <RiPlayFill /> Watch Now
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-black text-white backdrop-blur">
+                  <RiAddLine /> My List
+                </span>
               </div>
             </div>
-          </div>
-
+          </button>
           {featuredItems.length > 1 && (
-            <div className="absolute bottom-4 right-4 flex items-center gap-2 sm:bottom-6 sm:right-8">
-              {featuredItems.map((media, index) => (
+            <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-3">
+              {featuredItems.slice(0, 6).map((item, index) => (
                 <button
-                  key={media._id}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setFeaturedIndex(index)
-                  }}
-                  className={`h-2 rounded-full transition-all ${
-                    index === featuredIndex ? 'w-6 bg-white' : 'w-2 bg-white/40'
-                  }`}
-                  aria-label={`Show ${media.title}`}
+                  key={item._id}
+                  type="button"
+                  onClick={() => setFeaturedIndex(index)}
+                  className={`h-3 rounded-full transition-all ${index === featuredIndex ? 'w-3 bg-purple-500' : 'w-3 bg-white/70'}`}
+                  aria-label={`Show ${displayTitle(item)}`}
                 />
               ))}
             </div>
           )}
-        </div>
+        </section>
       )}
 
-      {!searchQuery && (
-        <div className="mb-8">
-          <GoogleAdSlot />
+      <section className="mb-7">
+        <SectionHeader title="Continue Watching" onSeeAll={() => movieSectionRef.current?.scrollIntoView({ behavior: 'smooth' })} />
+        <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+          {continueWatching.map((item, index) => (
+            <LandscapeCard key={item._id} item={item} onClick={navigateMedia} progress={[65, 40, 78, 30, 55, 82][index % 6]} />
+          ))}
         </div>
-      )}
+      </section>
 
-      {/* Search heading */}
-      {searchQuery && (
-        <div className="mb-6">
-          <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--color-text)' }}>
-            Results for "{searchQuery}"
-          </h1>
+      <section className="mb-7">
+        <SectionHeader title="Trending Now" accent="🔥" onSeeAll={() => movieSectionRef.current?.scrollIntoView({ behavior: 'smooth' })} />
+        <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+          {trendingMedia.map((item) => <PosterCard key={item._id} item={item} onClick={navigateMedia} />)}
         </div>
-      )}
+      </section>
 
-      {/* Quick actions */}
-      {!searchQuery && (
-        <div className="mb-8">
-          <h2 className="font-display font-bold text-lg mb-4" style={{ color: 'var(--color-text)' }}>
-            Categories
-          </h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 sm:gap-3">
-            {HOME_CATEGORIES.map((category) => (
-              <button
-                key={category.label}
-                onClick={() => setActiveCategory(category)}
-                className="flex items-center gap-2 rounded-xl p-3 text-left transition-all hover:scale-105 sm:gap-3 sm:p-4"
-                style={{
-                  background: activeCategory.label === category.label ? 'var(--color-primary)' : 'var(--color-surface)',
-                  border: '1px solid var(--color-border)',
-                }}>
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{
-                    background: activeCategory.label === category.label ? 'rgba(255,255,255,0.16)' : 'var(--color-surface-high)',
-                    color: activeCategory.label === category.label ? '#FFFFFF' : 'var(--color-primary)',
-                  }}>
-                  <RiPlayFill />
-                </div>
-                <span
-                  className="min-w-0 text-sm font-medium leading-tight"
-                  style={{ color: activeCategory.label === category.label ? '#FFFFFF' : 'var(--color-text)' }}>
-                  {category.label}
-                </span>
-              </button>
-            ))}
+      <div className="mb-7">
+        <GoogleAdSlot placement="home" />
+      </div>
+
+      {liveSectionItems.length > 0 && (
+        <section className="mb-7">
+          <SectionHeader title="Live Events" accent={<span className="text-sm text-red-500">● LIVE</span>} onSeeAll={() => setActiveHomeTab('Live')} />
+          <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+            {liveSectionItems.map((item) => <LiveCard key={item._id} item={item} onClick={navigateMedia} />)}
           </div>
-        </div>
+        </section>
       )}
 
-      {!searchQuery && (
-        <>
-          {activeHomeTab === 'Shorts' && (
-            <>
-              <MediaRow title="Shorts Videos" items={byPopularity(shorts).slice(0, 24)} size="md" />
-              <MediaRow title="More Shorts" items={shorts} size="md" />
-            </>
-          )}
-          {activeHomeTab !== 'Shorts' && (
-            <>
-              <div ref={movieSectionRef}>
-                {genreSections.map((section, index) => (
-                  <div key={section.genre} ref={(element) => {
-                    if (index === 0) firstSectionRef.current = element
-                  }}>
-                    <MediaRow title={section.genre} items={section.items.slice(0, 24)} size="md" />
-                  </div>
-                ))}
-              </div>
-              <div
-            onClick={() => navigate('/novelhub')}
-            className="mb-8 flex cursor-pointer items-center gap-6 rounded-xl p-6"
-            style={{ background: '#063F32' }}
+      {documents.length > 0 && (
+        <section className="mb-7">
+          <SectionHeader title="NovelHub" accent="📖" onSeeAll={() => navigate('/novelhub')} />
+          <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+            {documents.map((item) => <NovelCard key={item._id} item={item} onClick={() => navigate('/novelhub')} />)}
+          </div>
+        </section>
+      )}
+
+      <section className="mb-7">
+        <SectionHeader title="News Highlights" onSeeAll={() => navigate('/news')} />
+        <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+          {newsHighlights.map(([title, label]) => <NewsMiniCard key={title} title={title} label={label} />)}
+        </div>
+      </section>
+
+      {musicItems.length > 0 && (
+        <section className="mb-7">
+          <SectionHeader title="Music For You" onSeeAll={() => setActiveHomeTab('Music')} />
+          <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+            {musicItems.map((item) => <LandscapeCard key={item._id} item={item} onClick={navigateMedia} />)}
+          </div>
+        </section>
+      )}
+
+      {shorts.length > 0 && (
+        <section className="mb-7">
+          <SectionHeader title="Shorts" onSeeAll={() => navigate('/shorts')} />
+          <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+            {shorts.slice(0, 18).map((item) => <PosterCard key={item._id} item={item} onClick={navigateMedia} />)}
+          </div>
+        </section>
+      )}
+
+      <div ref={movieSectionRef}>
+        {genreSections.map((section) => (
+          <section key={section.genre} className="mb-7">
+            <SectionHeader title={section.genre} onSeeAll={() => setActiveCategory(HOME_CATEGORIES[0])} />
+            <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+              {section.items.slice(0, 18).map((item) => <PosterCard key={item._id} item={item} onClick={navigateMedia} />)}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      <section className="mb-7 overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-r from-purple-900 via-purple-700 to-purple-950 p-6 md:p-8">
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-5">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-3xl text-white">
+              <RiGiftLine />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-white">Go Premium Today!</h2>
+              <p className="mt-1 max-w-xl text-white/80">Unlock unlimited access to all content and enjoy an ad-free experience.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/subscribe')}
+            className="rounded-xl bg-purple-500 px-6 py-4 text-sm font-black text-white shadow-lg shadow-purple-950/40"
           >
-            <div className="flex h-24 w-28 items-center justify-center rounded-lg bg-white/10 text-sm font-black text-white">Books</div>
-            <div className="flex-1">
-              <h2 className="text-3xl font-black text-white">NovelHub</h2>
-              <p className="mt-1 text-white/70">
-                {documents.length ? `${documents.length} books, offline and daily updated` : 'Offline, free and daily updated'}
-              </p>
-            </div>
-            <span className="text-4xl text-white/70">›</span>
-          </div>
-            </>
-          )}
-          {activeHomeTab !== 'Shorts' && genreSections.length === 0 && (
-            <div className="mb-8 rounded-xl p-6 text-center" style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
-              No movies found with the selected category and approved genres.
-            </div>
-          )}
-          {activeHomeTab === 'Shorts' && visibleMedia.length === 0 && (
-            <div className="mb-8 rounded-xl p-6 text-center" style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
-              No media found for {activeCategory.label} Shorts.
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Content rows */}
-      {loading ? (
-        <>
-          <MediaRow title="" items={[]} loading={true} />
-          <MediaRow title="" items={[]} loading={true} />
-          <MediaRow title="" items={[]} loading={true} />
-        </>
-      ) : (
-        searchQuery && Object.entries(sections).filter(([title]) => ![
-          'Movies', 'TV Shows', 'Shorts', 'Comedy',
-        ].includes(title)).map(([title, items], index) => (
-          <div
-            key={title}
-            ref={(element) => {
-              if (index === 0) firstSectionRef.current = element
-            }}
-          >
-            <MediaRow title={title} items={items} size="md" />
-          </div>
-        ))
-      )}
-
-      {/* Empty state */}
-      {!loading && Object.keys(sections).length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-            style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
-            <RiPlayFill className="text-2xl" />
-          </div>
-          <p className="font-display font-bold text-xl mb-2" style={{ color: 'var(--color-text)' }}>
-            {searchQuery ? 'No results found' : 'No content yet'}
-          </p>
-          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            {searchQuery ? 'Try a different search term' : 'Be the first to upload content'}
-          </p>
+            Subscribe Now
+          </button>
         </div>
+      </section>
+
+      {!loading && visibleMedia.length === 0 && (
+        <div className="mb-8 rounded-xl border border-white/10 bg-white/[0.04] p-6 text-center text-white/60">
+          No media found for the selected tab and category.
+        </div>
+      )}
+
+      {loading && (
+        <>
+          <MediaRow title="" items={[]} loading />
+          <MediaRow title="" items={[]} loading />
+        </>
       )}
 
       <div ref={loadMoreRef} className="flex items-center justify-center py-8">
-        {(loadingMoreMedia || loadingMoreSearch) && (
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
-        )}
+        {loadingMoreMedia && <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />}
       </div>
 
-      {!searchQuery && (
-        <button
-          type="button"
-          onClick={() => navigate('/news')}
-          className="fixed bottom-8 right-8 z-30 flex h-16 w-16 items-center justify-center rounded-full text-white shadow-2xl transition-transform hover:scale-105"
-          style={{
-            background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
-            boxShadow: '0 18px 40px var(--glow-color)',
-          }}
-          aria-label="Open news">
-          <RiGlobalLine className="text-3xl" />
-          <span className="absolute right-1 top-1 h-4 w-4 rounded-full border-2 border-white bg-red-500" />
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => navigate('/news')}
+        className="fixed bottom-8 right-8 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-fuchsia-600 text-white shadow-2xl shadow-purple-950/40 transition-transform hover:scale-105"
+        aria-label="Open news"
+      >
+        <RiNewspaperLine className="text-2xl" />
+        <span className="absolute right-1 top-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-red-500" />
+      </button>
     </div>
   )
 }
