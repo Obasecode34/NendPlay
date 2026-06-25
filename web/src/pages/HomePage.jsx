@@ -21,7 +21,11 @@ import GoogleAdSlot from '../components/ads/GoogleAdSlot'
 
 const HOME_TABS = [
   { label: 'All', icon: RiGlobalLine },
-  { label: 'Movies', icon: RiMovie2Line },
+  { label: 'Movie', icon: RiMovie2Line },
+  { label: 'Anime', icon: RiTv2Line },
+  { label: 'Cartoon', icon: RiTv2Line },
+  { label: 'Sports', icon: RiBroadcastLine },
+  { label: 'WWE', icon: RiBroadcastLine },
   { label: 'Series', icon: RiTv2Line },
   { label: 'Shorts', icon: RiVideoLine },
   { label: 'Live', icon: RiBroadcastLine },
@@ -141,7 +145,11 @@ function matchesHomeTab(item, tab) {
   if (tab === 'All') return true
   if (tab === 'Shorts') return isShortMedia(item)
   if (hasLabel(item, tab, ['navigationLabels', 'homeSections'])) return true
-  if (tab === 'Movies') return item.type === 'movie'
+  if (tab === 'Movie') return item.type === 'movie'
+  if (tab === 'Anime') return matchesAny(item, ['anime'])
+  if (tab === 'Cartoon') return matchesAny(item, ['cartoon', 'animation', 'animated'])
+  if (tab === 'Sports') return hasMovieGenre(item, 'Sports') || matchesAny(item, ['sports', 'sport', 'football', 'soccer', 'basketball', 'tennis', 'boxing', 'wrestling'])
+  if (tab === 'WWE') return hasMovieGenre(item, 'WWE') || matchesAny(item, ['wwe', 'wrestling', 'wrestlemania', 'raw', 'smackdown'])
   if (tab === 'Series') return ['series', 'tv_show'].includes(item.type) || item.collectionType === 'series'
   if (tab === 'Live') return item.isLive || item.type === 'live'
   if (tab === 'Music') return ['music', 'audio'].includes(item.type)
@@ -191,7 +199,7 @@ function displayTitle(item) {
 function SectionHeader({ title, accent, onSeeAll }) {
   return (
     <div className="mb-4 flex items-center justify-between gap-4">
-      <h2 className="text-lg font-black text-white sm:text-xl">
+      <h2 className="text-base font-black text-white sm:text-lg">
         {title} {accent && <span>{accent}</span>}
       </h2>
       {onSeeAll && (
@@ -223,7 +231,7 @@ function LandscapeCard({ item, onClick, progress }) {
     <button
       type="button"
       onClick={() => onClick(item)}
-      className="group w-[250px] flex-none overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-left transition-transform hover:-translate-y-1 sm:w-[290px]"
+      className="group w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-left transition-transform hover:-translate-y-1"
     >
       <div className="relative aspect-video overflow-hidden">
         {image ? (
@@ -255,7 +263,7 @@ function PosterCard({ item, onClick }) {
     <button
       type="button"
       onClick={() => onClick(item)}
-      className="group w-[150px] flex-none text-left sm:w-[170px]"
+      className="group w-full text-left"
     >
       <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
         {image ? (
@@ -279,7 +287,7 @@ function LiveCard({ item, onClick }) {
     <button
       type="button"
       onClick={() => onClick(item)}
-      className="group w-[260px] flex-none overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-left sm:w-[300px]"
+      className="group w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-left"
     >
       <div className="relative aspect-video">
         {getMediaImage(item) ? (
@@ -300,7 +308,7 @@ function LiveCard({ item, onClick }) {
 function NovelCard({ item, onClick }) {
   const image = item.coverImage || item.coverUrl || item.thumbnailUrl || ''
   return (
-    <button type="button" onClick={onClick} className="w-[150px] flex-none text-left sm:w-[170px]">
+    <button type="button" onClick={onClick} className="w-full text-left">
       <div className="aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
         {image ? <img src={image} alt={item.title} className="h-full w-full object-cover" /> : <ImageFallback title={item.title || 'NovelHub'} />}
       </div>
@@ -312,7 +320,7 @@ function NovelCard({ item, onClick }) {
 
 function NewsMiniCard({ title, label, image }) {
   return (
-    <button type="button" className="flex w-[260px] flex-none gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left transition-colors hover:bg-white/[0.08]">
+    <button type="button" className="flex w-full gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left transition-colors hover:bg-white/[0.08]">
       <div className="h-16 w-20 flex-none overflow-hidden rounded-lg bg-white/10">
         {image ? <img src={image} alt={title} className="h-full w-full object-cover" /> : <ImageFallback title="" />}
       </div>
@@ -448,7 +456,6 @@ export default function HomePage() {
     items: orderGenreItems(genreMovies.filter((item) => hasMovieGenre(item, genre)), genre, shuffleSeed),
   })).filter((section) => section.items.length > 0), [genreMovies, shuffleSeed])
 
-  const continueWatching = rankedMedia.slice(0, 6)
   const trendingMedia = rankedMedia.filter((item) => !isShortMedia(item)).slice(0, 16)
   const liveSectionItems = liveEvents.length ? liveEvents : rankedMedia.filter((item) => item.isLive || item.type === 'live').slice(0, 8)
   const musicItems = allMedia.filter((item) => ['music', 'audio'].includes(item.type)).slice(0, 12)
@@ -503,7 +510,7 @@ export default function HomePage() {
 
   return (
     <div className="relative animate-fade-in pb-24">
-      <div className="mb-5 flex gap-3 overflow-x-auto no-scrollbar">
+      <div className="mb-5 flex flex-wrap gap-2 sm:gap-3">
         {HOME_TABS.map((tab) => {
           const Icon = tab.icon
           const isActive = activeHomeTab === tab.label
@@ -512,7 +519,7 @@ export default function HomePage() {
               key={tab.label}
               type="button"
               onClick={() => openTab(tab)}
-              className={`flex flex-none items-center gap-2 rounded-xl border px-4 py-3 text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-all sm:px-4 sm:text-sm ${
                 isActive ? 'border-purple-500 bg-purple-600 text-white shadow-lg shadow-purple-900/30' : 'border-white/10 bg-black/30 text-white hover:bg-white/10'
               }`}
             >
@@ -528,7 +535,7 @@ export default function HomePage() {
           <button
             type="button"
             onClick={() => navigateMedia(hero)}
-            className="block h-[310px] w-full text-left md:h-[390px]"
+            className="block h-[230px] w-full text-left sm:h-[290px] lg:h-[340px]"
           >
             {heroImage ? (
               <img src={heroImage} alt={displayTitle(hero)} className="h-full w-full object-cover" />
@@ -542,7 +549,7 @@ export default function HomePage() {
             </div>
             <div className="absolute bottom-8 left-6 max-w-xl md:left-10">
               <p className="mb-2 text-xs font-black uppercase tracking-wide text-purple-300">NendPlay Exclusive</p>
-              <h1 className="mb-3 line-clamp-2 text-4xl font-black uppercase leading-none text-white md:text-6xl">
+              <h1 className="mb-3 line-clamp-2 text-3xl font-black uppercase leading-none text-white md:text-5xl">
                 {displayTitle(hero)}
               </h1>
               <p className="mb-5 line-clamp-2 max-w-md text-sm font-semibold text-white/85 md:text-base">
@@ -575,17 +582,8 @@ export default function HomePage() {
       )}
 
       <section className="mb-7">
-        <SectionHeader title="Continue Watching" onSeeAll={() => movieSectionRef.current?.scrollIntoView({ behavior: 'smooth' })} />
-        <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
-          {continueWatching.map((item, index) => (
-            <LandscapeCard key={item._id} item={item} onClick={navigateMedia} progress={[65, 40, 78, 30, 55, 82][index % 6]} />
-          ))}
-        </div>
-      </section>
-
-      <section className="mb-7">
         <SectionHeader title="Trending Now" accent="🔥" onSeeAll={() => movieSectionRef.current?.scrollIntoView({ behavior: 'smooth' })} />
-        <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
           {trendingMedia.map((item) => <PosterCard key={item._id} item={item} onClick={navigateMedia} />)}
         </div>
       </section>
@@ -597,7 +595,7 @@ export default function HomePage() {
       {liveSectionItems.length > 0 && (
         <section className="mb-7">
           <SectionHeader title="Live Events" accent={<span className="text-sm text-red-500">● LIVE</span>} onSeeAll={() => setActiveHomeTab('Live')} />
-          <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {liveSectionItems.map((item) => <LiveCard key={item._id} item={item} onClick={navigateMedia} />)}
           </div>
         </section>
@@ -606,7 +604,7 @@ export default function HomePage() {
       {documents.length > 0 && (
         <section className="mb-7">
           <SectionHeader title="NovelHub" accent="📖" onSeeAll={() => navigate('/novelhub')} />
-          <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
             {documents.map((item) => <NovelCard key={item._id} item={item} onClick={() => navigate('/novelhub')} />)}
           </div>
         </section>
@@ -614,7 +612,7 @@ export default function HomePage() {
 
       <section className="mb-7">
         <SectionHeader title="News Highlights" onSeeAll={() => navigate('/news')} />
-        <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {newsHighlights.map(([title, label]) => <NewsMiniCard key={title} title={title} label={label} />)}
         </div>
       </section>
@@ -622,7 +620,7 @@ export default function HomePage() {
       {musicItems.length > 0 && (
         <section className="mb-7">
           <SectionHeader title="Music For You" onSeeAll={() => setActiveHomeTab('Music')} />
-          <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {musicItems.map((item) => <LandscapeCard key={item._id} item={item} onClick={navigateMedia} />)}
           </div>
         </section>
@@ -631,7 +629,7 @@ export default function HomePage() {
       {shorts.length > 0 && (
         <section className="mb-7">
           <SectionHeader title="Shorts" onSeeAll={() => navigate('/shorts')} />
-          <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
             {shorts.slice(0, 18).map((item) => <PosterCard key={item._id} item={item} onClick={navigateMedia} />)}
           </div>
         </section>
@@ -641,7 +639,7 @@ export default function HomePage() {
         {genreSections.map((section) => (
           <section key={section.genre} className="mb-7">
             <SectionHeader title={section.genre} onSeeAll={() => setActiveCategory(HOME_CATEGORIES[0])} />
-            <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
               {section.items.slice(0, 18).map((item) => <PosterCard key={item._id} item={item} onClick={navigateMedia} />)}
             </div>
           </section>

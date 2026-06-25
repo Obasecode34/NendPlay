@@ -10,6 +10,7 @@ import toast from 'react-hot-toast'
 import { mediaService, downloadService } from '../services/index'
 import { cacheDownloadFile, upsertLocalDownloadRecord } from '../services/localDownloads'
 import { getDeviceId } from '../services/guestSession'
+import { upsertContinueWatching, removeContinueWatching } from '../services/continueWatching'
 import useAuthStore from '../stores/authStore'
 import usePlayerStore from '../stores/playerStore'
 import MediaCard from '../components/media/MediaCard'
@@ -250,8 +251,10 @@ export default function MediaPlayerPage() {
                 onProgress={({ playedSeconds, played }) => {
                   setPlayed(played)
                   setProgress(playedSeconds)
+                  upsertContinueWatching(media, { played, playedSeconds, duration })
                 }}
                 onDuration={(d) => { setLocalDuration(d); setDuration(d) }}
+                onEnded={() => removeContinueWatching(id)}
                 onError={(error) => {
                   console.error('Media playback error', error)
                   toast.error('Playback failed. Please try again in a moment.')

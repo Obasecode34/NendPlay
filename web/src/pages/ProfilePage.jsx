@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import useAuthStore from '../stores/authStore'
 import { authService } from '../services/auth.service'
 import { mediaService, subscriptionService } from '../services/index'
+import { getContinueWatching } from '../services/continueWatching'
 import MediaCard from '../components/media/MediaCard'
 import UploadModal from '../components/media/UploadModal'
 import GoogleAdSlot from '../components/ads/GoogleAdSlot'
@@ -22,6 +23,7 @@ export default function ProfilePage() {
   const [uploadsHasMore, setUploadsHasMore] = useState(false)
   const [uploadsLoadingMore, setUploadsLoadingMore] = useState(false)
   const [savedMedia, setSavedMedia] = useState([])
+  const [continueWatching, setContinueWatching] = useState([])
   const [savedLoading, setSavedLoading] = useState(true)
   const [savedPage, setSavedPage] = useState(1)
   const [savedHasMore, setSavedHasMore] = useState(false)
@@ -60,7 +62,14 @@ export default function ProfilePage() {
     if (activeTab === 'saved' && isAuthenticated) {
       fetchSavedMedia(1, false)
     }
+    if (activeTab === 'continue') {
+      setContinueWatching(getContinueWatching())
+    }
   }, [activeTab, isAuthenticated])
+
+  useEffect(() => {
+    setContinueWatching(getContinueWatching())
+  }, [])
 
   useEffect(() => {
     if (!loadMoreInView) return
@@ -257,6 +266,37 @@ export default function ProfilePage() {
         <GoogleAdSlot placement="profile" className="mt-6" />
 
         <div className="card p-6 space-y-4 mt-6">
+          <h2 className="font-display font-bold text-lg" style={{ color: 'var(--color-text)' }}>Continue Watching</h2>
+          {continueWatching.length === 0 ? (
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              Start watching media and unfinished items will appear here.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {continueWatching.map((item) => (
+                <button
+                  key={item._id}
+                  type="button"
+                  onClick={() => navigate(`/watch/${item._id}`)}
+                  className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-left"
+                >
+                  <div className="relative aspect-video bg-black/40">
+                    {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt={item.title} className="h-full w-full object-cover" /> : null}
+                    <div className="absolute inset-x-2 bottom-2 h-1 rounded-full bg-white/25">
+                      <div className="h-full rounded-full bg-purple-500" style={{ width: `${Math.round((item.progress || 0) * 100)}%` }} />
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <p className="line-clamp-2 text-sm font-bold" style={{ color: 'var(--color-text)' }}>{item.title}</p>
+                    <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>{Math.round((item.progress || 0) * 100)}% watched</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card p-6 space-y-4 mt-6">
           <h2 className="font-display font-bold text-lg" style={{ color: 'var(--color-text)' }}>About NendPlay</h2>
           <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
             NendPlay is a media streaming platform offering movies, videos, music, TV shows, podcasts, live events and more.
@@ -413,6 +453,7 @@ export default function ProfilePage() {
       {/* Tabs */}
       <div className="flex gap-2 mb-6">
         {[
+          { id: 'continue', label: 'Continue Watching' },
           { id: 'uploads', label: 'My Uploads' },
           { id: 'saved', label: 'Saved' },
           { id: 'security', label: 'Security' },
@@ -430,6 +471,52 @@ export default function ProfilePage() {
       </div>
 
       {/* Tab content */}
+      {activeTab === 'continue' && (
+        <div>
+          <div className="mb-4">
+            <p className="font-semibold" style={{ color: 'var(--color-text)' }}>
+              {continueWatching.length} unfinished item{continueWatching.length !== 1 ? 's' : ''}
+            </p>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              Media appears here automatically when you start watching and leave before finishing.
+            </p>
+          </div>
+
+          {continueWatching.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-xl mb-2" style={{ color: 'var(--color-text-muted)' }}>No unfinished media yet</p>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Start watching a movie or video and it will appear here.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {continueWatching.map((item) => (
+                <button
+                  key={item._id}
+                  type="button"
+                  onClick={() => navigate(`/watch/${item._id}`)}
+                  className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-left"
+                >
+                  <div className="relative aspect-video bg-black/40">
+                    {item.thumbnailUrl ? (
+                      <img src={item.thumbnailUrl} alt={item.title} className="h-full w-full object-cover" />
+                    ) : null}
+                    <div className="absolute inset-x-2 bottom-2 h-1 rounded-full bg-white/25">
+                      <div className="h-full rounded-full bg-purple-500" style={{ width: `${Math.round((item.progress || 0) * 100)}%` }} />
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <p className="line-clamp-2 text-sm font-bold" style={{ color: 'var(--color-text)' }}>{item.title}</p>
+                    <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {Math.round((item.progress || 0) * 100)}% watched
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {activeTab === 'uploads' && (
         <div>
           <div className="flex items-center justify-between mb-4">
