@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import { mediaService, downloadService } from '../services/index'
 import { cacheDownloadFile, upsertLocalDownloadRecord } from '../services/localDownloads'
 import { getDeviceId } from '../services/guestSession'
+import { addWatchHistory } from '../services/watchHistory'
 import GoogleAdSlot from '../components/ads/GoogleAdSlot'
 
 function formatCount(value = 0) {
@@ -209,7 +210,10 @@ function ShortCard({ short, isActive, onActivate, onEnded }) {
         muted
         playsinline
         loop={false}
-        onEnded={onEnded}
+        onEnded={() => {
+          addWatchHistory(short, { duration: short.duration })
+          onEnded?.()
+        }}
         width="100%"
         height="100%"
         style={{ objectFit: 'cover' }}

@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { RiGlobalLine, RiSearchLine, RiNewspaperLine, RiTimeLine } from 'react-icons/ri'
+import {
+  RiArrowRightLine, RiBookmarkLine, RiCalendarLine,
+  RiGlobalLine, RiSearchLine, RiTimeLine,
+} from 'react-icons/ri'
 import { newsService } from '../services'
 import { InArticleAd, MultiplexAd } from '../components/ads/GoogleAdSlot'
 
@@ -51,7 +54,32 @@ function timeAgo(value) {
   return days === 1 ? 'Yesterday' : `${days} days ago`
 }
 
+function formatDate(value) {
+  const date = value ? new Date(value) : new Date()
+  if (Number.isNaN(date.getTime())) return 'Today'
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function estimateReadTime(article = {}) {
+  const text = [article.header, article.title, article.subHeader, article.summary, article.body]
+    .filter(Boolean)
+    .join(' ')
+  const words = text.trim().split(/\s+/).filter(Boolean).length
+  return `${Math.max(1, Math.ceil(words / 220))} min read`
+}
+
+function getArticleCategory(article = {}) {
+  const categories = article.categories || article.category || article.tab
+  const value = Array.isArray(categories) ? categories[0] : categories
+  return String(value || article.section || 'News').replace(/-/g, ' ')
+}
+
 function NewsCard({ article, featured = false, onOpen }) {
+  const imageUrl = article.imageUrl || article.coverImage || article.thumbnailUrl
+  const title = article.header || article.title || 'Untitled story'
+  const excerpt = article.subHeader || article.summary || article.body || ''
+  const category = getArticleCategory(article)
+
   return (
     <article
       role="button"
@@ -60,35 +88,64 @@ function NewsCard({ article, featured = false, onOpen }) {
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') onOpen(article)
       }}
-      className={`cursor-pointer overflow-hidden rounded-xl transition-transform hover:-translate-y-1 ${featured ? 'p-0' : 'p-3'}`}
-      style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+      className={`group cursor-pointer overflow-hidden rounded-[28px] bg-white text-slate-950 shadow-[0_22px_70px_rgba(15,23,42,0.18)] transition-transform hover:-translate-y-1 ${featured ? 'max-w-5xl' : ''}`}
     >
-      {article.imageUrl && (
-        <div className={`overflow-hidden ${featured ? 'aspect-[16/7]' : 'mb-3 aspect-video rounded-lg'}`}>
-          <img src={article.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+      <div className={`relative overflow-hidden ${featured ? 'aspect-[16/8]' : 'aspect-[16/10]'}`}>
+        {imageUrl ? (
+          <img src={imageUrl} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-sky-100 via-white to-purple-100">
+            <RiGlobalLine className="text-5xl text-sky-600" />
+          </div>
+        )}
+        <span className="absolute left-5 top-5 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 px-5 py-2 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+          {category}
+        </span>
+      </div>
+
+      <div className={featured ? 'p-7 md:p-9' : 'p-5'}>
+        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm font-semibold text-slate-500">
+          <span className="inline-flex items-center gap-2">
+            <RiCalendarLine className="text-lg" />
+            {formatDate(article.publishedAt || article.createdAt)}
+          </span>
+          <span aria-hidden="true">&bull;</span>
+          <span className="inline-flex items-center gap-2">
+            <RiTimeLine className="text-lg" />
+            {estimateReadTime(article)}
+          </span>
         </div>
-      )}
-      <div className={featured ? 'p-4' : ''}>
-        <div className="mb-2 flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          <RiNewspaperLine style={{ color: 'var(--color-primary)' }} />
-          <span className="font-bold">{article.source || 'NendPlay News'}</span>
-          <span>•</span>
-          <RiTimeLine />
-          <span>{timeAgo(article.publishedAt)}</span>
-        </div>
-        <h2 className={`${featured ? 'text-2xl md:text-3xl' : 'text-base'} font-black leading-tight`} style={{ color: 'var(--color-text)' }}>
-          {article.header || article.title}
+
+        <h2
+          className={`${featured ? 'text-3xl md:text-5xl' : 'text-2xl'} font-black leading-tight text-slate-950`}
+          style={{ fontFamily: 'Georgia, Cambria, serif' }}
+        >
+          {title}
         </h2>
-        {(article.subHeader || article.summary) && (
-          <p className="mt-2 line-clamp-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            {article.subHeader || article.summary}
+
+        {excerpt && (
+          <p className={`${featured ? 'mt-5 text-lg leading-8' : 'mt-4 text-sm leading-6'} line-clamp-3 text-slate-500`}>
+            {excerpt}
           </p>
         )}
+
+        <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-5">
+          <span className="inline-flex items-center gap-2 text-base font-black text-blue-700">
+            Read more <RiArrowRightLine className="text-2xl" />
+          </span>
+          <button
+            type="button"
+            onClick={(event) => event.stopPropagation()}
+            className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            aria-label="Bookmark story"
+          >
+            <RiBookmarkLine className="text-2xl" />
+          </button>
+        </div>
       </div>
     </article>
   )
 }
-
 export default function DailyNewsPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
