@@ -4,7 +4,8 @@ import ReactPlayer from 'react-player'
 import {
   RiPlayFill, RiPauseFill, RiVolumeMuteFill, RiVolumeUpFill,
   RiFullscreenFill, RiHeartLine, RiHeartFill, RiDownloadLine,
-  RiArrowLeftLine, RiLockFill, RiShareLine
+  RiArrowLeftLine, RiLockFill, RiShareLine, RiAddLine,
+  RiSkipBackFill, RiSkipForwardFill
 } from 'react-icons/ri'
 import toast from 'react-hot-toast'
 import { mediaService, downloadService } from '../services/index'
@@ -49,6 +50,8 @@ export default function MediaPlayerPage() {
   const [duration, setLocalDuration] = useState(0)
   const [liked, setLiked] = useState(false)
   const [showControls, setShowControls] = useState(true)
+  const [activeInfoTab, setActiveInfoTab] = useState('overview')
+  const [autoPlayNext, setAutoPlayNext] = useState(true)
   const controlsTimer = useRef(null)
 
   useEffect(() => {
@@ -178,9 +181,17 @@ export default function MediaPlayerPage() {
   }
 
   const formatTime = (seconds) => {
-    const m = Math.floor(seconds / 60)
-    const s = Math.floor(seconds % 60)
+    const total = Math.max(0, Math.floor(seconds || 0))
+    const h = Math.floor(total / 3600)
+    const m = Math.floor((total % 3600) / 60)
+    const s = total % 60
+    if (h) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
     return `${m}:${s.toString().padStart(2, '0')}`
+  }
+
+  const seekRelative = (seconds) => {
+    const next = Math.max(0, Math.min(duration || 0, played * duration + seconds))
+    playerRef.current?.seekTo(next, 'seconds')
   }
 
   if (loading) {
@@ -196,6 +207,262 @@ export default function MediaPlayerPage() {
   if (!media) return null
 
   const streamUrl = playbackUrl || mediaService.getStreamUrl(id)
+  const thumbnailUrl = mediaService.getThumbnailUrl?.(media) || media.thumbnailUrl || ''
+  const genreText = Array.isArray(media.genres) && media.genres.length
+    ? media.genres.slice(0, 3).join(', ')
+    : media.genre || media.category || 'Entertainment'
+  const castText = Array.isArray(media.cast) && media.cast.length
+    ? media.cast.join(', ')
+    : media.artist || 'NendPlay Creators'
+  const nextUp = collectionItems.find((item) => item._id !== id) || collectionItems[0]
+  const moreLikeThis = related.length ? related.slice(0, 8) : collectionItems.filter((item) => item._id !== id).slice(0, 8)
+
+  return (
+    <div className="animate-fade-in">
+      <section className="overflow-hidden rounded-3xl border" style={{ background: '#02020a', borderColor: 'var(--color-border)' }}>
+        <div className="flex items-center gap-4 px-5 py-4">
+          <button onClick={() => navigate(-1)} className="text-2xl text-white"><RiArrowLeftLine /></button>
+          <h1 className="min-w-0 flex-1 truncate text-base font-black text-white md:text-lg">{media.title}</h1>
+          <button className="rounded-full px-3 py-2 text-sm font-black text-white/80 ring-1 ring-white/10">Cast</button>
+          <button className="rounded-full px-3 py-2 text-sm font-black text-white/80 ring-1 ring-white/10">CC</button>
+          <button className="rounded-full px-3 py-2 text-sm font-black text-white/80 ring-1 ring-white/10">More</button>
+        </div>
+
+        {locked ? (
+          <div className="relative flex aspect-video max-h-[620px] items-center justify-center overflow-hidden">
+            {thumbnailUrl && <img src={thumbnailUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-30" />}
+            <div className="relative z-10 p-8 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-black/70">
+                <RiLockFill className="text-3xl text-yellow-400" />
+              </div>
+              <h3 className="mb-2 text-xl font-black text-white">Premium Content</h3>
+              <p className="mb-4 text-sm text-white/60">Subscribe to access this content</p>
+              <button onClick={() => navigate('/subscribe')} className="btn-primary">Subscribe Now</button>
+            </div>
+          </div>
+        ) : (
+          <div className="relative aspect-video max-h-[620px] cursor-pointer bg-black" onMouseMove={handleMouseMove} onClick={() => setPlaying(!playing)}>
+            <ReactPlayer
+              ref={playerRef}
+              url={streamUrl}
+              playing={playing}
+              volume={muted ? 0 : volume}
+              width="100%"
+              height="100%"
+              onProgress={({ playedSeconds, played }) => {
+                setPlayed(played)
+                setProgress(playedSeconds)
+                upsertContinueWatching(media, { played, playedSeconds, duration })
+              }}
+              onDuration={(d) => { setLocalDuration(d); setDuration(d) }}
+              onEnded={() => {
+                addWatchHistory(media, { duration })
+                removeContinueWatching(id)
+                if (autoPlayNext && nextUp?._id && nextUp._id !== id) navigate(`/watch/${nextUp._id}`)
+              }}
+              onError={(error) => {
+                console.error('Media playback error', error)
+                toast.error('Playback failed. Please try again in a moment.')
+              }}
+              config={{ file: { attributes: { controlsList: 'nodownload' } } }}
+            />
+
+            <div
+              className={`absolute inset-0 flex flex-col justify-between bg-black/30 p-5 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+              onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between">
+                <div className="flex w-14 flex-col items-center gap-2 rounded-3xl bg-black/55 py-3 text-white">
+                  <span className="text-lg">☀</span>
+                  <div className="h-28 w-1 overflow-hidden rounded bg-white/30">
+                    <div className="mt-auto h-2/3 w-full rounded bg-purple-500" />
+                  </div>
+                  <span className="text-[10px]">Brightness</span>
+                </div>
+                <button className="rounded-full bg-black/55 p-4 text-white"><RiLockFill /></button>
+                <div className="flex w-14 flex-col items-center gap-2 rounded-3xl bg-black/55 py-3 text-white">
+                  {muted ? <RiVolumeMuteFill /> : <RiVolumeUpFill />}
+                  <input type="range" min={0} max={1} step={0.05} value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="h-28 w-1 rotate-[-90deg] accent-purple-500" />
+                  <span className="text-[10px]">Volume</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-8 text-white">
+                <button className="text-4xl" onClick={() => seekRelative(-10)}><RiSkipBackFill /></button>
+                <button className="rounded-full border-2 border-white p-6 text-5xl" onClick={() => setPlaying(!playing)}>
+                  {playing ? <RiPauseFill /> : <RiPlayFill />}
+                </button>
+                <button className="text-4xl" onClick={() => seekRelative(10)}><RiSkipForwardFill /></button>
+              </div>
+
+              <div>
+                <div className="mb-4 flex items-center gap-3 text-sm font-black text-white">
+                  <span>{formatTime(played * duration)}</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.001}
+                    value={played}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      setPlayed(val)
+                      playerRef.current?.seekTo(val)
+                    }}
+                    className="h-1 flex-1 cursor-pointer accent-purple-500"
+                  />
+                  <span>{formatTime(duration)}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs font-black text-white/90 md:grid-cols-6">
+                  {['Playlist', 'Subtitles', 'Audio', 'Speed', 'Quality', 'Fullscreen'].map((label) => (
+                    <button
+                      key={label}
+                      className="rounded-xl bg-black/40 px-3 py-2"
+                      onClick={() => label === 'Fullscreen' ? playerRef.current?.getInternalPlayer()?.requestFullscreen?.() : toast(`${label} settings`)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="mt-0 rounded-b-3xl border border-t-0 p-5 md:p-7" style={{ background: 'linear-gradient(135deg, rgba(13,13,32,0.98), rgba(3,3,12,0.98))', borderColor: 'var(--color-border)' }}>
+        <div className="grid gap-6 lg:grid-cols-[1fr_230px]">
+          <div>
+            <h2 className="max-w-3xl text-2xl font-black text-white md:text-3xl">{media.title}</h2>
+            <p className="mt-2 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              {media.type?.replace('_', ' ') || 'video'} | {media.viewCount || 0} views
+              {media.releaseYear ? ` | ${media.releaseYear}` : ''} | {genreText}
+              {duration ? ` | ${formatTime(duration)}` : ''}
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button onClick={handleLike} className="flex items-center gap-2 rounded-xl px-4 py-2 font-black" style={{ background: liked ? 'var(--color-primary)' : 'var(--color-surface)', color: liked ? '#fff' : 'var(--color-text)' }}>
+                {liked ? <RiHeartFill /> : <RiHeartLine />} Like
+              </button>
+              <button onClick={handleDownload} className="flex items-center gap-2 rounded-xl px-4 py-2 font-black" style={{ background: 'var(--color-surface)', color: 'var(--color-text)' }}><RiDownloadLine /> Download</button>
+              <button onClick={handleShare} className="flex items-center gap-2 rounded-xl px-4 py-2 font-black" style={{ background: 'var(--color-surface)', color: 'var(--color-text)' }}><RiShareLine /> Share</button>
+              <button className="flex items-center gap-2 rounded-xl px-4 py-2 font-black" style={{ background: 'var(--color-surface)', color: 'var(--color-text)' }}><RiAddLine /> My List</button>
+            </div>
+          </div>
+          <div className="hidden overflow-hidden rounded-2xl border lg:block" style={{ borderColor: 'var(--color-border)' }}>
+            {thumbnailUrl ? <img src={thumbnailUrl} alt="" className="h-full min-h-32 w-full object-cover" /> : null}
+          </div>
+        </div>
+
+        {!locked && (
+          <div className="my-6">
+            <GoogleAdSlot placement="media" />
+          </div>
+        )}
+
+        <div className="mt-5 flex flex-wrap gap-6 border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
+          {['overview', 'episodes', 'related', 'comments'].map((tab) => (
+            <button
+              key={tab}
+              className="font-black"
+              style={{ color: activeInfoTab === tab ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
+              onClick={() => setActiveInfoTab(tab)}>
+              {tab === 'related' ? 'More Like This' : tab === 'comments' ? 'Comments' : tab[0].toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {activeInfoTab === 'overview' && (
+          <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
+            <p className="text-sm leading-7" style={{ color: 'var(--color-text-muted)' }}>
+              {media.description || 'No overview has been added for this media yet.'}
+            </p>
+            <div className="space-y-3 border-l pl-5 text-sm" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+              <p><b className="text-white">Director</b> {media.director || 'NendPlay Studios'}</p>
+              <p><b className="text-white">Cast</b> {castText}</p>
+              <p><b className="text-white">Genre</b> {genreText}</p>
+            </div>
+          </div>
+        )}
+
+        {activeInfoTab === 'episodes' && (
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {collectionItems.length > 1 ? collectionItems.map((item) => (
+              <button
+                key={item._id}
+                type="button"
+                onClick={() => item._id !== id && navigate(`/watch/${item._id}`)}
+                className="flex gap-3 rounded-2xl p-3 text-left"
+                style={{ background: item._id === id ? 'rgba(124,58,237,0.32)' : 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                <div className="aspect-video w-28 shrink-0 overflow-hidden rounded-xl bg-black/40">
+                  {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : null}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-white">{getCollectionLabel(item)}</p>
+                  <p className="truncate text-xs" style={{ color: 'var(--color-text-muted)' }}>{item.title}</p>
+                </div>
+              </button>
+            )) : <p style={{ color: 'var(--color-text-muted)' }}>No episodes or parts are attached to this media yet.</p>}
+          </div>
+        )}
+
+        {activeInfoTab === 'related' && (
+          <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-6">
+            {moreLikeThis.map((item) => <MediaCard key={item._id} media={item} size="full" />)}
+          </div>
+        )}
+
+        {activeInfoTab === 'comments' && (
+          <div className="mt-5 rounded-2xl p-4" style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
+            Comments will appear here when viewers start discussing this media.
+          </div>
+        )}
+
+        {nextUp && (
+          <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1fr]">
+            <div>
+              <div className="mb-3 flex items-center gap-3">
+                <h3 className="flex-1 text-xl font-black text-white">Next Up</h3>
+                <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Auto Play</span>
+                <button
+                  className="h-7 w-12 rounded-full p-1"
+                  style={{ background: autoPlayNext ? 'var(--color-primary)' : 'var(--color-surface-high)' }}
+                  onClick={() => setAutoPlayNext((value) => !value)}>
+                  <span className={`block h-5 w-5 rounded-full bg-white transition-transform ${autoPlayNext ? 'translate-x-5' : ''}`} />
+                </button>
+              </div>
+              <button onClick={() => nextUp._id !== id && navigate(`/watch/${nextUp._id}`)} className="flex w-full gap-4 rounded-2xl p-3 text-left" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                <div className="aspect-video w-40 overflow-hidden rounded-xl bg-black/40">
+                  {nextUp.thumbnailUrl ? <img src={nextUp.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : null}
+                </div>
+                <div>
+                  <p className="font-black text-white">{nextUp.title}</p>
+                  <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{getCollectionLabel(nextUp)}</p>
+                </div>
+              </button>
+            </div>
+            {moreLikeThis.length > 0 && (
+              <div>
+                <h3 className="mb-3 text-xl font-black text-white">More Like This</h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {moreLikeThis.slice(0, 3).map((item) => <MediaCard key={item._id} media={item} size="full" />)}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {!locked && (
+        <div className="sticky bottom-0 z-20 mt-0 flex items-center gap-3 border-t px-4 py-3 backdrop-blur-xl" style={{ background: 'rgba(4,4,17,0.92)', borderColor: 'var(--color-border)' }}>
+          <div className="aspect-video w-20 overflow-hidden rounded-xl bg-black/40">
+            {thumbnailUrl ? <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" /> : null}
+          </div>
+          <p className="min-w-0 flex-1 truncate font-black text-white">{media.title}</p>
+          <button onClick={() => setPlaying(!playing)} className="text-3xl text-white">{playing ? <RiPauseFill /> : <RiPlayFill />}</button>
+          <button onClick={() => nextUp?._id && nextUp._id !== id && navigate(`/watch/${nextUp._id}`)} className="text-2xl text-white"><RiSkipForwardFill /></button>
+          <button onClick={() => navigate(-1)} className="text-2xl text-white">×</button>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="animate-fade-in">
