@@ -278,7 +278,7 @@ class AdService {
       throw { status: 400, message: "Payment verification failed. Please try again." };
     }
 
-    if (Number(verification.amount) < Number(ad.priceNaira)) {
+    if (!Number.isFinite(Number(verification.amount)) || Number(verification.amount) < Number(ad.priceNaira)) {
       throw { status: 400, message: "Payment amount is less than the ad price." };
     }
 

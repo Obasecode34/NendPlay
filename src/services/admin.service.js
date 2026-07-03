@@ -1165,7 +1165,7 @@ class AdminService {
             updates.transactionRef = `NP-ADMIN-FREE-AD-${nanoid(16).toUpperCase()}`;
           }
         } else {
-          if (!existingAd.transactionRef || !["paystack", "flutterwave"].includes(existingAd.paymentGateway)) {
+          if (!existingAd.transactionRef || !paymentService.isSupportedGateway(existingAd.paymentGateway)) {
             throw { status: 400, message: "Cannot activate an unpaid ad" };
           }
           const verification = await paymentService.verifyPayment({
@@ -1175,7 +1175,7 @@ class AdminService {
           if (!verification.verified) {
             throw { status: 400, message: "Payment has not been confirmed by the gateway yet" };
           }
-          if (Number(verification.amount) < Number(existingAd.priceNaira)) {
+          if (!Number.isFinite(Number(verification.amount)) || Number(verification.amount) < Number(existingAd.priceNaira)) {
             throw { status: 400, message: "Payment amount is less than the ad price" };
           }
           updates.isPaid = true;

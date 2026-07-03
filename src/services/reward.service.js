@@ -193,7 +193,7 @@ class RewardService {
       throw { status: 400, message: "Payment verification failed. Please try again." };
     }
 
-    if (Math.round(Number(verification.amount)) < pass.amountNaira) {
+    if (!Number.isFinite(Number(verification.amount)) || Math.round(Number(verification.amount)) < pass.amountNaira) {
       await AdFreePass.findByIdAndUpdate(pass._id, { status: "failed" });
       throw { status: 400, message: "Payment amount is lower than the ad-free package price." };
     }

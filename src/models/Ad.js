@@ -114,7 +114,7 @@ const adSchema = new mongoose.Schema(
 
     paymentGateway: {
       type: String,
-      enum: ["paystack", "flutterwave", "admin_comp"],
+      enum: ["paystack", "flutterwave", "opay", "palmpay", "admin_comp"],
       default: "paystack",
     },
 

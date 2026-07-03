@@ -77,7 +77,7 @@ class RewardController {
     try {
       const { days, gateway } = req.body;
       if (!days) return ApiResponse.badRequest(res, "days is required");
-      if (!gateway) return ApiResponse.badRequest(res, "gateway is required (paystack or flutterwave)");
+      if (!gateway) return ApiResponse.badRequest(res, "gateway is required (paystack, flutterwave, opay, or palmpay)");
 
       const result = await rewardService.initializePaidAdFree({
         userId: req.user.userId,

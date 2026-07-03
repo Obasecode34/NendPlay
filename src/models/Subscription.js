@@ -7,7 +7,7 @@
 // Payment flow:
 //   1. User picks a plan
 //   2. Backend creates a Subscription with status: "pending"
-//   3. Backend initializes payment with Paystack/Flutterwave
+//   3. Backend initializes payment with the selected gateway
 //   4. User pays on the payment page
 //   5. Gateway calls our webhook with payment confirmation
 //   6. Webhook handler updates Subscription to status: "active"
@@ -39,7 +39,7 @@ const subscriptionSchema = new mongoose.Schema(
     // ── Payment Info ───────────────────────────────────────────────────
     paymentGateway: {
       type: String,
-      enum: ["paystack", "flutterwave"],
+      enum: ["paystack", "flutterwave", "opay", "palmpay"],
       required: true,
     },
 

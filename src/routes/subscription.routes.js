@@ -31,6 +31,18 @@ router.post(
   subscriptionController.flutterwaveWebhook
 );
 
+router.post(
+  "/webhook/opay",
+  express.json({ type: "*/*" }),
+  subscriptionController.opayWebhook
+);
+
+router.post(
+  "/webhook/palmpay",
+  express.json({ type: "*/*" }),
+  subscriptionController.palmPayWebhook
+);
+
 // ── Protected routes (auth required) ─────────────────────────────────────
 router.post("/initialize", authMiddleware, subscriptionController.initializeSubscription);
 router.post("/verify",     authMiddleware, subscriptionController.verifySubscription);

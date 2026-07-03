@@ -16,6 +16,13 @@ const defaultRewards = [
   { id: 'plan_premium', label: 'Premium plan', coins: 80, kind: 'plan', plan: 'premium', days: 30 },
 ]
 
+const PAYMENT_GATEWAYS = [
+  { key: 'paystack', label: 'Paystack' },
+  { key: 'flutterwave', label: 'Flutterwave' },
+  { key: 'opay', label: 'OPay' },
+  { key: 'palmpay', label: 'PalmPay' },
+]
+
 function RewardCard({ reward, coins, onRedeem, redeeming }) {
   const unlocked = coins >= reward.coins
   return (
@@ -232,17 +239,17 @@ export default function RewardsPage() {
           <div>
             <p className="text-xs font-bold mb-2" style={{ color: 'var(--color-text-muted)' }}>Payment gateway</p>
             <div className="flex gap-2">
-              {['paystack', 'flutterwave'].map((item) => (
+              {PAYMENT_GATEWAYS.map((item) => (
                 <button
-                  key={item}
-                  onClick={() => setGateway(item)}
-                  className="px-4 py-2 rounded-xl text-sm font-black capitalize"
+                  key={item.key}
+                  onClick={() => setGateway(item.key)}
+                  className="px-4 py-2 rounded-xl text-sm font-black"
                   style={{
-                    background: gateway === item ? 'rgba(245,197,66,0.18)' : 'var(--color-surface-high)',
-                    color: gateway === item ? '#F5C542' : 'var(--color-text-muted)',
-                    border: `1px solid ${gateway === item ? '#F5C542' : 'var(--color-border)'}`,
+                    background: gateway === item.key ? 'rgba(245,197,66,0.18)' : 'var(--color-surface-high)',
+                    color: gateway === item.key ? '#F5C542' : 'var(--color-text-muted)',
+                    border: `1px solid ${gateway === item.key ? '#F5C542' : 'var(--color-border)'}`,
                   }}>
-                  {item}
+                  {item.label}
                 </button>
               ))}
             </div>

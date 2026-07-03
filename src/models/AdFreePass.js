@@ -25,7 +25,7 @@ const adFreePassSchema = new mongoose.Schema(
     },
     paymentGateway: {
       type: String,
-      enum: ["paystack", "flutterwave"],
+      enum: ["paystack", "flutterwave", "opay", "palmpay"],
       required: true,
     },
     transactionRef: {

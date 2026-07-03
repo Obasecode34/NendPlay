@@ -46,6 +46,8 @@ export default function MediaPlayerPage() {
   const [playing, setPlaying] = useState(true)
   const [volume, setVolume] = useState(0.8)
   const [muted, setMuted] = useState(false)
+  const [brightness, setBrightness] = useState(0.72)
+  const [activeEdgeControl, setActiveEdgeControl] = useState(null)
   const [played, setPlayed] = useState(0)
   const [duration, setLocalDuration] = useState(0)
   const [liked, setLiked] = useState(false)
@@ -53,10 +55,14 @@ export default function MediaPlayerPage() {
   const [activeInfoTab, setActiveInfoTab] = useState('overview')
   const [autoPlayNext, setAutoPlayNext] = useState(true)
   const controlsTimer = useRef(null)
+  const edgeTimer = useRef(null)
 
   useEffect(() => {
     fetchMedia()
-    return () => clearTimeout(controlsTimer.current)
+    return () => {
+      clearTimeout(controlsTimer.current)
+      clearTimeout(edgeTimer.current)
+    }
   }, [id])
 
   const fetchMedia = async () => {
@@ -96,6 +102,30 @@ export default function MediaPlayerPage() {
     setShowControls(true)
     clearTimeout(controlsTimer.current)
     controlsTimer.current = setTimeout(() => setShowControls(false), 3000)
+  }
+
+  const flashEdgeControl = (control) => {
+    setActiveEdgeControl(control)
+    clearTimeout(edgeTimer.current)
+    edgeTimer.current = setTimeout(() => setActiveEdgeControl(null), 1400)
+  }
+
+  const handlePlayerWheel = (event) => {
+    event.preventDefault()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const isVolumeGesture = event.clientX - rect.left > rect.width / 2
+    const delta = event.deltaY < 0 ? 0.06 : -0.06
+    if (isVolumeGesture) {
+      setVolume((value) => {
+        const next = Math.max(0, Math.min(1, value + delta))
+        setMuted(next === 0)
+        return next
+      })
+      flashEdgeControl('volume')
+      return
+    }
+    setBrightness((value) => Math.max(0.2, Math.min(1, value + delta)))
+    flashEdgeControl('brightness')
   }
 
   const handleLike = async () => {
@@ -241,7 +271,11 @@ export default function MediaPlayerPage() {
             </div>
           </div>
         ) : (
-          <div className="relative aspect-video max-h-[620px] cursor-pointer bg-black" onMouseMove={handleMouseMove} onClick={() => setPlaying(!playing)}>
+          <div
+            className="relative aspect-video max-h-[620px] cursor-pointer bg-black"
+            onMouseMove={handleMouseMove}
+            onWheel={handlePlayerWheel}
+            onClick={() => setShowControls((value) => !value)}>
             <ReactPlayer
               ref={playerRef}
               url={streamUrl}
@@ -268,30 +302,49 @@ export default function MediaPlayerPage() {
             />
 
             <div
-              className={`absolute inset-0 flex flex-col justify-between bg-black/30 p-5 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
-              onClick={(e) => e.stopPropagation()}>
+              className="pointer-events-none absolute inset-0"
+              style={{ background: `rgba(0,0,0,${Math.max(0, (1 - brightness) * 0.45)})` }}
+            />
+
+            <div
+              className={`absolute inset-0 flex flex-col justify-between bg-black/30 p-5 transition-opacity duration-300 ${showControls ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowControls(false)
+              }}>
               <div className="flex items-start justify-between">
-                <div className="flex w-14 flex-col items-center gap-2 rounded-3xl bg-black/55 py-3 text-white">
+                {activeEdgeControl === 'brightness' ? <div className="flex w-12 flex-col items-center gap-2 rounded-3xl bg-black/55 py-3 text-white">
                   <span className="text-lg">☀</span>
-                  <div className="h-28 w-1 overflow-hidden rounded bg-white/30">
-                    <div className="mt-auto h-2/3 w-full rounded bg-purple-500" />
+                  <div className="flex h-24 w-1 flex-col justify-end overflow-hidden rounded bg-white/30">
+                    <div className="w-full rounded bg-purple-500" style={{ height: `${Math.round(brightness * 100)}%` }} />
                   </div>
                   <span className="text-[10px]">Brightness</span>
-                </div>
-                <button className="rounded-full bg-black/55 p-4 text-white"><RiLockFill /></button>
-                <div className="flex w-14 flex-col items-center gap-2 rounded-3xl bg-black/55 py-3 text-white">
+                </div> : <div className="w-12" />}
+                <div className="w-12" />
+                {activeEdgeControl === 'volume' ? <div className="flex w-12 flex-col items-center gap-2 rounded-3xl bg-black/55 py-3 text-white">
                   {muted ? <RiVolumeMuteFill /> : <RiVolumeUpFill />}
-                  <input type="range" min={0} max={1} step={0.05} value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="h-28 w-1 rotate-[-90deg] accent-purple-500" />
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={volume}
+                    onChange={(e) => {
+                      setVolume(parseFloat(e.target.value))
+                      flashEdgeControl('volume')
+                    }}
+                    className="h-24 w-1 rotate-[-90deg] accent-purple-500"
+                  />
                   <span className="text-[10px]">Volume</span>
-                </div>
+                </div> : <div className="w-12" />}
               </div>
 
-              <div className="flex items-center justify-center gap-8 text-white">
-                <button className="text-4xl" onClick={() => seekRelative(-10)}><RiSkipBackFill /></button>
-                <button className="rounded-full border-2 border-white p-6 text-5xl" onClick={() => setPlaying(!playing)}>
+              <div className="flex items-center justify-center gap-6 text-white">
+                <button className="text-3xl" onClick={() => seekRelative(-10)}><RiSkipBackFill /></button>
+                <button className="rounded-full border-2 border-white p-4 text-4xl" onClick={() => setPlaying(!playing)}>
                   {playing ? <RiPauseFill /> : <RiPlayFill />}
                 </button>
-                <button className="text-4xl" onClick={() => seekRelative(10)}><RiSkipForwardFill /></button>
+                <button className="text-3xl" onClick={() => seekRelative(10)}><RiSkipForwardFill /></button>
               </div>
 
               <div>
@@ -312,11 +365,11 @@ export default function MediaPlayerPage() {
                   />
                   <span>{formatTime(duration)}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center text-xs font-black text-white/90 md:grid-cols-6">
+                <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-black text-white/90 md:grid-cols-6">
                   {['Playlist', 'Subtitles', 'Audio', 'Speed', 'Quality', 'Fullscreen'].map((label) => (
                     <button
                       key={label}
-                      className="rounded-xl bg-black/40 px-3 py-2"
+                      className="rounded-xl bg-black/40 px-2 py-1.5"
                       onClick={() => label === 'Fullscreen' ? playerRef.current?.getInternalPlayer()?.requestFullscreen?.() : toast(`${label} settings`)}>
                       {label}
                     </button>

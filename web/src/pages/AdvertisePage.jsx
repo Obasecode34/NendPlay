@@ -23,6 +23,13 @@ const PLACEMENTS = [
   { value: 'all', label: 'Everywhere' },
 ]
 
+const PAYMENT_GATEWAYS = [
+  { key: 'paystack', label: 'Paystack' },
+  { key: 'flutterwave', label: 'Flutterwave' },
+  { key: 'opay', label: 'OPay' },
+  { key: 'palmpay', label: 'PalmPay' },
+]
+
 export default function AdvertisePage() {
   const { user } = useAuthStore()
   const [myAds, setMyAds] = useState([])
@@ -310,14 +317,14 @@ export default function AdvertisePage() {
 
               {!isAdmin && (
                 <div className="grid grid-cols-2 gap-3">
-                  {['paystack', 'flutterwave'].map((gw) => (
-                    <button key={gw} type="button" onClick={() => setForm({ ...form, gateway: gw })}
-                      className="py-2 rounded-xl text-sm capitalize transition-all"
+                  {PAYMENT_GATEWAYS.map((gw) => (
+                    <button key={gw.key} type="button" onClick={() => setForm({ ...form, gateway: gw.key })}
+                      className="py-2 rounded-xl text-sm transition-all"
                       style={{
-                        background: form.gateway === gw ? 'var(--color-primary)' : 'var(--color-surface-high)',
-                        color: form.gateway === gw ? 'white' : 'var(--color-text-muted)',
+                        background: form.gateway === gw.key ? 'var(--color-primary)' : 'var(--color-surface-high)',
+                        color: form.gateway === gw.key ? 'white' : 'var(--color-text-muted)',
                       }}>
-                      {gw}
+                      {gw.label}
                     </button>
                   ))}
                 </div>

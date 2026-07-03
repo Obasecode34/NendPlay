@@ -20,7 +20,7 @@ class SubscriptionController {
       const { planId, gateway } = req.body;
 
       if (!planId) return ApiResponse.badRequest(res, "planId is required");
-      if (!gateway) return ApiResponse.badRequest(res, "gateway is required (paystack or flutterwave)");
+      if (!gateway) return ApiResponse.badRequest(res, "gateway is required (paystack, flutterwave, opay, or palmpay)");
 
       const result = await subscriptionService.initializeSubscription({
         userId: req.user.userId,
@@ -193,6 +193,26 @@ class SubscriptionController {
       return res.status(200).json({ received: true });
     } catch (err) {
       console.error("Flutterwave webhook error:", err.message);
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  async opayWebhook(req, res) {
+    try {
+      await subscriptionService.handleOpayWebhook(req.body);
+      return res.status(200).json({ received: true });
+    } catch (err) {
+      console.error("OPay webhook error:", err.message);
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  async palmPayWebhook(req, res) {
+    try {
+      await subscriptionService.handlePalmPayWebhook(req.body);
+      return res.status(200).json({ received: true });
+    } catch (err) {
+      console.error("PalmPay webhook error:", err.message);
       return res.status(400).json({ error: err.message });
     }
   }

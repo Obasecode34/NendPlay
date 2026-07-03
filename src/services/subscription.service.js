@@ -95,6 +95,11 @@ class SubscriptionService {
     }
 
     // Payment confirmed — activate subscription
+    if (!Number.isFinite(Number(verification.amount)) || Number(verification.amount) < Number(subscription.priceNaira)) {
+      await Subscription.findByIdAndUpdate(subscription._id, { status: "failed" });
+      throw { status: 400, message: "Payment amount is lower than the subscription price." };
+    }
+
     const now = new Date();
     const expiry = new Date(now);
     expiry.setMonth(expiry.getMonth() + 1); // 1 month from now
@@ -164,6 +169,48 @@ class SubscriptionService {
 
   // ── Cancel subscription ────────────────────────────────────────────────
   // User can cancel at any time. Access continues until expiry date.
+  async handleOpayWebhook(payload) {
+    const transactionRef =
+      payload?.reference ||
+      payload?.orderNo ||
+      payload?.orderId ||
+      payload?.data?.reference ||
+      payload?.data?.orderNo ||
+      payload?.data?.orderId;
+
+    if (transactionRef) {
+      const isAdFreePass = transactionRef.startsWith("NP-ADFREE-");
+      const service = isAdFreePass ? require("./reward.service") : this;
+      const action = isAdFreePass
+        ? service.verifyPaidAdFree({ transactionRef, gateway: "opay" })
+        : service.verifyAndActivate({ transactionRef, gateway: "opay" });
+      await action.catch(err => console.error("OPay webhook activation error:", err.message));
+    }
+
+    return { received: true };
+  }
+
+  async handlePalmPayWebhook(payload) {
+    const transactionRef =
+      payload?.reference ||
+      payload?.orderNo ||
+      payload?.orderId ||
+      payload?.data?.reference ||
+      payload?.data?.orderNo ||
+      payload?.data?.orderId;
+
+    if (transactionRef) {
+      const isAdFreePass = transactionRef.startsWith("NP-ADFREE-");
+      const service = isAdFreePass ? require("./reward.service") : this;
+      const action = isAdFreePass
+        ? service.verifyPaidAdFree({ transactionRef, gateway: "palmpay" })
+        : service.verifyAndActivate({ transactionRef, gateway: "palmpay" });
+      await action.catch(err => console.error("PalmPay webhook activation error:", err.message));
+    }
+
+    return { received: true };
+  }
+
   async cancelSubscription(userId, reason = "") {
     const subscription = await Subscription.findOne({
       userId,
