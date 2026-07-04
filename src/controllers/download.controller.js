@@ -62,12 +62,16 @@ class DownloadController {
   // Marks the download record as completed.
   async completeDownload(req, res) {
     try {
-      const { downloadId, storageKey, storedFileSize } = req.body;
+      const { downloadId, storageKey, storedFileSize, deviceId } = req.body;
       if (!downloadId) return ApiResponse.badRequest(res, "downloadId is required");
+      if (!req.user?.userId && !deviceId) {
+        return ApiResponse.badRequest(res, "deviceId is required for guest downloads");
+      }
 
       const download = await downloadService.completeDownload({
         downloadId,
         userId: req.user?.userId,
+        deviceId,
         storageKey,
         storedFileSize,
       });

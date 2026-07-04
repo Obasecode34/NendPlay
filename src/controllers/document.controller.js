@@ -23,7 +23,9 @@ class DocumentController {
   // POST /api/novels/upload
   async uploadDocument(req, res) {
     try {
-      if (!req.file) {
+      const documentFile = req.files?.document?.[0] || req.file;
+      const thumbnailFile = req.files?.thumbnail?.[0] || null;
+      if (!documentFile) {
         return ApiResponse.badRequest(
           res,
           "No document file provided. Use field name 'document'."
@@ -31,7 +33,8 @@ class DocumentController {
       }
 
       const document = await documentService.uploadDocument({
-        file: req.file,
+        file: documentFile,
+        thumbnailFile,
         body: req.body,
         userId: req.user.userId,
         user: req.user,

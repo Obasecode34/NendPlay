@@ -129,8 +129,32 @@ class DocumentService {
     });
   }
 
+  _uploadThumbnailToCloudinary(buffer, options = {}) {
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: options.folder || "nendplay/document-thumbnails",
+          resource_type: "image",
+          transformation: [
+            { width: 768, height: 1080, crop: "fill", gravity: "center" },
+            { quality: "auto", fetch_format: "auto" },
+          ],
+        },
+        (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        }
+      );
+
+      const readable = new Readable();
+      readable.push(buffer);
+      readable.push(null);
+      readable.pipe(uploadStream);
+    });
+  }
+
   // ── Upload and create document ────────────────────────────────────────
-  async uploadDocument({ file, body, userId, user }) {
+  async uploadDocument({ file, thumbnailFile, body, userId, user }) {
     const {
       title,
       description,
@@ -176,13 +200,22 @@ class DocumentService {
     const trustedImport = adminUpload && isTrustedImport(body);
     const reviewStatus = trustedImport ? "approved" : "pending_review";
     const publishStatus = trustedImport ? "published" : "pending_review";
+    let resolvedThumbnailUrl = thumbnailUrl || body.coverImage || "";
+    if (thumbnailFile) {
+      try {
+        const thumbResult = await this._uploadThumbnailToCloudinary(thumbnailFile.buffer);
+        resolvedThumbnailUrl = thumbResult.secure_url;
+      } catch (err) {
+        throw { status: 500, message: `Thumbnail upload failed: ${err.message}` };
+      }
+    }
 
     // 4. Save to MongoDB
     const document = await Document.create({
       title,
       description: description || "",
       fileUrl: cloudinaryResult.secure_url,
-      thumbnailUrl: thumbnailUrl || body.coverImage || "",
+      thumbnailUrl: resolvedThumbnailUrl,
       cloudinaryPublicId: cloudinaryResult.public_id,
       fileType,
       mimeType: file.mimetype,

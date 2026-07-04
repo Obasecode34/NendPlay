@@ -126,8 +126,8 @@ class DownloadService {
 
   // ── Mark download as complete ─────────────────────────────────────────
   // Called by frontend after file is saved locally
-  async completeDownload({ downloadId, userId, storageKey, storedFileSize }) {
-    const ownerFilter = userId ? { userId } : { userId: null };
+  async completeDownload({ downloadId, userId, deviceId, storageKey, storedFileSize }) {
+    const ownerFilter = userId ? { userId } : { userId: null, guestId: `guest:${deviceId}` };
     const download = await Download.findOne({ _id: downloadId, ...ownerFilter });
     if (!download) throw { status: 404, message: "Download record not found" };
 

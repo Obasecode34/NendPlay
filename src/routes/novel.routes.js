@@ -19,11 +19,14 @@ router.get("/genres", documentController.getGenres);
 router.get("/user/:userId", documentController.getDocumentsByUser);
 
 // ── Upload (auth required) ────────────────────────────────────────────────
-// multipart/form-data with field name: "document"
+// multipart/form-data with fields: "document" (required) + "thumbnail" (optional)
 router.post(
   "/upload",
   authMiddleware,
-  uploadDocument.single("document"),
+  uploadDocument.fields([
+    { name: "document", maxCount: 1 },
+    { name: "thumbnail", maxCount: 1 },
+  ]),
   handleDocumentUploadError,
   documentController.uploadDocument
 );

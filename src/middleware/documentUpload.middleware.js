@@ -25,6 +25,12 @@ const DOCUMENT_MIME_TYPES = {
   "text/csv":                                                           "csv",
 };
 
+const THUMBNAIL_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
 // ── Get file type label from MIME type ────────────────────────────────────
 const getFileType = (mimeType) => {
   return DOCUMENT_MIME_TYPES[mimeType] || "other";
@@ -38,9 +44,18 @@ const uploadDocument = multer({
   storage: memoryStorage,
   limits: {
     fileSize: MAX_DOC_SIZE_MB * 1024 * 1024,
-    files: 1,
+    files: 2,
   },
   fileFilter: (req, file, cb) => {
+    if (file.fieldname === "thumbnail") {
+      if (THUMBNAIL_MIME_TYPES.has(file.mimetype)) return cb(null, true);
+      return cb(new Error("Invalid thumbnail type. Use JPEG, PNG, or WebP."), false);
+    }
+
+    if (file.fieldname !== "document") {
+      return cb(new Error("Unexpected upload field. Use 'document' and optional 'thumbnail'."), false);
+    }
+
     const allowedTypes = Object.keys(DOCUMENT_MIME_TYPES);
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
@@ -77,4 +92,5 @@ module.exports = {
   handleDocumentUploadError,
   getFileType,
   DOCUMENT_MIME_TYPES,
+  THUMBNAIL_MIME_TYPES,
 };
