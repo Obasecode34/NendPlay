@@ -35,7 +35,11 @@ function trackRequestEvent(req, eventType, data = {}) {
 }
 
 function getRequestOrigin(req) {
-  return `${req.protocol}://${req.get("host")}`.replace(/\/+$/, "");
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const proto = forwardedProto || req.protocol || "https";
+  const host = forwardedHost || req.get("host");
+  return `${proto}://${host}`.replace(/\/+$/, "");
 }
 
 function rewriteHlsPlaylist({ playlist, mediaId, playbackToken, currentPath = "", requestOrigin = "" }) {
