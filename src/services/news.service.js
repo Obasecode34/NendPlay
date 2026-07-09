@@ -75,6 +75,35 @@ function normalizeList(value, max = 5) {
   return [...new Set(raw.map((item) => String(item).trim()).filter(Boolean))].slice(0, max);
 }
 
+function normalizeText(value = "") {
+  return String(value || "").trim();
+}
+
+function normalizeDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function normalizeJobFields(body = {}) {
+  return {
+    company: normalizeText(body.company || body.source || "NendPlay Media"),
+    tagline: normalizeText(body.tagline || "Empowering Jobs. Inspiring Futures."),
+    location: normalizeText(body.location || body.jobLocation),
+    salary: normalizeText(body.salary || body.salaryRange),
+    experience: normalizeText(body.experience || body.yearsExperience),
+    deadline: normalizeDate(body.deadline || body.applicationDeadline),
+    jobType: normalizeText(body.jobType),
+    level: normalizeText(body.level),
+    urgency: normalizeText(body.urgency),
+    applyEmail: normalizeText(body.applyEmail || body.contactEmail).toLowerCase(),
+    applyUrl: normalizeText(body.applyUrl || body.applicationUrl),
+    responsibilities: normalizeList(body.responsibilities, 12),
+    requirements: normalizeList(body.requirements, 12),
+    benefits: normalizeList(body.benefits, 8),
+  };
+}
+
 function isVideoFile(file = {}) {
   return String(file.mimetype || "").startsWith("video/");
 }
@@ -123,6 +152,20 @@ function toPublicNewsPost(post) {
     body: post.body,
     section: normalizeSection(post.section),
     jobMode: normalizeJobMode(post.jobMode),
+    company: post.company || post.source || "NendPlay News",
+    tagline: post.tagline || "",
+    location: post.location || "",
+    salary: post.salary || "",
+    experience: post.experience || "",
+    deadline: post.deadline || null,
+    jobType: post.jobType || "",
+    level: post.level || "",
+    urgency: post.urgency || "",
+    applyEmail: post.applyEmail || "",
+    applyUrl: post.applyUrl || "",
+    responsibilities: post.responsibilities || [],
+    requirements: post.requirements || [],
+    benefits: post.benefits || [],
     categories: post.categories || [],
     category: post.categories?.[0] || "Top Stories",
     source: post.source || "NendPlay News",
@@ -480,14 +523,17 @@ class NewsService {
       throw { status: 400, message: "Select at least one news category" };
     }
 
+    const section = normalizeSection(body.section);
     const mediaFiles = await this.uploadNewsFiles(files, []);
+    const jobFields = section === "career" ? normalizeJobFields(body) : {};
 
     const post = await NewsPost.create({
       header: body.header || body.title,
       subHeader: body.subHeader || body.summary || "",
       body: body.body || body.text,
-      section: normalizeSection(body.section),
-      jobMode: normalizeSection(body.section) === "career" ? normalizeJobMode(body.jobMode) : "",
+      section,
+      jobMode: section === "career" ? normalizeJobMode(body.jobMode) : "",
+      ...jobFields,
       categories,
       mediaFiles,
       adsEnabled: body.adsEnabled === undefined ? true : body.adsEnabled === true || body.adsEnabled === "true",
@@ -512,6 +558,25 @@ class NewsService {
       post.jobMode = normalizeSection(body.section !== undefined ? body.section : post.section) === "career"
         ? normalizeJobMode(body.jobMode || post.jobMode)
         : "";
+    }
+    const nextSection = normalizeSection(body.section !== undefined ? body.section : post.section);
+    if (nextSection === "career") {
+      Object.assign(post, normalizeJobFields({
+        company: body.company !== undefined ? body.company : post.company,
+        tagline: body.tagline !== undefined ? body.tagline : post.tagline,
+        location: body.location !== undefined ? body.location : post.location,
+        salary: body.salary !== undefined ? body.salary : post.salary,
+        experience: body.experience !== undefined ? body.experience : post.experience,
+        deadline: body.deadline !== undefined ? body.deadline : post.deadline,
+        jobType: body.jobType !== undefined ? body.jobType : post.jobType,
+        level: body.level !== undefined ? body.level : post.level,
+        urgency: body.urgency !== undefined ? body.urgency : post.urgency,
+        applyEmail: body.applyEmail !== undefined ? body.applyEmail : post.applyEmail,
+        applyUrl: body.applyUrl !== undefined ? body.applyUrl : post.applyUrl,
+        responsibilities: body.responsibilities !== undefined ? body.responsibilities : post.responsibilities,
+        requirements: body.requirements !== undefined ? body.requirements : post.requirements,
+        benefits: body.benefits !== undefined ? body.benefits : post.benefits,
+      }));
     }
     if (body.categories !== undefined || body.category !== undefined) {
       const categories = normalizeList(body.categories || body.category, 5).map((item) => item.toLowerCase());

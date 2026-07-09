@@ -133,6 +133,83 @@ const newsPostSchema = new mongoose.Schema(
       default: "",
       index: true,
     },
+    company: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 120,
+    },
+    tagline: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 180,
+    },
+    location: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 160,
+    },
+    salary: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 120,
+    },
+    experience: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 80,
+    },
+    deadline: {
+      type: Date,
+      default: null,
+    },
+    jobType: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 80,
+    },
+    level: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 80,
+    },
+    urgency: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 80,
+    },
+    applyEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+      maxlength: 160,
+    },
+    applyUrl: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 500,
+    },
+    responsibilities: {
+      type: [String],
+      default: [],
+    },
+    requirements: {
+      type: [String],
+      default: [],
+    },
+    benefits: {
+      type: [String],
+      default: [],
+    },
     categories: {
       type: [String],
       required: true,
