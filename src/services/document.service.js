@@ -167,12 +167,6 @@ class DocumentService {
     } = body;
 
     const fileType = getFileType(file.mimetype);
-    if (fileType !== "pdf") {
-      throw {
-        status: 400,
-        message: "NovelHub uploads currently accept PDF files only. Use NP Office for other document types.",
-      };
-    }
 
     // 1. Upload to Cloudinary
     let cloudinaryResult;

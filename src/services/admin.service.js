@@ -18,10 +18,16 @@ const paymentService = require("./payment.service");
 const { ADMIN_PERMISSIONS } = require("../config/adminPermissions");
 const { calculateAdPrice } = require("../config/adPricing");
 const { normalizeNovelGenre } = require("../config/novelGenres");
+const { DOCUMENT_MIME_TYPES } = require("../middleware/documentUpload.middleware");
 const { nanoid } = require("nanoid");
 
 const PAGE_LIMIT_MAX = 100;
 const PLAN_ORDER = ["none", "mobile", "basic", "standard", "premium"];
+const DOCUMENT_TYPE_MIME = Object.entries(DOCUMENT_MIME_TYPES).reduce((acc, [mimeType, fileType]) => {
+  if (!acc[fileType]) acc[fileType] = mimeType;
+  return acc;
+}, {});
+const DOCUMENT_EXTENSIONS = new Set(Object.values(DOCUMENT_MIME_TYPES));
 
 function pageParams(query) {
   const page = Math.max(parseInt(query.page, 10) || 1, 1);
@@ -40,6 +46,20 @@ function pagination(page, limit, total) {
     total,
     pages: Math.max(Math.ceil(total / limit), 1),
   };
+}
+
+function getImportDocumentType(body = {}) {
+  const explicit = String(body.fileType || "").trim().toLowerCase();
+  if (DOCUMENT_EXTENSIONS.has(explicit)) return explicit;
+
+  const mimeType = String(body.mimeType || "").trim().toLowerCase();
+  if (DOCUMENT_MIME_TYPES[mimeType]) return DOCUMENT_MIME_TYPES[mimeType];
+
+  const urlPath = String(body.fileUrl || "").split("?")[0].split("#")[0];
+  const extension = urlPath.includes(".") ? urlPath.split(".").pop().toLowerCase() : "";
+  if (DOCUMENT_EXTENSIONS.has(extension)) return extension;
+
+  return "pdf";
 }
 
 async function uploadAdCreativeFile(creativeFile) {
@@ -985,13 +1005,16 @@ class AdminService {
       "cc_by_nc_nd",
     ].includes(licenseType);
 
+    const fileType = getImportDocumentType(body);
+    const mimeType = body.mimeType || DOCUMENT_TYPE_MIME[fileType] || "application/octet-stream";
+
     const document = await Document.create({
       title: body.title,
       description: body.description || "",
       fileUrl: body.fileUrl,
       thumbnailUrl: body.thumbnailUrl || body.coverImage || "",
-      fileType: "pdf",
-      mimeType: "application/pdf",
+      fileType,
+      mimeType,
       fileSize: Number(body.fileSize || 0),
       category,
       genre: category,

@@ -16,12 +16,18 @@ const DOCUMENT_MIME_TYPES = {
   "application/pdf":                                                    "pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
   "application/msword":                                                 "doc",
+  "application/vnd.oasis.opendocument.text":                            "odt",
   "text/plain":                                                         "txt",
   "application/epub+zip":                                               "epub",
+  "application/x-mobipocket-ebook":                                     "mobi",
+  "application/vnd.amazon.ebook":                                       "mobi",
+  "application/rtf":                                                    "rtf",
+  "text/rtf":                                                           "rtf",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
   "application/vnd.ms-powerpoint":                                      "ppt",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":  "xlsx",
   "application/vnd.ms-excel":                                           "xls",
+  "application/vnd.oasis.opendocument.spreadsheet":                     "ods",
   "text/csv":                                                           "csv",
 };
 
@@ -62,7 +68,7 @@ const uploadDocument = multer({
     } else {
       cb(
         new Error(
-          "Invalid file type. Allowed: PDF, DOCX, DOC, TXT, EPUB, PPTX, PPT, XLSX, XLS, CSV"
+          "Invalid file type. Allowed: PDF, DOC, DOCX, TXT, ODT, ODS, EPUB, XLS, XLSX, MOBI, RTF, PPT, PPTX, CSV"
         ),
         false
       );
