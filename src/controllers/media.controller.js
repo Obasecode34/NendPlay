@@ -401,7 +401,32 @@ class MediaController {
       }
 
       // Parse the Range header: "bytes=start-end"
-      const fileSize = media.fileSize;
+      const fileSize = Number(media.fileSize);
+      if (!Number.isFinite(fileSize) || fileSize <= 0) {
+        try {
+          const response = await axios({
+            method: "GET",
+            url: sourceUrl,
+            responseType: "stream",
+            headers: { Range: range },
+            validateStatus: (status) => status >= 200 && status < 300,
+          });
+
+          res.status(response.status === 206 ? 206 : 200);
+          res.setHeader("Content-Type", response.headers["content-type"] || media.mimeType || "video/mp4");
+          res.setHeader("Accept-Ranges", response.headers["accept-ranges"] || "bytes");
+          if (response.headers["content-range"]) {
+            res.setHeader("Content-Range", response.headers["content-range"]);
+          }
+          if (response.headers["content-length"]) {
+            res.setHeader("Content-Length", response.headers["content-length"]);
+          }
+          return response.data.pipe(res);
+        } catch (streamErr) {
+          console.error("Range passthrough stream error:", streamErr.message);
+          return res.end();
+        }
+      }
       const parts = range.replace(/bytes=/, "").split("-");
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
