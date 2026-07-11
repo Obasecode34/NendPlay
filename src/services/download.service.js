@@ -82,7 +82,9 @@ class DownloadService {
       throw { status: 400, message: "contentType must be 'media' or 'document'" };
     }
 
-    const sourceUrl = content.hlsUrl || content.playbackUrl || content.mediaUrl || content.fileUrl || "";
+    const sourceUrl = contentType === "document"
+      ? content.fileUrl || content.documentUrl || ""
+      : content.mediaUrl || content.fileUrl || content.playbackUrl || content.hlsUrl || "";
 
     const downloadPayload = {
       userId: userId || null,
