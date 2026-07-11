@@ -75,6 +75,11 @@ function normalizeList(value, max = 5) {
   return [...new Set(raw.map((item) => String(item).trim()).filter(Boolean))].slice(0, max);
 }
 
+function normalizeParagraphList(value, max = 12) {
+  const raw = Array.isArray(value) ? value : String(value || "").split(/\r?\n+/);
+  return [...new Set(raw.map((item) => String(item).trim()).filter(Boolean))].slice(0, max);
+}
+
 function normalizeText(value = "") {
   return String(value || "").trim();
 }
@@ -98,9 +103,9 @@ function normalizeJobFields(body = {}) {
     urgency: normalizeText(body.urgency),
     applyEmail: normalizeText(body.applyEmail || body.contactEmail).toLowerCase(),
     applyUrl: normalizeText(body.applyUrl || body.applicationUrl),
-    responsibilities: normalizeList(body.responsibilities, 12),
-    requirements: normalizeList(body.requirements, 12),
-    benefits: normalizeList(body.benefits, 8),
+    responsibilities: normalizeParagraphList(body.responsibilities, 12),
+    requirements: normalizeParagraphList(body.requirements, 12),
+    benefits: normalizeParagraphList(body.benefits, 8),
   };
 }
 
@@ -518,19 +523,24 @@ class NewsService {
   }
 
   async createNewsPost({ body = {}, files = [], adminId }) {
-    const categories = normalizeList(body.categories || body.category, 5).map((item) => item.toLowerCase());
+    const section = normalizeSection(body.section);
+    const categories = normalizeList(
+      body.categories || body.category || (section === "career" ? "information technology" : "headlines"),
+      5
+    ).map((item) => item.toLowerCase());
     if (!categories.length) {
       throw { status: 400, message: "Select at least one news category" };
     }
 
-    const section = normalizeSection(body.section);
     const mediaFiles = await this.uploadNewsFiles(files, []);
     const jobFields = section === "career" ? normalizeJobFields(body) : {};
+    const fallbackHeader = section === "career" ? "Untitled job" : "";
+    const fallbackBody = section === "career" ? "Full job details will be provided by the hiring team." : "";
 
     const post = await NewsPost.create({
-      header: body.header || body.title,
+      header: body.header || body.title || fallbackHeader,
       subHeader: body.subHeader || body.summary || "",
-      body: body.body || body.text,
+      body: body.body || body.text || fallbackBody,
       section,
       jobMode: section === "career" ? normalizeJobMode(body.jobMode) : "",
       ...jobFields,
@@ -577,9 +587,11 @@ class NewsService {
         requirements: body.requirements !== undefined ? body.requirements : post.requirements,
         benefits: body.benefits !== undefined ? body.benefits : post.benefits,
       }));
+      if (!post.header) post.header = "Untitled job";
+      if (!post.body) post.body = "Full job details will be provided by the hiring team.";
     }
     if (body.categories !== undefined || body.category !== undefined) {
-      const categories = normalizeList(body.categories || body.category, 5).map((item) => item.toLowerCase());
+      const categories = normalizeList(body.categories || body.category || (nextSection === "career" ? "information technology" : "headlines"), 5).map((item) => item.toLowerCase());
       if (!categories.length) throw { status: 400, message: "Select at least one news category" };
       post.categories = categories;
     }
