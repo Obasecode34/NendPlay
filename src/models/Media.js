@@ -333,6 +333,22 @@ const mediaSchema = new mongoose.Schema(
       default: "",
     },
 
+    // For movies/videos: credits shown on playback detail pages
+    director: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    cast: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (items) => !items || items.length <= 5,
+        message: "A media file can have up to 5 cast members",
+      },
+    },
+
     // For movies/shows: release year
     releaseYear: {
       type: Number,
@@ -505,6 +521,8 @@ mediaSchema.index({
   description: "text",
   tags: "text",
   artist: "text",
+  director: "text",
+  cast: "text",
   genre: "text",
   genres: "text",
   category: "text",

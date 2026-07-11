@@ -809,7 +809,7 @@ class MediaService {
       "title", "description", "category", "categories", "navigationLabels", "tags",
       "genre", "genres", "language", "country", "contentRating",
       "releaseStatus", "homeSections", "isFeatured",
-      "featuredRank", "availabilityCountries", "artist", "releaseYear",
+      "featuredRank", "availabilityCountries", "artist", "director", "cast", "releaseYear",
       "collectionType", "parentTitle", "seasonNumber", "episodeNumber",
       "partNumber", "episodeTitle",
       "isLocked", "liveScheduledAt", "playbackUrl", "hlsUrl",
@@ -831,6 +831,8 @@ class MediaService {
           media.homeSections = media.navigationLabels;
         } else if (["tags", "homeSections", "availabilityCountries"].includes(field)) {
           media[field] = field === "homeSections" ? parseLimitedList(updates[field], 5) : parseList(updates[field]);
+        } else if (field === "cast") {
+          media.cast = parseLimitedList(updates[field], 5);
         } else if (field === "licenseType") {
           media[field] = LICENSE_TYPES.has(updates[field]) ? updates[field] : "unknown";
         } else if (["requiresAttribution", "isRightsVerified"].includes(field)) {

@@ -498,6 +498,8 @@ class AdminService {
       "genres",
       "language",
       "country",
+      "director",
+      "cast",
       "contentRating",
       "releaseStatus",
       "publishStatus",
@@ -554,6 +556,7 @@ class AdminService {
       updates.genre = parsedGenre[0] || updates.genre || "";
     }
     if (updates.homeSections !== undefined) updates.homeSections = parseList(updates.homeSections, 5);
+    if (updates.cast !== undefined) updates.cast = parseList(updates.cast, 5);
     if (updates.genrePins !== undefined) updates.genrePins = parseGenrePins(updates.genrePins) || {};
     if (updates.availabilityCountries !== undefined) updates.availabilityCountries = parseList(updates.availabilityCountries);
     if (updates.collectionType !== undefined && !["single", "movie_part", "series_episode"].includes(updates.collectionType)) {
