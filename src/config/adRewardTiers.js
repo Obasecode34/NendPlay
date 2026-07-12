@@ -22,7 +22,7 @@ const REWARD_POLICY = {
 };
 
 const PAID_AD_FREE = {
-  pricePerDayNaira: 99,
+  pricePerDayNaira: 33.3,
   minDays: 1,
   maxDays: 365,
 };

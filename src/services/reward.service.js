@@ -193,7 +193,9 @@ class RewardService {
       throw { status: 400, message: "Payment verification failed. Please try again." };
     }
 
-    if (!Number.isFinite(Number(verification.amount)) || Math.round(Number(verification.amount)) < pass.amountNaira) {
+    const paidAmountKobo = Math.round(Number(verification.amount) * 100);
+    const requiredAmountKobo = Math.round(Number(pass.amountNaira) * 100);
+    if (!Number.isFinite(paidAmountKobo) || paidAmountKobo < requiredAmountKobo) {
       await AdFreePass.findByIdAndUpdate(pass._id, { status: "failed" });
       throw { status: 400, message: "Payment amount is lower than the ad-free package price." };
     }
