@@ -26,23 +26,38 @@ class ReferralService {
   // ── Record a new referral ─────────────────────────────────────────────
   // Called from auth.service.js after a new user signs up with a referral code
   async recordReferral(referrerId, referredUserId, referralCode) {
+    let referral = null;
     try {
       // Check if this user was already referred (prevent duplicate records)
       const existing = await Referral.findOne({ referredUserId });
       if (existing) return null;
 
       // Create referral record
-      const referral = await Referral.create({
+      referral = await Referral.create({
         referrerId,
         referredUserId,
         referralCode,
       });
+
+      const referrer = await User.findByIdAndUpdate(
+        referrerId,
+        { $inc: { referralCount: 1 } },
+        { new: true }
+      );
+
+      if (!referrer) {
+        await Referral.findByIdAndDelete(referral._id);
+        return null;
+      }
 
       // Check and grant reward if threshold reached
       await this.checkAndGrantReward(referrerId);
 
       return referral;
     } catch (err) {
+      if (referral?._id) {
+        await Referral.findByIdAndDelete(referral._id).catch(() => {});
+      }
       // Non-fatal — referral tracking failure shouldn't break registration
       console.error("Record referral error:", err.message);
       return null;

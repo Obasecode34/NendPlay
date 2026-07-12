@@ -43,10 +43,6 @@ class AuthService {
       if (referrer) {
         referrerId = referrer._id;
         validReferralCode = referralCode;
-        // Increment referrer's count
-        await User.findByIdAndUpdate(referrer._id, {
-          $inc: { referralCount: 1 },
-        });
       }
     }
 
@@ -179,7 +175,6 @@ class AuthService {
       if (referrer) {
         referrerId = referrer._id;
         validReferralCode = referralCode;
-        await User.findByIdAndUpdate(referrer._id, { $inc: { referralCount: 1 } });
       }
     }
 

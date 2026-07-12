@@ -265,8 +265,15 @@ userSchema.methods.hasActiveSubscription = function () {
   return new Date() < new Date(this.subscriptionExpiry);
 };
 
+userSchema.methods.hasActiveAdFree = function () {
+  return Boolean(this.adFreeUntil && new Date() < new Date(this.adFreeUntil));
+};
+
 // ── Instance Method: safe public profile (no sensitive fields) ─────────────
 userSchema.methods.toPublicProfile = function () {
+  const isSubscriptionActive = this.hasActiveSubscription();
+  const isAdFreeActive = this.hasActiveAdFree();
+
   return {
     id: this._id,
     profileName: this.profileName,
@@ -276,7 +283,7 @@ userSchema.methods.toPublicProfile = function () {
     authMethod: this.authMethod,
     subscriptionPlan: this.subscriptionPlan,
     subscriptionExpiry: this.subscriptionExpiry,
-    isSubscriptionActive: this.hasActiveSubscription(),
+    isSubscriptionActive,
     referralCode: this.referralCode,
     referralCount: this.referralCount,
     savedMediaCount: this.savedMediaCount || 0,
@@ -286,7 +293,7 @@ userSchema.methods.toPublicProfile = function () {
     rewardActive: this.rewardActive,
     rewardCoins: this.rewardCoins || 0,
     adFreeUntil: this.adFreeUntil,
-    isAdFreeActive: Boolean(this.adFreeUntil && new Date() < new Date(this.adFreeUntil)),
+    isAdFreeActive,
     createdAt: this.createdAt,
   };
 };

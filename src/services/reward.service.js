@@ -38,9 +38,10 @@ class RewardService {
     return {
       coins: user.rewardCoins || 0,
       adFreeUntil: user.adFreeUntil || null,
-      isAdFreeActive: Boolean(user.adFreeUntil && new Date(user.adFreeUntil) > new Date()),
+      isAdFreeActive: user.hasActiveAdFree(),
       subscriptionPlan: user.subscriptionPlan,
       subscriptionExpiry: user.subscriptionExpiry,
+      isSubscriptionActive: user.hasActiveSubscription(),
       rewards: AD_REWARD_TIERS,
       policy: REWARD_POLICY,
       paidAdFree: PAID_AD_FREE,

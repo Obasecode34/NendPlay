@@ -17,7 +17,7 @@ const adFreePassSchema = new mongoose.Schema(
     pricePerDayNaira: {
       type: Number,
       required: true,
-      default: 99,
+      default: 33.3,
     },
     amountNaira: {
       type: Number,

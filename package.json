@@ -11,6 +11,7 @@
     "media:backfill-thumbnails": "node scripts/backfill-media-thumbnails.js",
     "media:fix-text-index": "node scripts/fix-media-text-index.js",
     "auth:fix-google-null-index": "node scripts/fix-google-null-index.js",
+    "referrals:reconcile-counts": "node scripts/reconcile-referral-counts.js",
     "test": "jest"
   },
   "dependencies": {
