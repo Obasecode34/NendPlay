@@ -18,6 +18,21 @@ const User = require("../models/User");
 const Media = require("../models/Media");
 const Document = require("../models/Document");
 const { getPlan } = require("../config/plans");
+const mediaService = require("./media.service");
+
+function getDownloadSourceForMedia(media, userId) {
+  const originalFileUrl = media.hlsUrl || media.playbackUrl || media.mediaUrl || media.fileUrl || "";
+  if (!originalFileUrl) return { fileUrl: "", originalFileUrl: "", sourceType: "" };
+
+  const playbackToken = mediaService.generatePlaybackToken(media._id, userId || null);
+  const sourceType = String(originalFileUrl).includes(".m3u8") ? "hls" : "file";
+
+  return {
+    fileUrl: `/api/media/${media._id}/stream?playbackToken=${encodeURIComponent(playbackToken)}`,
+    originalFileUrl,
+    sourceType,
+  };
+}
 
 class DownloadService {
   // ── Authorize a download ──────────────────────────────────────────────
@@ -82,9 +97,12 @@ class DownloadService {
       throw { status: 400, message: "contentType must be 'media' or 'document'" };
     }
 
+    const mediaSource = contentType === "media"
+      ? getDownloadSourceForMedia(content, userId)
+      : null;
     const sourceUrl = contentType === "document"
       ? content.fileUrl || content.documentUrl || ""
-      : content.mediaUrl || content.fileUrl || content.playbackUrl || content.hlsUrl || "";
+      : mediaSource.fileUrl;
 
     const downloadPayload = {
       userId: userId || null,
@@ -105,6 +123,7 @@ class DownloadService {
         fileSize: content.fileSize || 0,
         mimeType: content.mimeType || "",
         fileUrl: sourceUrl,
+        originalFileUrl: mediaSource?.originalFileUrl || "",
       },
     };
 
@@ -118,8 +137,10 @@ class DownloadService {
       download,
       guest: !userId,
       fileUrl: sourceUrl,
+      originalFileUrl: mediaSource?.originalFileUrl || "",
+      sourceType: mediaSource?.sourceType || "",
       title: content.title,
-      mimeType: content.mimeType,
+      mimeType: content.mimeType || (mediaSource?.sourceType === "hls" ? "application/vnd.apple.mpegurl" : ""),
       fileSize: content.fileSize,
       requiresAdminApproval: false,
       approvalStatus: "not_required",
