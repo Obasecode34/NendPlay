@@ -58,15 +58,16 @@ class ReferralController {
           req.user.userId
         );
         return ApiResponse.success(res, {
-          message: dashboard.nextTier
-            ? `No reward yet. Refer ${dashboard.nextTier.referralsNeeded} more user(s) to unlock ${dashboard.nextTier.plan}.`
-            : "You have reached the highest reward tier!",
-          data: { nextTier: dashboard.nextTier },
+          message: `Referral rewards are granted automatically. Each successful referral earns ${dashboard.rewardPerReferral || 100} coins.`,
+          data: {
+            rewardPerReferral: dashboard.rewardPerReferral || 100,
+            coinBalance: dashboard.coinBalance || 0,
+          },
         });
       }
 
       return ApiResponse.success(res, {
-        message: "Reward granted!",
+        message: "Reward granted.",
         data: { reward: result },
       });
     } catch (err) {
@@ -83,8 +84,13 @@ class ReferralController {
   // GET /api/referrals/tiers — get all reward tiers (public)
   getTiers(req, res) {
     try {
-      const { REWARD_TIERS } = require("../config/rewardTiers");
-      return ApiResponse.success(res, { data: { tiers: REWARD_TIERS } });
+      const { REWARD_TIERS, REFERRAL_COIN_REWARD } = require("../config/rewardTiers");
+      return ApiResponse.success(res, {
+        data: {
+          tiers: REWARD_TIERS,
+          rewardPerReferral: REFERRAL_COIN_REWARD,
+        },
+      });
     } catch (err) {
       return ApiResponse.error(res);
     }

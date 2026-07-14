@@ -6,20 +6,24 @@
 //   1. User A shares their referralCode (e.g. NP-X7K2M9PQ)
 //   2. User B signs up with that code (handled in auth.service.js)
 //   3. auth.service.js calls referral.service.recordReferral()
-//   4. recordReferral creates a Referral document + increments referralCount
-//   5. checkAndGrantReward runs — if threshold hit, grant free subscription
+//   4. recordReferral creates a Referral document, increments referralCount,
+//      and grants referral coins immediately.
 //
 // Reward flow:
-//   1. referralCount hits a tier threshold (e.g. 5 referrals)
-//   2. User gets a free subscription for the tier's duration
-//   3. If user already has a paid subscription, reward extends it
-//   4. rewardActive = true on User, rewardExpiry set
-//   5. Cron job checks daily for expired rewards
+//   1. Each successful referral earns a fixed coin amount.
+//   2. Coins are stored on User.rewardCoins and logged in RewardLedger.
+//   3. Users redeem coins through the standard rewards/ad-free flow.
 
 const Referral = require("../models/Referral");
 const User = require("../models/User");
 const Subscription = require("../models/Subscription");
-const { getEligibleTier, getNextTier, REWARD_TIERS } = require("../config/rewardTiers");
+const RewardLedger = require("../models/RewardLedger");
+const {
+  REFERRAL_COIN_REWARD,
+  getEligibleTier,
+  getNextTier,
+  REWARD_TIERS,
+} = require("../config/rewardTiers");
 const { nanoid } = require("nanoid");
 
 class ReferralService {
@@ -41,7 +45,7 @@ class ReferralService {
 
       const referrer = await User.findByIdAndUpdate(
         referrerId,
-        { $inc: { referralCount: 1 } },
+        { $inc: { referralCount: 1, rewardCoins: REFERRAL_COIN_REWARD } },
         { new: true }
       );
 
@@ -50,8 +54,22 @@ class ReferralService {
         return null;
       }
 
-      // Check and grant reward if threshold reached
-      await this.checkAndGrantReward(referrerId);
+      referral.rewardGranted = true;
+      referral.rewardTierUnlocked = "referral_coins";
+      await referral.save();
+
+      await RewardLedger.create({
+        userId: referrerId,
+        type: "earn",
+        source: "successful_referral",
+        coins: REFERRAL_COIN_REWARD,
+        balanceAfter: referrer.rewardCoins || 0,
+        metadata: {
+          referralId: referral._id,
+          referredUserId,
+          referralCode,
+        },
+      });
 
       return referral;
     } catch (err) {
@@ -65,40 +83,12 @@ class ReferralService {
   }
 
   // ── Check if referrer qualifies for a reward ──────────────────────────
+  // Kept for older clients. Referral rewards are now granted automatically
+  // when the referred account is created.
   async checkAndGrantReward(userId) {
     const user = await User.findById(userId);
     if (!user) return null;
-
-    const referralCount = user.referralCount;
-    const eligibleTier = getEligibleTier(referralCount);
-
-    if (!eligibleTier) return null; // No tier reached yet
-
-    // Check if this tier was already granted
-    // We track this by checking if there's a reward subscription
-    // for this tier already active or recently expired
-    const existingReward = await Subscription.findOne({
-      userId,
-      isReward: true,
-      status: { $in: ["active", "cancelled"] },
-      // Check if this tier or higher was already given
-    });
-
-    // If user already has an active reward subscription at same or better tier
-    if (existingReward && existingReward.status === "active") {
-      const existingPlanIndex = REWARD_TIERS.findIndex(
-        (t) => t.plan === existingReward.plan
-      );
-      const newPlanIndex = REWARD_TIERS.findIndex(
-        (t) => t.plan === eligibleTier.plan
-      );
-
-      // If existing reward is same or better — don't downgrade
-      if (existingPlanIndex <= newPlanIndex) return null;
-    }
-
-    // Grant the reward
-    return this._grantReward(user, eligibleTier);
+    return null;
   }
 
   // ── Grant a reward subscription ───────────────────────────────────────
@@ -176,7 +166,7 @@ class ReferralService {
       .sort({ createdAt: -1 })
       .lean();
 
-    const referralCount = user.referralCount;
+    const referralCount = user.referralCount || referrals.length;
     const eligibleTier = getEligibleTier(referralCount);
     const nextTier = getNextTier(referralCount);
 
@@ -190,11 +180,15 @@ class ReferralService {
     return {
       referralCode: user.referralCode,
       referralCount,
+      rewardPerReferral: REFERRAL_COIN_REWARD,
+      coinBalance: user.rewardCoins || 0,
+      totalCoinsEarnedFromReferrals: referrals.length * REFERRAL_COIN_REWARD,
       referrals: referrals.map((r) => ({
         id: r._id,
         referredUser: r.referredUserId,
         joinedAt: r.createdAt,
         rewardGranted: r.rewardGranted,
+        coinsEarned: r.rewardGranted ? REFERRAL_COIN_REWARD : 0,
       })),
       currentReward: activeReward
         ? {
