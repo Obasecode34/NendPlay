@@ -7,6 +7,7 @@ router.get("/admob/ssv", rewardController.admobSsv);
 router.get("/status", authMiddleware, rewardController.getStatus);
 router.post("/ad-earned", authMiddleware, rewardController.earnFromAd);
 router.post("/redeem", authMiddleware, rewardController.redeem);
+router.post("/withdraw", authMiddleware, rewardController.requestWithdrawal);
 router.post("/ad-free/initialize", authMiddleware, rewardController.initializePaidAdFree);
 router.post("/ad-free/verify", authMiddleware, rewardController.verifyPaidAdFree);
 

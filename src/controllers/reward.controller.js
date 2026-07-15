@@ -73,6 +73,25 @@ class RewardController {
     }
   }
 
+  async requestWithdrawal(req, res) {
+    try {
+      const status = await rewardService.requestWithdrawal({
+        userId: req.user.userId,
+        coins: req.body.coins,
+        bankName: req.body.bankName,
+        accountNumber: req.body.accountNumber,
+        accountName: req.body.accountName,
+      });
+      return ApiResponse.success(res, {
+        message: "Withdrawal request submitted",
+        data: status,
+      });
+    } catch (err) {
+      if (err.status) return ApiResponse.error(res, { statusCode: err.status, message: err.message });
+      return ApiResponse.error(res);
+    }
+  }
+
   async initializePaidAdFree(req, res) {
     try {
       const { days, gateway } = req.body;

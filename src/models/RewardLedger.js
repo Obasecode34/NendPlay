@@ -10,7 +10,7 @@ const rewardLedgerSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["earn", "redeem"],
+      enum: ["earn", "redeem", "withdrawal"],
       required: true,
     },
     source: {

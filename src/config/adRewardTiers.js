@@ -15,9 +15,9 @@ const AD_REWARD_TIERS = [...AD_FREE_REWARDS, ...PLAN_REWARDS];
 
 const REWARD_POLICY = {
   rewardOwner: "NendPlay",
-  cashValue: false,
+  cashValue: true,
   transferable: false,
-  useScope: "NendPlay ad-free access and NendPlay subscription plans only",
+  useScope: "NendPlay ad-free access, NendPlay subscription plans, and verified cash withdrawals",
   googleEndorsed: false,
 };
 
@@ -25,6 +25,13 @@ const PAID_AD_FREE = {
   pricePerDayNaira: 33.3,
   minDays: 1,
   maxDays: 365,
+};
+
+const COIN_WITHDRAWAL_POLICY = {
+  coinsPerNaira: 3,
+  minimumCoins: 3000,
+  minimumNaira: 1000,
+  verifiedAccountRequired: true,
 };
 
 function getRewardTier(rewardId) {
@@ -37,5 +44,6 @@ module.exports = {
   AD_REWARD_TIERS,
   REWARD_POLICY,
   PAID_AD_FREE,
+  COIN_WITHDRAWAL_POLICY,
   getRewardTier,
 };

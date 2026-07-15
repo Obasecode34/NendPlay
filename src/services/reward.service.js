@@ -3,11 +3,13 @@ const User = require("../models/User");
 const Subscription = require("../models/Subscription");
 const RewardLedger = require("../models/RewardLedger");
 const AdFreePass = require("../models/AdFreePass");
+const RewardWithdrawal = require("../models/RewardWithdrawal");
 const paymentService = require("./payment.service");
 const {
   AD_REWARD_TIERS,
   REWARD_POLICY,
   PAID_AD_FREE,
+  COIN_WITHDRAWAL_POLICY,
   getRewardTier,
 } = require("../config/adRewardTiers");
 
@@ -25,6 +27,10 @@ function getActiveBaseDate(existingDate) {
   return now;
 }
 
+function coinsToNaira(coins) {
+  return coins / COIN_WITHDRAWAL_POLICY.coinsPerNaira;
+}
+
 class RewardService {
   async getStatus(userId) {
     const user = await User.findById(userId);
@@ -35,8 +41,14 @@ class RewardService {
       .limit(20)
       .lean();
 
+    const withdrawals = await RewardWithdrawal.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
     return {
       coins: user.rewardCoins || 0,
+      isVerified: user.isVerified,
       adFreeUntil: user.adFreeUntil || null,
       isAdFreeActive: user.hasActiveAdFree(),
       subscriptionPlan: user.subscriptionPlan,
@@ -45,6 +57,8 @@ class RewardService {
       rewards: AD_REWARD_TIERS,
       policy: REWARD_POLICY,
       paidAdFree: PAID_AD_FREE,
+      withdrawalPolicy: COIN_WITHDRAWAL_POLICY,
+      withdrawals,
       history,
     };
   }
@@ -123,6 +137,55 @@ class RewardService {
       balanceAfter: user.rewardCoins || 0,
       rewardId: tier.id,
       metadata: tier,
+    });
+
+    return this.getStatus(userId);
+  }
+
+  async requestWithdrawal({ userId, coins, bankName = "", accountNumber = "", accountName = "" }) {
+    const requestedCoins = Math.floor(Number(coins));
+    if (!Number.isFinite(requestedCoins)) {
+      throw { status: 400, message: "Enter a valid coin amount" };
+    }
+    if (requestedCoins % COIN_WITHDRAWAL_POLICY.minimumCoins !== 0) {
+      throw { status: 400, message: `Withdrawals must be in ${COIN_WITHDRAWAL_POLICY.minimumCoins}-coin steps.` };
+    }
+    if (requestedCoins < COIN_WITHDRAWAL_POLICY.minimumCoins) {
+      throw { status: 400, message: `Minimum withdrawal is ${COIN_WITHDRAWAL_POLICY.minimumCoins} coins.` };
+    }
+    const user = await User.findById(userId);
+    if (!user) throw { status: 404, message: "User not found" };
+    if (COIN_WITHDRAWAL_POLICY.verifiedAccountRequired && !user.isVerified) {
+      throw { status: 403, message: "Verify your account before requesting a withdrawal." };
+    }
+    if ((user.rewardCoins || 0) < requestedCoins) {
+      throw { status: 400, message: `You need ${requestedCoins} coins to request this withdrawal.` };
+    }
+
+    const amountNaira = coinsToNaira(requestedCoins);
+    user.rewardCoins = (user.rewardCoins || 0) - requestedCoins;
+    await user.save();
+
+    const withdrawal = await RewardWithdrawal.create({
+      userId,
+      coins: requestedCoins,
+      amountNaira,
+      bankName,
+      accountNumber,
+      accountName,
+    });
+
+    await RewardLedger.create({
+      userId,
+      type: "withdrawal",
+      source: "coin_cashout",
+      coins: -requestedCoins,
+      balanceAfter: user.rewardCoins || 0,
+      metadata: {
+        withdrawalId: withdrawal._id,
+        amountNaira,
+        status: withdrawal.status,
+      },
     });
 
     return this.getStatus(userId);
